@@ -1,0 +1,13 @@
+.git
+.github
+.env
+.env.*
+landing/
+node_modules/
+.pytest_cache
+__pycache__
+*.pyc
+*.egg-info
+docs/
+tests/
+scripts/
