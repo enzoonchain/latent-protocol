@@ -22,7 +22,7 @@ dependencies = [
 
 [project.optional-dependencies]
 x402 = [
-    "x402[httpx]>=1.8.0",
+    "x402[evm,httpx]>=2.13.0",
 ]
 # Client-side MCP server (run on the user's machine; the ad server doesn't need it).
 mcp = [

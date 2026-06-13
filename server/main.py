@@ -72,34 +72,16 @@ app.include_router(earnings_router, prefix="/earnings", tags=["earnings"])
 app.include_router(payouts_router, prefix="/payout", tags=["payouts"])
 
 
-# ── x402 Payment Middleware (optional — enable when ready) ──
-# Uncomment when x402 is configured:
-#
-# from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
-# from x402.http.middleware.fastapi import PaymentMiddlewareASGI
-# from x402.http.types import RouteConfig
-# from x402.mechanisms.evm.exact import ExactEvmServerScheme
-# from x402.server import x402ResourceServer
-# from x402.schemas import Network
-#
-# facilitator = HTTPFacilitatorClient(FacilitatorConfig(url=FACILITATOR_URL))
-# x402_server = x402ResourceServer(facilitator)
-# x402_server.register(EVM_NETWORK, ExactEvmServerScheme())
-#
-# routes = {
-#     "POST /ad/request": RouteConfig(
-#         accepts=[PaymentOption(
-#             scheme="exact",
-#             pay_to=EVM_ADDRESS,
-#             price="$0.001",
-#             network=EVM_NETWORK,
-#         )],
-#         mime_type="application/json",
-#         description="Request an ad impression",
-#     ),
-# }
-#
-# app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=x402_server)
+# ── x402 Payment Middleware (env-gated; see server/x402_payments.py) ──
+from server.x402_payments import install_payment_middleware
+
+try:
+    if install_payment_middleware(app):
+        print(f"[agent-kickbacks] x402 payment ENABLED on POST /ad/request ({EVM_NETWORK})")
+    else:
+        print("[agent-kickbacks] x402 payment disabled (set X402_ENABLED=true to enable)")
+except Exception as exc:  # misconfigured or x402 extra missing — fail loud, run unpaid
+    print(f"[agent-kickbacks] ⚠️  x402 NOT installed — serving unpaid: {exc}")
 
 
 if __name__ == "__main__":

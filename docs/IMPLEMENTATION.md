@@ -35,7 +35,7 @@
 |---|------|-----------|-------|--------|
 | 1.1.1 | Initialize Python project (pyproject.toml, venv) | — | — | 🟢 |
 | 1.1.2 | Install dependencies: fastapi, uvicorn, x402[httpx], sqlalchemy, asyncpg | 1.1.1 | — | 🟢 (declared in pyproject) |
-| 1.1.3 | Create FastAPI app + wire x402 middleware (currently commented out) | 1.1.2 | — | 🟡 |
+| 1.1.3 | Create FastAPI app + wire x402 middleware (env-gated, `server/x402_payments.py`) | 1.1.2 | — | 🟢 |
 | 1.1.4 | Set up Coinbase CDP facilitator on Base | — | ethskills | 🔴 |
 | 1.1.5 | Create .env.example with all required vars | 1.1.3 | — | 🟢 |
 | 1.1.6 | Test x402 payment flow (Base Sepolia first) | 1.1.3, 1.1.4 | — | 🔴 |
@@ -44,7 +44,7 @@
 - `server/main.py` — FastAPI app + x402 middleware
 - `server/config.py` — environment variables
 - `server/routes/ads.py` — ad serving endpoints
-- `server/x402_payments.py` — x402 integration helpers
+- `server/x402_payments.py` — x402 integration helpers (env-gated, exact-EVM, x402 2.13)
 - `.env.example` — template
 
 **Questions to resolve:**
@@ -439,6 +439,7 @@ Phase 4 (Launch) ◄────────────────────
 
 ## Changelog
 
+- **2026-06-13** — **x402 middleware wired** (1.1.3). New `server/x402_payments.py`: env-gated (`X402_ENABLED`, default off), lazily imported, exact-EVM scheme against **x402 2.13** (`register_exact_evm_server` + `PaymentMiddlewareASGI`). The old commented block targeted the obsolete 1.8 API (`x402.mechanisms.evm.exact.ExactEvmServerScheme`) which no longer exists. `pyproject` extra → `x402[evm,httpx]>=2.13.0`. Live Base-Sepolia test (1.1.6) still pending (needs facilitator creds + funded wallet).
 - **2026-06-13** — **Integration model: MCP core + platform adapters** (not a plugin→MCP "migration"). MCP gives universal *pull* tools (balance/payout/status/request_ad), but ad *injection* is push-only and platform-specific. See `docs/MCP_MIGRATION.md` + `docs/AD_PLACEMENT_STRATEGY.md`. First adapter target: **Hermes** response footer (`transform_llm_output`).
 - **2026-06-13** — **Switched persistence from Supabase to Railway Postgres** (Q3 revised). Rationale: one platform with the ad server, direct asyncpg connection (no PostgREST hop on the 2s ad path), no vendor lock-in. `server/database.py` rewritten to SQLAlchemy async + asyncpg; added `scripts/schema.sql` (tables + indexes); `pyproject.toml` now depends on `sqlalchemy[asyncio]` + `asyncpg` (dropped `supabase`); `.env.example` uses `DATABASE_URL`; `docker-compose.yml` now runs Postgres + server with schema auto-init. Access control moves to the app layer (no RLS).
 - **2026-06-13** — Finalized plan: resolved Q1–Q10, added Q11/Q12, added Integrity & Anti-Fraud and Custody & Payout sections, marked scaffold tasks 🟢. Bug fixes landed in `server/routes/ads.py`:
