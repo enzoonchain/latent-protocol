@@ -425,15 +425,86 @@ agent-kickbacks = "agent_kickbacks.cli:main"
 
 ---
 
+## Thinking State Kutatás — Platformok
+
+### Összefoglaló
+
+| Platform | Thinking State | Plugin Injection | MCP támogatás |
+|----------|---------------|------------------|---------------|
+| **OpenClaw** | ✅ 6 szint (off→xhigh) | ✅ `before_prompt_build`, `enqueueNextTurnInjection` | ✅ Full |
+| **Hermes** | ✅ Van (thinking_callback) | ⚠️ Csak `pre_llm_call` (thinking ELŐTT) | ❌ Nem ismert |
+| **Claude Code** | ✅ Van (collapsed) | ❌ Nincs thinking injection | ✅ Full, de thinking közben nem |
+| **Aeon** | ❌ Nincs | ❌ Nincs hook | ✅ MCP client |
+
+### Részletes eredmények
+
+#### OpenClaw 🟢 (legjobb)
+- `before_prompt_build` → thinking ELŐTT injectálás
+- `before_tool_call` → thinking KÖZBEN (tool use között)
+- `enqueueNextTurnInjection` → exactly-once context injection
+- Full MCP support
+- **6 thinking szint:** off, minimal, low, medium, high, xhigh
+
+#### Hermes 🟡 (korlátozott)
+- `pre_llm_call` → thinking ELŐTT (prompt-ba szúrás)
+- `thinking_callback` → csak observer, nem módosítható
+- NINCS `on_thinking_start` hook
+- **19 plugin hook** elérhető
+
+#### Claude Code 🟡 (korlátozott)
+- Thinking és tool use szekvenciális (think → then tool)
+- MCP nem tud injectálni thinking közben
+- `UserPromptSubmit` hook → thinking ELŐTT
+- **10 hook event** elérhető
+
+#### Aeon 🔴 (nincs thinking state)
+- Nincs thinking state
+- Skills prompt-alapúak
+- MCP clientként működik
+- **17 ad placement mechanism** (de thinking nélkül)
+
+### Következtetés
+
+**A thinking state injection csak OpenClaw-nál működik rendesen.** A többi platformon:
+- **Hermes:** `pre_llm_call` → thinking ELŐTT injectálás
+- **Claude Code:** `Stop` hook → amikor leáll, hirdetés szúrása
+- **Aeon:** Skill output → chain context injektálás
+
+**A legjobb megoldás:** Response footer (válasz végén) MINDEN platformon működik!
+- OpenClaw: `message_sending` hook
+- Hermes: `transform_llm_output` hook
+- Claude Code: `Stop` hook
+- Aeon: Skill output
+
+→ Részletek: `docs/AD_PLACEMENT_STRATEGY.md`
+
+---
+
 ## Kockázatok
 
 | Kockázat | Kezelés |
 |----------|---------|
-| MCP nem minden agentben támogatott | Fallback: CLI mode |
+| MCP nem minden agentben támogatott | Fallback: CLI mode + platform-specific plugins |
 | MCP SDK instabil | Pinelt verzió |
-| Thinking state nem mindenhol hívható | Graceful degradation |
+| Thinking state nem mindenhol hívható | Response footer mindenhol működik |
+| Platform specifikus hookok eltérőek | Adapter minta: egy MCP server + platform adapterek |
+
+---
+
+## Nyitott kérdések (frissítve)
+
+| # | Kérdés | Válasz |
+|---|--------|--------|
+| M1 | MCP transport? | **stdio** (alapértelmezett) + SSE (távoli) |
+| M2 | MCP SDK? | **mcp** (hivatalos Python SDK) |
+| M3 | Thinking state hogyan? | **MCP nem tudja** — platform adapterek kellenek |
+| M4 | Config hol tárolódik? | `~/.agent-kickbacks/config.json` |
+| M5 | Több wallet? | Egyelőre egy wallet per user |
+| M6 | Melyik platform a legjobb? | **OpenClaw** (thinking + injection), második: **Hermes** |
+| M7 | Response footer mindenhol? | **Igen** — `message_sending`, `transform_llm_output`, `Stop` hook |
+| M8 | MCP + platform adapter? | **Igen** — MCP server univerzális, adapterek platformonként |
 
 ---
 
 *Last updated: 2026-06-13*
-*Status: MCP Migration Planning*
+*Status: MCP Migration Planning — Thinking State Research Complete*
