@@ -1,63 +1,32 @@
 "use client";
 
-import { useState } from "react";
-
-type Campaign = {
-  id: string;
-  name: string;
-  totalBudget: number;
-  budgetRemaining: number;
-  status: string;
-  impressions: number;
-  clicks: number;
-  ctr: number;
-  blocksRemaining: number;
-  ads: { id: string; title: string; body: string; bid: number }[];
-};
-
-const mockCampaigns: Campaign[] = [
-  {
-    id: "cmp-001",
-    name: "DeFi Yield Aggregator",
-    totalBudget: 100,
-    budgetRemaining: 40,
-    status: "active",
-    impressions: 12000,
-    clicks: 340,
-    ctr: 2.83,
-    blocksRemaining: 8,
-    ads: [
-      { id: "ad-1", title: "Earn 12% APY", body: "Stake ETH, earn yields.", bid: 0.005 },
-      { id: "ad-2", title: "DeFi Made Simple", body: "One-click yield strategies.", bid: 0.008 },
-    ],
-  },
-  {
-    id: "cmp-002",
-    name: "NFT Marketplace Launch",
-    totalBudget: 50,
-    budgetRemaining: 25,
-    status: "active",
-    impressions: 5000,
-    clicks: 120,
-    ctr: 2.4,
-    blocksRemaining: 5,
-    ads: [
-      { id: "ad-3", title: "Mint Free NFTs", body: "Zero gas, zero fees.", bid: 0.005 },
-    ],
-  },
-];
-
-function shortenAddr(addr: string) {
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-}
+import { useState, useEffect } from "react";
+import { useAccount } from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import {
+  fetchCampaigns,
+  createCampaign,
+  buyBlocks,
+  type Campaign,
+} from "@/lib/api";
 
 export function AdvertiserPortal() {
-  const [wallet, setWallet] = useState<string | null>(null);
+  const { address, isConnected } = useAccount();
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newCampaign, setNewCampaign] = useState({ name: "", budget: "" });
+  const [buying, setBuying] = useState<string | null>(null);
 
-  const campaigns = mockCampaigns;
+  useEffect(() => {
+    if (!isConnected || !address) return;
+    setLoading(true);
+    fetchCampaigns(address)
+      .then(setCampaigns)
+      .finally(() => setLoading(false));
+  }, [isConnected, address]);
+
   const active = campaigns.filter((c) => c.status === "active");
   const totalSpent = active.reduce(
     (a, c) => a + (c.totalBudget - c.budgetRemaining),
@@ -66,7 +35,46 @@ export function AdvertiserPortal() {
   const totalImpressions = active.reduce((a, c) => a + c.impressions, 0);
   const totalClicks = active.reduce((a, c) => a + c.clicks, 0);
 
-  if (!wallet) {
+  const handleCreate = async () => {
+    if (!address || !newCampaign.name || !newCampaign.budget) return;
+    const result = await createCampaign({
+      advertiser_wallet: address,
+      name: newCampaign.name,
+      total_budget: parseFloat(newCampaign.budget),
+    });
+    setCampaigns((prev) => [
+      ...prev,
+      {
+        id: result.campaign_id,
+        name: newCampaign.name,
+        totalBudget: parseFloat(newCampaign.budget),
+        budgetRemaining: parseFloat(newCampaign.budget),
+        status: "active",
+        impressions: 0,
+        clicks: 0,
+        ctr: 0,
+        blocksRemaining: 0,
+        ads: [],
+      },
+    ]);
+    setNewCampaign({ name: "", budget: "" });
+    setShowCreate(false);
+  };
+
+  const handleBuyBlocks = async (campaignId: string, blocks: number) => {
+    setBuying(campaignId);
+    try {
+      await buyBlocks(campaignId, blocks);
+      if (address) {
+        const updated = await fetchCampaigns(address);
+        setCampaigns(updated);
+      }
+    } finally {
+      setBuying(null);
+    }
+  };
+
+  if (!isConnected) {
     return (
       <section id="advertiser" className="section">
         <div className="wrap max-w-2xl mx-auto text-center">
@@ -80,12 +88,9 @@ export function AdvertiserPortal() {
             Connect your wallet to create campaigns, buy impression blocks, and
             track performance in real-time.
           </p>
-          <button
-            onClick={() => setWallet("0x7a3B...9f2E")}
-            className="btn mt-10"
-          >
-            Connect Wallet <span className="arrow">→</span>
-          </button>
+          <div className="mt-10 flex justify-center">
+            <ConnectButton />
+          </div>
         </div>
       </section>
     );
@@ -102,7 +107,7 @@ export function AdvertiserPortal() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-ivory-dim text-sm font-mono">
-              {shortenAddr(wallet)}
+              {address?.slice(0, 6)}...{address?.slice(-4)}
             </span>
             <button
               onClick={() => setShowCreate(!showCreate)}
@@ -177,7 +182,9 @@ export function AdvertiserPortal() {
               </div>
             </div>
             <div className="flex gap-3 mt-4">
-              <button className="btn text-xs py-2 px-4">Create Campaign</button>
+              <button onClick={handleCreate} className="btn text-xs py-2 px-4">
+                Create Campaign
+              </button>
               <button
                 onClick={() => setShowCreate(false)}
                 className="btn ghost text-xs py-2 px-4"
@@ -188,95 +195,109 @@ export function AdvertiserPortal() {
           </div>
         )}
 
+        {/* Loading */}
+        {loading && (
+          <div className="text-center py-12 text-ivory-dim">Loading...</div>
+        )}
+
         {/* Campaign list */}
-        <div className="space-y-4">
-          {campaigns.map((c) => (
-            <div
-              key={c.id}
-              className={`border transition-colors cursor-pointer ${
-                selectedCampaign === c.id
-                  ? "border-bronze"
-                  : "border-ivory-faint hover:border-ivory-dim"
-              }`}
-              onClick={() =>
-                setSelectedCampaign(
-                  selectedCampaign === c.id ? null : c.id
-                )
-              }
-            >
-              <div className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      c.status === "active" ? "bg-green-500" : "bg-ivory-dim"
-                    }`}
-                  />
-                  <div>
-                    <div className="font-medium">{c.name}</div>
-                    <div className="text-ivory-dim text-xs mt-0.5">
-                      {c.blocksRemaining} blocks remaining · {c.ads.length} ads
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-bronze font-serif">
-                    ${c.budgetRemaining.toFixed(2)}
-                  </div>
-                  <div className="text-ivory-dim text-xs">
-                    of ${c.totalBudget}
-                  </div>
-                </div>
-              </div>
-
-              {/* Expanded details */}
-              {selectedCampaign === c.id && (
-                <div className="border-t border-ivory-faint p-4 bg-teal-900/50">
-                  <div className="grid grid-cols-3 gap-4 mb-4">
+        {!loading && (
+          <div className="space-y-4">
+            {campaigns.map((c) => (
+              <div
+                key={c.id}
+                className={`border transition-colors cursor-pointer ${
+                  selectedCampaign === c.id
+                    ? "border-bronze"
+                    : "border-ivory-faint hover:border-ivory-dim"
+                }`}
+                onClick={() =>
+                  setSelectedCampaign(
+                    selectedCampaign === c.id ? null : c.id
+                  )
+                }
+              >
+                <div className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        c.status === "active" ? "bg-green-500" : "bg-ivory-dim"
+                      }`}
+                    />
                     <div>
-                      <div className="text-ivory-dim text-xs">Impressions</div>
-                      <div className="text-lg">{c.impressions.toLocaleString()}</div>
-                    </div>
-                    <div>
-                      <div className="text-ivory-dim text-xs">Clicks</div>
-                      <div className="text-lg">{c.clicks}</div>
-                    </div>
-                    <div>
-                      <div className="text-ivory-dim text-xs">CTR</div>
-                      <div className="text-lg text-bronze">{c.ctr}%</div>
-                    </div>
-                  </div>
-
-                  <h4 className="text-sm text-ivory-dim uppercase tracking-wider mb-2">
-                    Ads
-                  </h4>
-                  <div className="space-y-2">
-                    {c.ads.map((ad) => (
-                      <div
-                        key={ad.id}
-                        className="flex items-center justify-between p-3 border border-ivory-faint"
-                      >
-                        <div>
-                          <div className="font-medium text-sm">{ad.title}</div>
-                          <div className="text-ivory-dim text-xs">{ad.body}</div>
-                        </div>
-                        <div className="text-bronze text-sm">${ad.bid}/imp</div>
+                      <div className="font-medium">{c.name}</div>
+                      <div className="text-ivory-dim text-xs mt-0.5">
+                        {c.blocksRemaining} blocks remaining · {c.ads.length} ads
                       </div>
-                    ))}
+                    </div>
                   </div>
-
-                  <div className="flex gap-3 mt-4">
-                    <button className="btn text-xs py-2 px-4">
-                      Buy Blocks
-                    </button>
-                    <button className="btn ghost text-xs py-2 px-4">
-                      Add Ad
-                    </button>
+                  <div className="text-right">
+                    <div className="text-bronze font-serif">
+                      ${c.budgetRemaining.toFixed(2)}
+                    </div>
+                    <div className="text-ivory-dim text-xs">
+                      of ${c.totalBudget}
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
+
+                {/* Expanded details */}
+                {selectedCampaign === c.id && (
+                  <div className="border-t border-ivory-faint p-4 bg-teal-900/50">
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <div className="text-ivory-dim text-xs">Impressions</div>
+                        <div className="text-lg">{c.impressions.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-ivory-dim text-xs">Clicks</div>
+                        <div className="text-lg">{c.clicks}</div>
+                      </div>
+                      <div>
+                        <div className="text-ivory-dim text-xs">CTR</div>
+                        <div className="text-lg text-bronze">{c.ctr}%</div>
+                      </div>
+                    </div>
+
+                    <h4 className="text-sm text-ivory-dim uppercase tracking-wider mb-2">
+                      Ads
+                    </h4>
+                    <div className="space-y-2">
+                      {c.ads.map((ad) => (
+                        <div
+                          key={ad.id}
+                          className="flex items-center justify-between p-3 border border-ivory-faint"
+                        >
+                          <div>
+                            <div className="font-medium text-sm">{ad.title}</div>
+                            <div className="text-ivory-dim text-xs">{ad.body}</div>
+                          </div>
+                          <div className="text-bronze text-sm">${ad.bid}/imp</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-3 mt-4">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBuyBlocks(c.id, 1);
+                        }}
+                        disabled={buying === c.id}
+                        className="btn text-xs py-2 px-4"
+                      >
+                        {buying === c.id ? "Buying..." : "Buy 1 Block"}
+                      </button>
+                      <button className="btn ghost text-xs py-2 px-4">
+                        Add Ad
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

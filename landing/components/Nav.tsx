@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount } from "wagmi";
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
+  const { isConnected } = useAccount();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
@@ -23,7 +26,7 @@ export function Nav() {
       <a href="#top" className="font-script text-3xl text-ivory no-underline leading-none">
         Latent
       </a>
-      <div className="flex gap-8 items-center max-md:hidden">
+      <div className="flex gap-6 items-center max-md:hidden">
         {[
           ["#how", "How it works"],
           ["#blocks", "Live Ads"],
@@ -38,12 +41,11 @@ export function Nav() {
             {label}
           </a>
         ))}
-        <a
-          href="#install"
-          className="text-bronze border border-ivory-faint px-4 py-2.5 no-underline text-xs tracking-widest uppercase font-medium hover:border-bronze transition-colors"
-        >
-          Get paid to wait
-        </a>
+        <ConnectButton
+          chainStatus="icon"
+          showBalance={false}
+          accountStatus="address"
+        />
       </div>
     </nav>
   );
