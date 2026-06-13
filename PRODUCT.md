@@ -79,7 +79,7 @@ A VS Code extension that replaces AI coding tool spinners (Claude Code, Codex) w
 |-----------|----------------|
 | Google OAuth | Wallet signature (EIP-712) |
 | Stripe/fiat | x402 + USDC on Base |
-| VS Code extension | Hermes plugin |
+| VS Code extension | MCP server + platform adapters (Hermes, OpenClaw, Claude Code, Aeon) |
 | Private backend | Open source, self-hostable |
 | 1 surface (VS Code) | 4+ surfaces (WebUI, Telegram, CLI, Discord) |
 | Centralized ad server | Distributed marketplace |
@@ -88,12 +88,18 @@ A VS Code extension that replaces AI coding tool spinners (Claude Code, Codex) w
 
 ### The 4 Surfaces (Our Version)
 
-| Surface | Injection Point | Method |
-|---------|----------------|--------|
-| **WebUI thinking state** | While agent is "thinking" | MCP prompt → ad banner |
-| **WebUI response footer** | After agent response | MCP prompt → response footer |
-| **Telegram response footer** | After agent message | MCP tool → sponsored message |
-| **CLI response footer** | After terminal output | MCP tool → ANSI banner |
+> **Important:** ad *injection* is **push** and MCP cannot do it (MCP tools are
+> pull — the agent calls them; MCP prompts are user-invoked templates). Injection
+> is therefore done by **platform adapters** (per-platform hooks). MCP is used for
+> *user-initiated* tools (balance/payout/status/optional request_ad) and as the
+> universal distribution layer. See `docs/AD_PLACEMENT_STRATEGY.md`.
+
+| Surface | Injection Point | Method (push = platform adapter) |
+|---------|----------------|----------------------------------|
+| **Response footer** *(primary, universal)* | After each agent response | Adapter hook — Hermes `transform_llm_output`, OpenClaw `message_sending`, Claude Code `Stop`, Aeon skill output |
+| **Thinking state** *(bonus, OpenClaw-only today)* | While agent is "thinking" | Adapter hook — OpenClaw `before_tool_call`; not reliably available elsewhere |
+| **Context injection** *(soft)* | Before the agent answers | Adapter hook — Hermes `pre_llm_call`, OpenClaw `before_agent_start` |
+| **User tools** | On demand | MCP tools — `check_balance`, `request_payout`, `ad_status`, `request_ad` |
 
 ### What the MCP Server Handles
 
@@ -108,9 +114,10 @@ A VS Code extension that replaces AI coding tool spinners (Claude Code, Codex) w
 │  ├── request_payout → withdraw USDC                  │
 │  └── ad_status → system status                       │
 │                                                      │
-│  PROMPTS (agent calls):                              │
-│  ├── thinking_ad → ad for thinking state             │
-│  └── response_footer → ad after response             │
+│  PUSH INJECTION (platform adapters, NOT MCP):        │
+│  ├── response_footer → after-response (all platforms)│
+│  └── thinking_ad → thinking state (OpenClaw only)    │
+│  (adapters call the shared core; MCP can't push)     │
 │                                                      │
 │  TRACKING:                                           │
 │  ├── impression log → ad server API                  │
@@ -169,8 +176,8 @@ A VS Code extension that replaces AI coding tool spinners (Claude Code, Codex) w
 │             │                     │                               │
 │             ▼                     ▼                               │
 │  ┌──────────────┐    ┌──────────────────────┐                   │
-│  │  Supabase     │    │  x402 Facilitator    │                   │
-│  │  (DB + Auth)  │    │  (Coinbase CDP)      │                   │
+│  │ Railway PG    │    │  x402 Facilitator    │                   │
+│  │ (Postgres)    │    │  (Coinbase CDP)      │                   │
 │  │               │    │                       │                   │
 │  │  ads          │    │  verify + settle      │                   │
 │  │  campaigns    │    │  USDC on Base         │                   │
@@ -305,7 +312,9 @@ async def request_ad(req: AdRequest):
     )
 ```
 
-### Database Schema (Supabase)
+### Database Schema (Railway Postgres)
+
+> Canonical DDL lives in [`scripts/schema.sql`](scripts/schema.sql). The block below is illustrative.
 
 ```sql
 -- Ads table
@@ -739,7 +748,7 @@ window._thinkingTick = function() {
 |------|-------------|-------|
 | Ad server API (FastAPI) | `/ad/request`, `/ad/click` endpoints | Backend |
 | x402 integration | Payment middleware on ad routes | Backend |
-| Supabase schema | All tables created | Backend |
+| Postgres schema | All tables created (`scripts/schema.sql`) | Backend |
 | Hermes plugin scaffold | `~/.hermes/plugins/agent-ads/` | Plugin |
 | Plugin: ad_client.py | Ad server communication | Plugin |
 | Plugin: tracker.py | Impression + click tracking | Plugin |
@@ -817,7 +826,7 @@ agent-kickbacks/
 │   ├── matcher.py                   # ad targeting engine
 │   ├── tracker.py                   # impression/click tracking
 │   ├── x402_payments.py             # x402 integration
-│   └── database.py                  # Supabase client
+│   └── database.py                  # async SQLAlchemy engine (asyncpg)
 │
 ├── portal/                          # Advertiser portal (Next.js)
 │   ├── pages/

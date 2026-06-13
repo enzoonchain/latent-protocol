@@ -1,10 +1,17 @@
 # MCP Migration Plan — Agent Kickbacks
 
->从 Hermes plugin → MCP Server migráció. Univerzális agent integráció.
+> Integrációs modell: **MCP core + platform adapterek**. Univerzális agent integráció.
+
+> **⚠️ Pontosítás (fontos):** Ez NEM tiszta „plugin → MCP" csere. Az MCP **pull**
+> (az agent hívja a toolt) — remek a user-indított műveletekhez (balance, payout,
+> status, opcionális ad-kérés) és terjesztéshez. De a reklám **injektálás push**,
+> amit **az MCP egyik platformon sem tud**. A garantált felületeket (response footer,
+> thinking banner) **platform-specifikus adapterek** adják. Tehát: **MCP a pull-hoz,
+> adapterek a push-hoz.** Lásd `docs/AD_PLACEMENT_STRATEGY.md`.
 
 ---
 
-## Miért MCP?
+## Miért MCP (a pull rétegre)?
 
 | Régi (Hermes plugin) | Új (MCP Server) |
 |----------------------|-----------------|
@@ -191,7 +198,16 @@ def ad_status() -> dict:
     }
 ```
 
-### Prompt: Thinking Ad (MCP sampling)
+### ⚠️ Prompt: Thinking Ad / Response Footer — KONCEPCIONÁLIS HIBA
+
+> **A két `@mcp.prompt()` alábbi kód NEM működik injektálásra.** Az MCP prompt
+> egy **user által meghívott sablon**, nem esemény-hook — nem sül el „thinking
+> start"-ra vagy „response vége"-re. Ezt a két felületet a **platform adapterek**
+> valósítják meg (Hermes `transform_llm_output`, OpenClaw `message_sending`, stb.),
+> nem az MCP. A kód alább **illusztráció a kívánt tartalomra**, nem a tényleges
+> mechanizmus — a valós megvalósítást lásd `docs/AD_PLACEMENT_STRATEGY.md`.
+
+### Prompt: Thinking Ad (illusztráció — valódi injektálás: platform adapter)
 
 ```python
 @mcp.prompt()
@@ -380,8 +396,10 @@ dependencies = [
     "mcp>=1.0.0",
     "httpx>=0.25.0",
     "pydantic>=2.0.0",
-    "supabase>=2.0.0",
 ]
+# Note: the MCP/adapter client talks to the ad server over HTTP (httpx) and
+# never touches the database directly — no DB driver here. Postgres
+# (sqlalchemy + asyncpg) lives only in the server/ package.
 
 [project.scripts]
 agent-kickbacks-mcp = "agent_kickbacks.mcp_server:main"

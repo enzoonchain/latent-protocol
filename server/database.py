@@ -1,16 +1,58 @@
-"""Supabase database client."""
+"""Async Postgres database layer (Railway) — SQLAlchemy + asyncpg.
+
+Railway injects a `DATABASE_URL`. We connect directly with asyncpg for low
+latency (the plugin enforces a 2s timeout on ad requests), rather than going
+through a REST layer.
+"""
 
 import os
-from supabase import create_client, Client
+from collections.abc import AsyncGenerator
 
-_supabase: Client | None = None
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+
+# Local default mirrors docker-compose; Railway overrides via DATABASE_URL.
+DEFAULT_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/agent_kickbacks"
+
+_engine: AsyncEngine | None = None
+_sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
 
-def get_db() -> Client:
-    """Get or create Supabase client."""
-    global _supabase
-    if _supabase is None:
-        url = os.getenv("SUPABASE_URL", "")
-        key = os.getenv("SUPABASE_KEY", "")
-        _supabase = create_client(url, key)
-    return _supabase
+def _normalize_url(url: str) -> str:
+    """Coerce a libpq-style URL to the asyncpg driver.
+
+    Railway/Postgres hand out `postgresql://` (or legacy `postgres://`);
+    SQLAlchemy's async engine needs the `+asyncpg` driver suffix.
+    """
+    if url.startswith("postgresql+asyncpg://"):
+        return url
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+asyncpg://", 1)
+    return url
+
+
+def get_engine() -> AsyncEngine:
+    """Get or create the shared async engine + sessionmaker."""
+    global _engine, _sessionmaker
+    if _engine is None:
+        url = _normalize_url(os.getenv("DATABASE_URL", DEFAULT_URL))
+        _engine = create_async_engine(url, pool_pre_ping=True)
+        _sessionmaker = async_sessionmaker(
+            _engine, class_=AsyncSession, expire_on_commit=False
+        )
+    return _engine
+
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency: yield an async DB session per request."""
+    if _sessionmaker is None:
+        get_engine()
+    assert _sessionmaker is not None
+    async with _sessionmaker() as session:
+        yield session

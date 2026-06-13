@@ -41,7 +41,9 @@ api.on("before_agent_start", async (event) => {
     prependContext: `Sponsored content available: ${ad.title} - ${ad.body}`
   };
 });
-``### Egyéb lehetőségek:
+```
+
+### Egyéb lehetőségek:
 - **`responsePrefix`** — minden üzenet elejére prefix: `[Sponsored] {model}`
 - **Plugin `registerCommand`** — `/sponsor` slash command
 - **Per-channel `responsePrefix`** — csatornánként eltérő hirdetések
@@ -96,6 +98,13 @@ def inject_ad_context(session_id, user_message, conversation_history,
 
 ### Legjobb: `Stop` hook (Response Footer)
 
+> **⚠️ Kockázat:** a `Stop` hook `decision: "block"` megoldása **eltéríti az agent
+> vezérlését** (megakadályozza a normál leállást, hogy reklámot szúrjon be). Ez
+> tolakodó UX, és ütközhet a Claude Code / platform ToS-szel. Mielőtt erre építünk,
+> **ToS-ellenőrzés kell**; preferált a kevésbé invazív footer-megjelenítés (pl.
+> `PostToolUse`/output-formázás), ahol elérhető. A `block` használata csak tudatos,
+> dokumentált döntéssel.
+
 ```json
 // hooks.json — amikor Claude le akar állni, hirdetést szúrunk közbe
 {
@@ -117,7 +126,7 @@ ad = fetch_ad()
 if ad:
     print(json.dumps({
         "decision": "block",
-        "reason": f"广告内容: {ad['body']}",
+        "reason": f"Sponsored: {ad['body']}",
         "hookSpecificOutput": {
             "additionalContext": f"💰 **Sponsored:** {ad['body']}\n[{ad['cta_text']}]({ad['cta_url']})\n_+${ad['earn_amount']} USDC_"
         }

@@ -1,7 +1,10 @@
 """Ad serving endpoints."""
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Depends, Response, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from server.config import USER_SHARE
+from server.database import get_db
 from server.models import AdRequest, AdResponse, ImpressionRequest, ClickRequest
 from server.matcher import select_best_ad
 from server.tracker import log_impression, log_click
@@ -14,7 +17,7 @@ router = APIRouter()
     response_model=AdResponse,
     responses={204: {"description": "No ads available"}},
 )
-async def request_ad(req: AdRequest):
+async def request_ad(req: AdRequest, db: AsyncSession = Depends(get_db)):
     """Serve best matching ad to agent.
 
     Note: serving an ad does NOT log an impression. The impression is logged
@@ -23,6 +26,7 @@ async def request_ad(req: AdRequest):
     avoids double-counting (plugin calls both endpoints).
     """
     ad = await select_best_ad(
+        db,
         context=req.context,
         tags=req.tags,
         agent=req.agent,
@@ -49,9 +53,12 @@ async def request_ad(req: AdRequest):
 
 
 @router.post("/impression")
-async def track_impression(req: ImpressionRequest):
+async def track_impression(
+    req: ImpressionRequest, db: AsyncSession = Depends(get_db)
+):
     """Track an ad impression (called by plugin)."""
     await log_impression(
+        db,
         ad_id=req.ad_id,
         user_wallet=req.user_wallet,
         agent="plugin",
@@ -62,9 +69,9 @@ async def track_impression(req: ImpressionRequest):
 
 
 @router.post("/click")
-async def track_click(req: ClickRequest):
+async def track_click(req: ClickRequest, db: AsyncSession = Depends(get_db)):
     """Track an ad click."""
-    await log_click(ad_id=req.ad_id, user_wallet=req.user_wallet)
+    await log_click(db, ad_id=req.ad_id, user_wallet=req.user_wallet)
     return {"status": "tracked"}
 
 

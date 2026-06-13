@@ -16,22 +16,39 @@ dependencies = [
     "httpx>=0.25.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
-    "supabase>=2.0.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg>=0.29.0",
 ]
 
 [project.optional-dependencies]
 x402 = [
     "x402[httpx]>=1.8.0",
 ]
+# Client-side MCP server (run on the user's machine; the ad server doesn't need it).
+mcp = [
+    "mcp>=1.0.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "ruff>=0.1.0",
+    "alembic>=1.13.0",
 ]
+
+[project.scripts]
+agent-kickbacks-mcp = "agent_kickbacks.mcp_server:main"
 
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = [
+    "server",
+    "server.routes",
+    "agent_kickbacks",
+    "agent_kickbacks.adapters",
+]
 
 [tool.ruff]
 line-length = 100
