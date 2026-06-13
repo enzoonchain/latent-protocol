@@ -4,32 +4,25 @@ Crypto-native ad marketplace for AI agents.
 x402 micropayments on Base.
 """
 
-import os
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-load_dotenv()
+from server.config import EVM_ADDRESS, EVM_NETWORK, FACILITATOR_URL
 
-# ── Config ──
-EVM_ADDRESS = os.getenv("EVM_ADDRESS")
-EVM_NETWORK = os.getenv("EVM_NETWORK", "eip155:84532")  # Base Sepolia default
-FACILITATOR_URL = os.getenv("FACILITATOR_URL", "https://x402.org/facilitator")
-DATABASE_URL = os.getenv("DATABASE_URL")
+load_dotenv()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup/shutdown lifecycle."""
-    # Startup: verify x402 facilitator connection
-    print(f"[agent-kickbacks] Starting ad server")
+    print("[agent-kickbacks] Starting ad server")
     print(f"  Network: {EVM_NETWORK}")
     print(f"  Treasury: {EVM_ADDRESS}")
     print(f"  Facilitator: {FACILITATOR_URL}")
     yield
-    # Shutdown
     print("[agent-kickbacks] Shutting down")
 
 
@@ -40,10 +33,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — allow all origins for plugin access
+# CORS — configurable origins via env
+import os
+
+_raw_origins = os.getenv("CORS_ORIGINS", "*")
+allow_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -80,7 +78,7 @@ try:
         print(f"[agent-kickbacks] x402 payment ENABLED on POST /ad/request ({EVM_NETWORK})")
     else:
         print("[agent-kickbacks] x402 payment disabled (set X402_ENABLED=true to enable)")
-except Exception as exc:  # misconfigured or x402 extra missing — fail loud, run unpaid
+except Exception as exc:
     print(f"[agent-kickbacks] ⚠️  x402 NOT installed — serving unpaid: {exc}")
 
 
@@ -91,5 +89,4 @@ if __name__ == "__main__":
         "server.main:app",
         host=os.getenv("SERVER_HOST", "0.0.0.0"),
         port=int(os.getenv("SERVER_PORT", "8000")),
-        reload=True,
     )

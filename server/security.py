@@ -19,9 +19,21 @@ _DEFAULT_TTL = int(os.getenv("IMPRESSION_TOKEN_TTL_SECONDS", "300"))
 
 
 def _secret() -> bytes:
-    # Read at call time so tests/deploys can set it via env. A default is used
-    # only for local dev; production must set IMPRESSION_SIGNING_SECRET.
-    return os.getenv("IMPRESSION_SIGNING_SECRET", "dev-insecure-secret").encode()
+    """Read signing secret from env. Falls back to a dev-only default.
+
+    In production, IMPRESSION_SIGNING_SECRET MUST be set — otherwise anyone
+    can forge impression tokens and claim fake earnings.
+    """
+    secret = os.getenv("IMPRESSION_SIGNING_SECRET", "")
+    if not secret:
+        import warnings
+        warnings.warn(
+            "IMPRESSION_SIGNING_SECRET not set — using insecure dev default. "
+            "Set this in production!",
+            stacklevel=2,
+        )
+        secret = "dev-insecure-secret"
+    return secret.encode()
 
 
 def _sign(msg: str) -> str:

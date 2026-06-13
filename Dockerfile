@@ -3,10 +3,9 @@ FROM python:3.12-slim
 WORKDIR /app
 
 COPY pyproject.toml .
-RUN pip install --no-cache-dir -e ".[x402]"
+RUN pip install --no-cache-dir ".[x402]"
 
 COPY server/ server/
-COPY .env .
 
 EXPOSE 8000
 
