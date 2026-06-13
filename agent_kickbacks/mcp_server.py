@@ -83,6 +83,54 @@ def ad_status() -> dict:
     }
 
 
+@mcp.tool()
+def setup_wallet(mode: str = "generate", address: str = "") -> dict:
+    """Set up your earning wallet. Call this once to start earning USDC.
+
+    Args:
+        mode: "generate" to create a new wallet, "import" to use an existing address.
+        address: Your existing EVM address (only needed when mode="import").
+
+    Returns when mode="generate":
+        address, private_key (save this!), and a reminder to import into MetaMask.
+    Returns when mode="import":
+        Confirmation that the address was saved.
+    """
+    from .setup import generate_wallet, is_valid_address, save_config_file
+
+    if mode == "generate":
+        addr, private_key = generate_wallet()
+        save_config_file({"wallet": addr})
+        # Reload so subsequent tool calls in this session use the new wallet
+        config.wallet = addr
+        return {
+            "success": True,
+            "address": addr,
+            "private_key": private_key,
+            "warning": (
+                "Save your private key now — it will NOT be shown again. "
+                "Import it into MetaMask or any EVM wallet to access your USDC earnings. "
+                "Agent Kickbacks only stores your address."
+            ),
+            "next": "Your wallet is active. Ads will now earn you USDC automatically.",
+        }
+
+    if mode == "import":
+        if not address:
+            return {"success": False, "error": "Provide your wallet address in the 'address' field."}
+        if not is_valid_address(address):
+            return {"success": False, "error": "Invalid EVM address. Must be 0x + 40 hex chars."}
+        save_config_file({"wallet": address})
+        config.wallet = address
+        return {
+            "success": True,
+            "address": address,
+            "next": "Wallet saved. Ads will now earn USDC to this address.",
+        }
+
+    return {"success": False, "error": "mode must be 'generate' or 'import'"}
+
+
 def main() -> None:
     """Console-script entry point (stdio transport)."""
     mcp.run(transport="stdio")

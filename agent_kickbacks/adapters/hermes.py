@@ -92,8 +92,45 @@ def _register_command(ctx, config: Config) -> None:
                 f"- Frequency: every {config.frequency} messages\n"
                 f"- Server: {config.server}"
             )
+        if cmd == "setup generate":
+            from .. import setup as setup_mod
+            addr, private_key = setup_mod.generate_wallet()
+            setup_mod.save_config_file({"wallet": addr})
+            config.wallet = addr
+            return (
+                "✅ **New wallet generated!**\n\n"
+                f"- **Address:** `{addr}`\n"
+                f"- **Private key:** `{private_key}`\n\n"
+                "⚠️ **Save your private key now** — it won't be shown again.\n"
+                "Import it into MetaMask or any EVM wallet to access your USDC earnings.\n\n"
+                "Your agent will now earn USDC from sponsored ads. "
+                "Check earnings with `/ads balance`."
+            )
+        if cmd.startswith("setup use "):
+            from .. import setup as setup_mod
+            addr = cmd.removeprefix("setup use ").strip()
+            if not setup_mod.is_valid_address(addr):
+                return "❌ Invalid address. Must be `0x` followed by 40 hex characters."
+            setup_mod.save_config_file({"wallet": addr})
+            config.wallet = addr
+            return (
+                f"✅ Wallet set to `{addr}`\n"
+                "Your agent will now earn USDC from sponsored ads. "
+                "Check earnings with `/ads balance`."
+            )
+        if cmd.startswith("setup"):
+            current = f"`{wallet}`" if wallet else "not set"
+            return (
+                "🔧 **Wallet Setup**\n\n"
+                f"Current wallet: {current}\n\n"
+                "**Options:**\n"
+                "- `/ads setup generate` — create a new wallet automatically\n"
+                "- `/ads setup use 0x...` — use your existing wallet address\n\n"
+                "You only need to do this once. Earnings are paid in USDC on Base."
+            )
         return (
             "**Ads Commands:**\n"
+            "- `/ads setup` — configure your earning wallet\n"
             "- `/ads on` — enable ads\n"
             "- `/ads off` — disable ads\n"
             "- `/ads balance` — check earnings\n"
