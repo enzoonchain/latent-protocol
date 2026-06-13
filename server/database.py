@@ -1,7 +1,6 @@
-"""Async Postgres database layer (Railway) — SQLAlchemy + psycopg.
+"""Async Postgres database layer (Railway) — SQLAlchemy + asyncpg.
 
-Railway injects a `DATABASE_URL`. We use psycopg (psycopg3) which handles
-Railway's TCP proxy SSL correctly.
+Railway injects a `DATABASE_URL`. Internal domain (no SSL) or TCP proxy (SSL).
 """
 
 import os
@@ -14,34 +13,40 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-# Local default mirrors docker-compose; Railway overrides via DATABASE_URL.
-DEFAULT_URL = "postgresql+psycopg://postgres:postgres@localhost:5432/agent_kickbacks"
+DEFAULT_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/agent_kickbacks"
 
 _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
 
 def _normalize_url(url: str) -> str:
-    """Coerce a libpq-style URL to the psycopg driver."""
-    if url.startswith("postgresql+psycopg://"):
-        return url
     if url.startswith("postgresql+asyncpg://"):
-        return url.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
+        return url
+    if url.startswith("postgresql+psycopg://"):
+        return url.replace("postgresql+psycopg://", "postgresql+asyncpg://", 1)
     if url.startswith("postgresql://"):
-        return url.replace("postgresql://", "postgresql+psycopg://", 1)
+        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
     if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql+psycopg://", 1)
+        return url.replace("postgres://", "postgresql+asyncpg://", 1)
     return url
 
 
 def get_engine() -> AsyncEngine:
-    """Get or create the shared async engine + sessionmaker."""
     global _engine, _sessionmaker
     if _engine is None:
         url = _normalize_url(os.getenv("DATABASE_URL", DEFAULT_URL))
+        connect_args = {}
+        # Railway TCP proxy needs SSL; internal domain does not
+        if "proxy.rlwy.net" in url:
+            import ssl as _ssl
+            ssl_ctx = _ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = _ssl.CERT_NONE
+            connect_args["ssl"] = ssl_ctx
         _engine = create_async_engine(
             url,
             pool_pre_ping=True,
+            connect_args=connect_args,
         )
         _sessionmaker = async_sessionmaker(
             _engine, class_=AsyncSession, expire_on_commit=False
@@ -50,7 +55,6 @@ def get_engine() -> AsyncEngine:
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency: yield an async DB session per request."""
     if _sessionmaker is None:
         get_engine()
     assert _sessionmaker is not None
