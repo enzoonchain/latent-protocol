@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import {
   fetchEarnings,
   fetchEarningsHistory,
@@ -15,6 +15,7 @@ import {
 
 export function UserPortal() {
   const { address, isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
   const [earnings, setEarnings] = useState<Earnings | null>(null);
   const [history, setHistory] = useState<EarningEvent[]>([]);
   const [payouts, setPayouts] = useState<Payout[]>([]);
@@ -66,8 +67,10 @@ export function UserPortal() {
             Connect your wallet to see how much you&apos;ve earned from ad
             impressions and request USDC payouts on Base.
           </p>
-          <div className="mt-10 flex justify-center">
-            <ConnectButton />
+          <div className="mt-10">
+            <button onClick={openConnectModal} className="btn">
+              Connect Wallet <span className="arrow">→</span>
+            </button>
           </div>
         </div>
       </section>

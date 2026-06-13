@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import {
   fetchCampaigns,
   createCampaign,
@@ -12,6 +12,7 @@ import {
 
 export function AdvertiserPortal() {
   const { address, isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
@@ -88,8 +89,10 @@ export function AdvertiserPortal() {
             Connect your wallet to create campaigns, buy impression blocks, and
             track performance in real-time.
           </p>
-          <div className="mt-10 flex justify-center">
-            <ConnectButton />
+          <div className="mt-10">
+            <button onClick={openConnectModal} className="btn">
+              Connect Wallet <span className="arrow">→</span>
+            </button>
           </div>
         </div>
       </section>

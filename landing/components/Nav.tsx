@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useAccount, useDisconnect } from "wagmi";
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
+  const { disconnect } = useDisconnect();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
@@ -41,11 +43,18 @@ export function Nav() {
             {label}
           </a>
         ))}
-        <ConnectButton
-          chainStatus="icon"
-          showBalance={false}
-          accountStatus="address"
-        />
+        {isConnected ? (
+          <button
+            onClick={() => disconnect()}
+            className="btn ghost text-xs py-2 px-4"
+          >
+            {address?.slice(0, 6)}...{address?.slice(-4)}
+          </button>
+        ) : (
+          <button onClick={openConnectModal} className="btn text-xs py-2 px-4">
+            Connect Wallet <span className="arrow">→</span>
+          </button>
+        )}
       </div>
     </nav>
   );
