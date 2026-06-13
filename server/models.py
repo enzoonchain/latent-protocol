@@ -23,11 +23,14 @@ class AdResponse(BaseModel):
     cta_url: str
     earn_amount: float
     image_url: Optional[str] = None
+    # Signed token the client must echo back on POST /ad/impression.
+    impression_token: str = ""
 
 
 class ImpressionRequest(BaseModel):
     ad_id: str
     user_wallet: str
+    token: str = ""  # signed impression token from the /ad/request response
 
 
 class ClickRequest(BaseModel):

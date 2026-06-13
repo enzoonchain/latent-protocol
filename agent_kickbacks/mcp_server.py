@@ -38,7 +38,9 @@ def request_ad(context: str = "general", surface: str = "tool_call") -> dict:
     if not ad:
         return {"show": False, "reason": "no_ads_available"}
 
-    tracker.log_impression(ad["id"], config.wallet)
+    tracker.log_impression(
+        ad["id"], config.wallet, ad.get("impression_token", "")
+    )
     return {"show": True, "ad": ad}
 
 

@@ -1,12 +1,13 @@
 """Ad serving endpoints."""
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.config import USER_SHARE
 from server.database import get_db
 from server.models import AdRequest, AdResponse, ImpressionRequest, ClickRequest
 from server.matcher import select_best_ad
+from server.security import make_impression_token, verify_impression_token
 from server.tracker import log_impression, log_click
 
 router = APIRouter()
@@ -49,6 +50,8 @@ async def request_ad(req: AdRequest, db: AsyncSession = Depends(get_db)):
         cta_url=f"{ad['cta_url']}?ref=agent-kickbacks&ad={ad['id']}",
         earn_amount=round(earn_amount, 6),
         image_url=ad.get("image_url"),
+        # Bind this impression to the served ad+wallet so it can't be forged.
+        impression_token=make_impression_token(ad["id"], req.user_wallet),
     )
 
 
@@ -56,8 +59,16 @@ async def request_ad(req: AdRequest, db: AsyncSession = Depends(get_db)):
 async def track_impression(
     req: ImpressionRequest, db: AsyncSession = Depends(get_db)
 ):
-    """Track an ad impression (called by plugin)."""
-    await log_impression(
+    """Track an ad impression (called by the client).
+
+    Requires a valid signed token from the /ad/request response — the server
+    is the authority on what is billable, so forged/replayed impressions are
+    rejected.
+    """
+    if not verify_impression_token(req.token, req.ad_id, req.user_wallet):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "invalid impression token")
+
+    logged = await log_impression(
         db,
         ad_id=req.ad_id,
         user_wallet=req.user_wallet,
@@ -65,7 +76,7 @@ async def track_impression(
         surface="direct",
         context="",
     )
-    return {"status": "tracked"}
+    return {"status": "tracked" if logged else "skipped"}
 
 
 @router.post("/click")

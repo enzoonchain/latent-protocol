@@ -7,7 +7,12 @@ server decides what is billable and how much the user earns.
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.config import CLICK_MULTIPLIER, USER_SHARE
+from server.config import (
+    CLICK_MIN_VIEW_SECONDS,
+    CLICK_MULTIPLIER,
+    IMPRESSION_REPLAY_WINDOW_SECONDS,
+    USER_SHARE,
+)
 
 
 def user_earning_for_impression(bid: float) -> float:
@@ -27,12 +32,13 @@ async def log_impression(
     agent: str,
     surface: str,
     context: str,
-) -> None:
+) -> bool:
     """Record a (confirmed-display) impression and credit the user.
 
     Revenue split: user 50% / operator 30% / protocol 20% of the bid. We store
     the user's share in `earnings` and debit the campaign budget by the full
-    bid in one atomic step.
+    bid in one atomic step. Returns True if logged, False if skipped (unknown
+    ad or replay within the dedup window).
     """
     ad = (
         await db.execute(
@@ -44,7 +50,22 @@ async def log_impression(
         )
     ).mappings().first()
     if not ad:
-        return  # unknown ad — nothing billable
+        return False  # unknown ad — nothing billable
+
+    # Anti-replay: ignore a duplicate impression for this ad+user logged within
+    # the dedup window (a valid token can otherwise be replayed during its TTL).
+    dup = (
+        await db.execute(
+            text(
+                "SELECT 1 FROM impressions "
+                "WHERE ad_id = CAST(:ad_id AS uuid) AND user_wallet = :wallet "
+                "AND created_at > now() - make_interval(secs => :win) LIMIT 1"
+            ),
+            {"ad_id": ad_id, "wallet": user_wallet, "win": IMPRESSION_REPLAY_WINDOW_SECONDS},
+        )
+    ).first()
+    if dup:
+        return False
 
     bid = float(ad["bid_per_impression"])
 
@@ -97,15 +118,17 @@ async def log_impression(
         {"bid": bid, "campaign_id": ad["campaign_id"]},
     )
     await db.commit()
+    return True
 
 
-async def log_click(db: AsyncSession, ad_id: str, user_wallet: str) -> None:
+async def log_click(db: AsyncSession, ad_id: str, user_wallet: str) -> bool:
     """Record a click. Idempotent: only the first click on a given impression
-    is credited (anti double-counting / click fraud).
+    is credited (anti double-counting / click fraud), and only once the
+    impression is at least CLICK_MIN_VIEW_SECONDS old (anti-misclick gate).
 
-    Clicks are worth CLICK_MULTIPLIER × an impression.
+    Clicks are worth CLICK_MULTIPLIER × an impression. Returns True if credited.
     """
-    # Mark the most recent un-clicked impression for this ad+user as clicked.
+    # Mark the most recent un-clicked, sufficiently-viewed impression as clicked.
     clicked = (
         await db.execute(
             text(
@@ -116,17 +139,18 @@ async def log_click(db: AsyncSession, ad_id: str, user_wallet: str) -> None:
                     WHERE ad_id = CAST(:ad_id AS uuid)
                       AND user_wallet = :wallet
                       AND clicked = FALSE
+                      AND created_at <= now() - make_interval(secs => :min_view)
                     ORDER BY created_at DESC
                     LIMIT 1
                 )
                 RETURNING id
                 """
             ),
-            {"ad_id": ad_id, "wallet": user_wallet},
+            {"ad_id": ad_id, "wallet": user_wallet, "min_view": CLICK_MIN_VIEW_SECONDS},
         )
     ).mappings().first()
     if not clicked:
-        return  # no matching impression, or already credited
+        return False  # no eligible impression, too fresh, or already credited
 
     ad = (
         await db.execute(
@@ -138,7 +162,7 @@ async def log_click(db: AsyncSession, ad_id: str, user_wallet: str) -> None:
         )
     ).mappings().first()
     if not ad:
-        return
+        return False
     bid = float(ad["bid_per_impression"])
 
     await db.execute(
@@ -168,3 +192,4 @@ async def log_click(db: AsyncSession, ad_id: str, user_wallet: str) -> None:
         {"cost": bid * CLICK_MULTIPLIER, "campaign_id": ad["campaign_id"]},
     )
     await db.commit()
+    return True

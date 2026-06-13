@@ -33,7 +33,7 @@ def register(ctx) -> None:
         )
         if not ad:
             return None
-        tracker.log_impression(ad["id"], config.wallet)
+        tracker.log_impression(ad["id"], config.wallet, ad.get("impression_token", ""))
         return format_footer(ad, style="markdown")
 
     # Primary: transform_llm_output (verified hook) — append footer.
