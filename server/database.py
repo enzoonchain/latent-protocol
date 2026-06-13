@@ -1,8 +1,7 @@
-"""Async Postgres database layer (Railway) — SQLAlchemy + asyncpg.
+"""Async Postgres database layer (Railway) — SQLAlchemy + psycopg.
 
-Railway injects a `DATABASE_URL`. We connect directly with asyncpg for low
-latency (the plugin enforces a 2s timeout on ad requests), rather than going
-through a REST layer.
+Railway injects a `DATABASE_URL`. We use psycopg (psycopg3) which handles
+Railway's TCP proxy SSL correctly.
 """
 
 import os
@@ -16,24 +15,22 @@ from sqlalchemy.ext.asyncio import (
 )
 
 # Local default mirrors docker-compose; Railway overrides via DATABASE_URL.
-DEFAULT_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/agent_kickbacks"
+DEFAULT_URL = "postgresql+psycopg://postgres:postgres@localhost:5432/agent_kickbacks"
 
 _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
 
 def _normalize_url(url: str) -> str:
-    """Coerce a libpq-style URL to the asyncpg driver.
-
-    Railway/Postgres hand out `postgresql://` (or legacy `postgres://`);
-    SQLAlchemy's async engine needs the `+asyncpg` driver suffix.
-    """
-    if url.startswith("postgresql+asyncpg://"):
+    """Coerce a libpq-style URL to the psycopg driver."""
+    if url.startswith("postgresql+psycopg://"):
         return url
+    if url.startswith("postgresql+asyncpg://"):
+        return url.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
     if url.startswith("postgresql://"):
-        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return url.replace("postgresql://", "postgresql+psycopg://", 1)
     if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql+asyncpg://", 1)
+        return url.replace("postgres://", "postgresql+psycopg://", 1)
     return url
 
 
@@ -42,23 +39,9 @@ def get_engine() -> AsyncEngine:
     global _engine, _sessionmaker
     if _engine is None:
         url = _normalize_url(os.getenv("DATABASE_URL", DEFAULT_URL))
-        # Strip sslmode= from URL — asyncpg doesn't understand it
-        if "sslmode=" in url:
-            url = url.split("?")[0]
-
-        connect_args = {}
-        # Railway TCP proxy (thomas.proxy.rlwy.net) needs SSL context
-        if "proxy.rlwy.net" in url:
-            import ssl as _ssl
-            ssl_ctx = _ssl.create_default_context()
-            ssl_ctx.check_hostname = False
-            ssl_ctx.verify_mode = _ssl.CERT_NONE
-            connect_args["ssl"] = ssl_ctx
-
         _engine = create_async_engine(
             url,
             pool_pre_ping=True,
-            connect_args=connect_args,
         )
         _sessionmaker = async_sessionmaker(
             _engine, class_=AsyncSession, expire_on_commit=False
