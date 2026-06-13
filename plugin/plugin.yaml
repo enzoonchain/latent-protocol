@@ -1,0 +1,19 @@
+# Agent Kickbacks — Hermes Plugin
+
+name: agent-ads
+version: "0.1.0"
+description: "Earn USDC while your agent works. Open ad marketplace for AI agents on Base."
+author: "Agent Kickbacks"
+license: Apache-2.0
+homepage: "https://github.com/enzoonchain/agent-kickbacks"
+
+requires_env: []
+
+config:
+  ads.wallet: ""
+  ads.enabled: true
+  ads.frequency: 5
+  ads.categories:
+    - all
+  ads.server: "https://ads.agentkickbacks.io"
+  ads.min_payout: 5.0
