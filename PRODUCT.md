@@ -10,7 +10,7 @@ Kickbacks.ai turns AI agent wait states into ad inventory — users earn money w
 
 - **No Google auth** → wallet signature
 - **No Stripe/fiat** → x402 + USDC on Base
-- **No VS Code extension** → Hermes plugin + WebUI integration
+- **No VS Code extension** → MCP Server (works with Claude Code, OpenClaw, Aeon, etc.)
 - **No closed backend** → open source, self-hostable
 - **No single surface** → WebUI, Telegram, CLI, Discord
 
@@ -90,44 +90,39 @@ A VS Code extension that replaces AI coding tool spinners (Claude Code, Codex) w
 
 | Surface | Injection Point | Method |
 |---------|----------------|--------|
-| **WebUI thinking state** | While agent is "thinking" | Modify `ui.js` — inject ad banner into `thinkingRow` element |
-| **WebUI response footer** | After agent response | Hermes plugin `post_response` hook |
-| **Telegram response footer** | After agent message | Plugin appends sponsored message |
-| **CLI response footer** | After terminal output | Plugin appends ANSI colored banner |
+| **WebUI thinking state** | While agent is "thinking" | MCP prompt → ad banner |
+| **WebUI response footer** | After agent response | MCP prompt → response footer |
+| **Telegram response footer** | After agent message | MCP tool → sponsored message |
+| **CLI response footer** | After terminal output | MCP tool → ANSI banner |
 
-### What the Plugin Handles
+### What the MCP Server Handles
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  PLUGIN: agent-ads (Hermes plugin)                  │
+│  MCP SERVER: agent-kickbacks                         │
 ├─────────────────────────────────────────────────────┤
 │                                                      │
-│  INPUT:                                              │
-│  ├── on_thinking_start hook → fetch ad               │
-│  ├── post_tool_call hook → fetch ad                  │
-│  ├── post_response hook → append footer ad           │
-│  └── /ads slash command → user control               │
+│  TOOLS (user can call):                              │
+│  ├── request_ad → fetch ad to display                │
+│  ├── check_balance → earnings balance                │
+│  ├── request_payout → withdraw USDC                  │
+│  └── ad_status → system status                       │
 │                                                      │
-│  OUTPUT:                                             │
-│  ├── WebUI: ad banner in thinking state              │
-│  ├── WebUI: ad card in response footer               │
-│  ├── Telegram: sponsored message after response      │
-│  ├── CLI: ANSI banner after response                 │
-│  └── earnings balance display                        │
+│  PROMPTS (agent calls):                              │
+│  ├── thinking_ad → ad for thinking state             │
+│  └── response_footer → ad after response             │
 │                                                      │
 │  TRACKING:                                           │
 │  ├── impression log → ad server API                  │
 │  ├── click tracking → redirect URLs                  │
-│  ├── view time → IntersectionObserver (WebUI)        │
-│  └── frequency cap → per-session counter             │
+│  └── frequency cap → server-side enforcement         │
 │                                                      │
 │  WALLET:                                             │
-│  ├── config: ads.wallet (Base address)               │
+│  ├── config: wallet (Base address)                   │
 │  ├── earnings accumulation (off-chain ledger)        │
-│  ├── balance display (WebUI sidebar)                 │
 │  └── payout trigger: $5+ USDC on Base               │
 │                                                      │
-│  NOT in plugin:                                      │
+│  NOT in MCP server:                                  │
 │  ├── Ad server hosting → separate service            │
 │  ├── Advertiser portal → separate web app            │
 │  ├── USDC smart contract → on-chain settlement       │
@@ -147,14 +142,14 @@ A VS Code extension that replaces AI coding tool spinners (Claude Code, Codex) w
 │                                                                  │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐       │
 │  │  Advertiser   │    │  User/Agent  │    │  Operator     │       │
-│  │  (Protocol)   │    │  (Hermes)    │    │  (You)        │       │
+│  │  (Protocol)   │    │  (Any MCP)   │    │  (You)        │       │
 │  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘       │
 │         │                    │                    │               │
 │         ▼                    ▼                    ▼               │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐       │
-│  │  Advertiser   │    │  Hermes      │    │  Admin        │       │
-│  │  Portal       │    │  Plugin      │    │  Dashboard    │       │
-│  │  (Next.js)    │    │  (Python)    │    │  (Next.js)    │       │
+│  │  Advertiser   │    │  MCP Server  │    │  Admin        │       │
+│  │  Portal       │    │  (Python)    │    │  Dashboard    │       │
+│  │  (Next.js)    │    │              │    │  (Next.js)    │       │
 │  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘       │
 │         │                    │                    │               │
 │         ▼                    ▼                    ▼               │
@@ -393,140 +388,158 @@ CREATE TABLE payouts (
 );
 ```
 
-### Hermes Plugin Structure
+### MCP Server Structure
 
 ```
-~/.hermes/plugins/agent-ads/
-├── plugin.yaml                 # manifest
-├── __init__.py                 # register() — hooks + tools
+src/agent_kickbacks/
+├── __init__.py                 # version
+├── mcp_server.py               # MCP server entry point
+├── tools/
+│   ├── __init__.py
+│   ├── request_ad.py           # request ad tool
+│   ├── check_balance.py        # check balance tool
+│   └── payout.py               # payout tool
+├── hooks/
+│   ├── __init__.py
+│   ├── thinking.py             # thinking state hook
+│   └── response.py             # response footer hook
 ├── ad_client.py                # ad server API client
 ├── tracker.py                  # impression + click tracking
 ├── wallet.py                   # earnings + payout
-├── config.py                   # ads.wallet, ads.frequency, etc.
-├── hooks/
-│   ├── on_thinking.py          # thinking state injection
-│   ├── post_tool_call.py       # tool call post-hook
-│   └── post_response.py        # response footer
-├── commands/
-│   └── ads.py                  # /ads slash command
-└── static/
-    └── ad_card.js              # WebUI banner component
+└── config.py                   # configuration
 ```
 
-### Plugin Code
+### MCP Server Code
 
 ```python
-# ~/.hermes/plugins/agent-ads/__init__.py
+# src/agent_kickbacks/mcp_server.py
 
-import json
+from mcp.server.fastmcp import FastMCP
 from .ad_client import AdClient
 from .tracker import Tracker
 from .wallet import Wallet
-from .config import get_config
+from .config import Config
 
-def register(ctx):
-    config = get_config()
-    client = AdClient(config.server)
-    tracker = Tracker(config.server)
-    wallet = Wallet(config.wallet)
+mcp = FastMCP("Agent Kickbacks", version="0.1.0")
 
-    # ─── TOOL: fetch ad ───
-    schema = {
-        "name": "agent_ads",
-        "description": "Fetch a sponsored recommendation to display.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "context": {"type": "string", "description": "User context"}
-            }
+config = Config()
+client = AdClient(config.ad_server_url)
+tracker = Tracker(config.ad_server_url)
+wallet = Wallet(config.private_key, config.rpc_url)
+
+# ─── Tool: Request Ad ───
+@mcp.tool()
+def request_ad(
+    context: str = "general",
+    surface: str = "auto"
+) -> dict:
+    """Fetch a sponsored recommendation to display to the user.
+    
+    Args:
+        context: What the user is working on
+        surface: Display surface (auto, thinking, footer, cli)
+    """
+    ad = client.get_ad(
+        wallet=config.user_wallet,
+        context=context,
+        surface=surface
+    )
+    
+    if not ad:
+        return {"show": False, "reason": "no_ads_available"}
+    
+    tracker.log_impression(ad["id"], config.user_wallet)
+    
+    return {
+        "show": True,
+        "ad": {
+            "id": ad["id"],
+            "title": ad["title"],
+            "body": ad["body"],
+            "cta_text": ad["cta_text"],
+            "cta_url": ad["cta_url"],
+            "earn_amount": ad["earn_amount"]
         }
     }
 
-    def handle_ads(params, **kwargs):
-        ad = client.get_ad(
-            wallet=config.wallet,
-            context=params.get("context", "general"),
-            agent="hermes"
-        )
-        if ad:
-            tracker.log_impression(ad["id"], config.wallet)
-            return json.dumps({"show": True, "ad": ad})
-        return json.dumps({"show": False})
+# ─── Tool: Check Balance ───
+@mcp.tool()
+def check_balance() -> dict:
+    """Check your current earnings balance in USDC."""
+    balance = wallet.get_balance()
+    return {
+        "balance_usdc": balance,
+        "wallet": config.user_wallet,
+        "network": "Base"
+    }
 
-    ctx.register_tool(
-        name="agent_ads",
-        toolset="agent_ads",
-        schema=schema,
-        handler=handle_ads,
-        description="Fetch sponsored recommendation"
+# ─── Tool: Request Payout ───
+@mcp.tool()
+def request_payout() -> dict:
+    """Request payout of earned USDC (minimum $5)."""
+    balance = wallet.get_balance()
+    
+    if balance < 5.0:
+        return {
+            "success": False,
+            "reason": f"Minimum $5.00 required. Current: ${balance:.4f}"
+        }
+    
+    tx_hash = wallet.payout()
+    return {
+        "success": True,
+        "tx_hash": tx_hash,
+        "amount": balance
+    }
+
+# ─── Prompt: Thinking Ad ───
+@mcp.prompt()
+def thinking_ad(context: str = "") -> str:
+    """Called when agent starts thinking. Returns ad to display."""
+    if not config.enabled:
+        return ""
+    
+    ad = client.get_ad(
+        wallet=config.user_wallet,
+        context=context,
+        surface="thinking"
     )
+    
+    if ad:
+        tracker.log_impression(ad["id"], config.user_wallet)
+        return f"💰 Sponsored: {ad['body']} → {ad['cta_url']}"
+    
+    return ""
 
-    # ─── HOOK: thinking start ───
-    def on_thinking_start(context=None):
-        if not config.enabled:
-            return
-        ad = client.get_ad(
-            wallet=config.wallet,
-            context=context or "general",
-            agent="hermes",
-            surface="webui_thinking"
+# ─── Prompt: Response Footer ───
+@mcp.prompt()
+def response_footer(response_text: str) -> str:
+    """Called after agent response. Returns footer ad."""
+    if not config.enabled:
+        return ""
+    
+    if not tracker.should_show(config.frequency):
+        return ""
+    
+    ad = client.get_ad(
+        wallet=config.user_wallet,
+        context=response_text[:100],
+        surface="footer"
+    )
+    
+    if ad:
+        tracker.log_impression(ad["id"], config.user_wallet)
+        return (
+            f"\n\n---\n"
+            f"💰 **Sponsored:** {ad['body']}  \n"
+            f"[{ad['cta_text']} →]({ad['cta_url']})  \n"
+            f"_+${ad['earn_amount']} USDC earned_"
         )
-        if ad:
-            tracker.log_impression(ad["id"], config.wallet)
-            ctx.inject_message(
-                f"💰 Sponsored: {ad['body']} → {ad['cta_url']}",
-                role="system"
-            )
+    
+    return ""
 
-    ctx.register_hook("on_thinking_start", on_thinking_start)
-
-    # ─── HOOK: post response footer ───
-    def post_response(text, **kwargs):
-        if not config.enabled:
-            return text
-        if not tracker.should_show(config.frequency):
-            return text
-        ad = client.get_ad(
-            wallet=config.wallet,
-            context=text[:100],
-            agent="hermes",
-            surface="response_footer"
-        )
-        if ad:
-            tracker.log_impression(ad["id"], config.wallet)
-            footer = (
-                f"\n\n---\n"
-                f"💰 **Sponsored:** {ad['body']}  \n"
-                f"[{ad['cta_text']} →]({ad['cta_url']})  \n"
-                f"_+${ad['earn_amount']} USDC earned_"
-            )
-            return text + footer
-        return text
-
-    ctx.register_hook("post_response", post_response)
-
-    # ─── SLASH: /ads ───
-    def handle_ads_command(args):
-        cmd = args.strip().lower()
-        if cmd == "off":
-            config.enabled = False
-            return "❌ Ads disabled. /ads on to re-enable."
-        elif cmd == "on":
-            config.enabled = True
-            return "✅ Ads enabled."
-        elif cmd == "balance":
-            bal = wallet.get_balance()
-            return f"💰 Balance: ${bal:.4f} USDC"
-        elif cmd == "payout":
-            amount = wallet.get_balance()
-            if amount >= 5.0:
-                tx = wallet.payout()
-                return f"💸 Payout sent! ${amount:.4f} USDC\nTx: {tx}"
-            return f"❌ Minimum payout $5.00. Current: ${amount:.4f}"
-        else:
-            return "Usage: /ads [on|off|balance|payout]"
-
-    ctx.register_command("ads", handle_ads_command, "Manage ads: /ads [on|off|balance|payout]")
+if __name__ == "__main__":
+    mcp.run(transport="stdio")
 ```
 
 ### WebUI Integration (thinking state)
@@ -774,6 +787,25 @@ agent-kickbacks/
 ├── LICENSE                          # Apache-2.0
 ├── docker-compose.yml               # self-hostable
 ├── .env.example                     # environment template
+├── pyproject.toml                   # pip install
+│
+├── src/
+│   └── agent_kickbacks/
+│       ├── __init__.py              # version
+│       ├── mcp_server.py            # MCP server entry point
+│       ├── tools/
+│       │   ├── __init__.py
+│       │   ├── request_ad.py        # request ad tool
+│       │   ├── check_balance.py     # check balance tool
+│       │   └── payout.py            # payout tool
+│       ├── hooks/
+│       │   ├── __init__.py
+│       │   ├── thinking.py          # thinking state hook
+│       │   └── response.py          # response footer hook
+│       ├── ad_client.py             # ad server API client
+│       ├── tracker.py               # impression + click tracking
+│       ├── wallet.py                # earnings + payout
+│       └── config.py                # configuration
 │
 ├── server/                          # FastAPI ad server
 │   ├── main.py                      # app + x402 middleware
@@ -788,29 +820,6 @@ agent-kickbacks/
 │   ├── tracker.py                   # impression/click tracking
 │   ├── x402_payments.py             # x402 integration
 │   └── database.py                  # async SQLAlchemy engine (asyncpg)
-│
-├── plugin/                          # Hermes plugin
-│   ├── plugin.yaml                  # manifest
-│   ├── __init__.py                  # register() — hooks + tools
-│   ├── ad_client.py                 # ad server API client
-│   ├── tracker.py                   # impression + click tracking
-│   ├── wallet.py                    # earnings + payout
-│   ├── config.py                    # ads.wallet, ads.frequency
-│   ├── hooks/
-│   │   ├── on_thinking.py           # thinking state injection
-│   │   ├── post_tool_call.py        # tool call post-hook
-│   │   └── post_response.py         # response footer
-│   ├── commands/
-│   │   └── ads.py                   # /ads slash command
-│   └── static/
-│       └── ad_card.js               # WebUI banner component
-│
-├── webui/                           # WebUI modifications
-│   ├── patches/
-│   │   ├── thinking-banner.patch    # thinking state ad injection
-│   │   └── response-footer.patch    # response footer ad card
-│   └── static/
-│       └── agent-ads.js             # ad rendering + tracking
 │
 ├── portal/                          # Advertiser portal (Next.js)
 │   ├── pages/
@@ -832,8 +841,8 @@ agent-kickbacks/
 │
 └── docs/
     ├── PRODUCT.md                   # this document
-    ├── ARCHITECTURE.md              # technical architecture
-    ├── PLUGIN.md                    # plugin installation guide
+    ├── IMPLEMENTATION.md            # implementation plan
+    ├── MCP_MIGRATION.md             # MCP migration guide
     └── ADVERTISER.md                # advertiser onboarding
 ```
 
@@ -846,24 +855,40 @@ agent-kickbacks/
 | Channel | Method |
 |---------|--------|
 | **GitHub** | Main repo, Apache-2.0 |
-| **Hermes plugins** | `hermes plugins install agent-ads` |
 | **PyPI** | `pip install agent-kickbacks` |
 | **Docker** | `docker compose up` for self-hosted |
+| **MCP** | Works with any MCP-compatible agent |
 
 ### Self-Hosting
 
 ```bash
-# Clone and run
+# Clone and run server
 git clone https://github.com/agent-kickbacks/agent-kickbacks.git
 cd agent-kickbacks
 cp .env.example .env  # edit with your values
 docker compose up -d
 
-# Or install plugin only
-cd plugin/
-pip install -e .
-hermes plugins install agent-ads
-hermes config set ads.wallet 0xYOUR_WALLET
+# Or install MCP server only
+pip install agent-kickbacks
+agent-kickbacks config --wallet 0xYOUR_WALLET --ad-server https://your-server.com
+```
+
+### Adding to Your Agent
+
+```bash
+# Claude Code
+claude mcp add agent-kickbacks -- agent-kickbacks-mcp
+
+# Any MCP-compatible agent
+# Add to your agent's MCP config:
+{
+  "mcpServers": {
+    "agent-kickbacks": {
+      "command": "agent-kickbacks-mcp",
+      "args": ["serve"]
+    }
+  }
+}
 ```
 
 ### Why Open Source Wins
@@ -950,11 +975,12 @@ x402 uses `transferWithAuthorization` — users sign off-chain, facilitator subm
 | Risk | Mitigation |
 |------|-----------|
 | Low advertiser demand | Start with crypto projects (natural fit), offer free tier |
-| Low user adoption | Open source + Hermes integration = easy onboarding |
+| Low user adoption | Open source + MCP integration = easy onboarding |
 | Ad blockers | Plugin-level, not browser-level — harder to block |
 | Spam perception | Frequency cap + context-aware targeting + dismiss option |
 | x402 downtime | Fail-open (no ad shown, agent still works) |
 | Payout delays | Off-chain ledger, batch payouts weekly |
+| MCP not supported | CLI fallback mode available |
 
 ---
 
@@ -971,5 +997,5 @@ x402 uses `transferWithAuthorization` — users sign off-chain, facilitator subm
 
 ---
 
-*Last updated: 2026-06-12*
-*Status: Planning — ready to build*
+*Last updated: 2026-06-13*
+*Status: Planning — MCP Migration — ready to build*

@@ -120,6 +120,13 @@
 - `plugin/config.py` — configuration
 - `plugin/tracker.py` — tracking
 
+> **ℹ️ Integration model — MCP core + platform adapters.** This Hermes-only
+> scaffold is generalized, not thrown away: the shared core (ad_client,
+> tracker, wallet, config) is wrapped by (a) an **MCP server** for universal
+> *pull* tools and (b) thin **platform adapters** for the *push* surfaces
+> (ad injection), since MCP cannot inject ads. First adapter: **Hermes**
+> response footer. See `docs/MCP_MIGRATION.md` + `docs/AD_PLACEMENT_STRATEGY.md`.
+
 ---
 
 ## Phase 2: Display (Week 2-3)
@@ -327,6 +334,7 @@
 | Q4 | WebUI static file serving — can we add custom JS? | 🟡 | **Separate JS file loaded alongside ui.js, no direct patch** (self-healing, survives WebUI updates). Confirm serving path in 2.1.1. |
 | Q5 | Hermes plugin hook names — what's available? | 🟡 | `post_response` confirmed. `on_thinking_start` / `post_tool_call` **unverified** → plugin already wraps `register_hook` in try/except (fail-open). **Blocker for 1.4.7** — verify before Phase 2.3. |
 | Q6 | How to handle x402 on advertiser portal? | 🟢 | **Wagmi + x402 client-side**; campaign funding pays the server's `EVM_ADDRESS`. |
+| Q7 | MCP migration? | 🟢 | **MCP core + platform adapters** (not a plugin replacement). MCP = universal *pull* tools; ad *injection* is push-only and needs per-platform hooks. First adapter: Hermes (`transform_llm_output`). See `docs/MCP_MIGRATION.md`. |
 
 ### Business
 
@@ -431,6 +439,7 @@ Phase 4 (Launch) ◄────────────────────
 
 ## Changelog
 
+- **2026-06-13** — **Integration model: MCP core + platform adapters** (not a plugin→MCP "migration"). MCP gives universal *pull* tools (balance/payout/status/request_ad), but ad *injection* is push-only and platform-specific. See `docs/MCP_MIGRATION.md` + `docs/AD_PLACEMENT_STRATEGY.md`. First adapter target: **Hermes** response footer (`transform_llm_output`).
 - **2026-06-13** — **Switched persistence from Supabase to Railway Postgres** (Q3 revised). Rationale: one platform with the ad server, direct asyncpg connection (no PostgREST hop on the 2s ad path), no vendor lock-in. `server/database.py` rewritten to SQLAlchemy async + asyncpg; added `scripts/schema.sql` (tables + indexes); `pyproject.toml` now depends on `sqlalchemy[asyncio]` + `asyncpg` (dropped `supabase`); `.env.example` uses `DATABASE_URL`; `docker-compose.yml` now runs Postgres + server with schema auto-init. Access control moves to the app layer (no RLS).
 - **2026-06-13** — Finalized plan: resolved Q1–Q10, added Q11/Q12, added Integrity & Anti-Fraud and Custody & Payout sections, marked scaffold tasks 🟢. Bug fixes landed in `server/routes/ads.py`:
   - Removed duplicate impression logging — `/ad/request` no longer logs an impression (the plugin also reported it via `/ad/impression`, double-counting every served ad). Impression is now billable only on confirmed display (Q12).
