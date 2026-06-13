@@ -22,6 +22,23 @@ async def lifespan(app: FastAPI):
     print(f"  Network: {EVM_NETWORK}")
     print(f"  Treasury: {EVM_ADDRESS}")
     print(f"  Facilitator: {FACILITATOR_URL}")
+
+    # Auto-apply schema if DATABASE_URL is set
+    from server.config import DATABASE_URL
+    if DATABASE_URL:
+        try:
+            from pathlib import Path
+            from sqlalchemy import text
+            from server.database import engine
+            schema_path = Path(__file__).parent.parent / "scripts" / "schema.sql"
+            if schema_path.exists():
+                async with engine.begin() as conn:
+                    sql = schema_path.read_text()
+                    await conn.execute(text(sql))
+                print("[agent-kickbacks] Schema applied successfully")
+        except Exception as exc:
+            print(f"[agent-kickbacks] Schema apply failed (non-fatal): {exc}")
+
     yield
     print("[agent-kickbacks] Shutting down")
 
