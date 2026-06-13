@@ -29,13 +29,16 @@ async def lifespan(app: FastAPI):
         try:
             from pathlib import Path
             from sqlalchemy import text
-            from server.database import engine
+            from server.database import get_engine
             schema_path = Path(__file__).parent.parent / "scripts" / "schema.sql"
             if schema_path.exists():
+                engine = get_engine()
                 async with engine.begin() as conn:
                     sql = schema_path.read_text()
                     await conn.execute(text(sql))
                 print("[agent-kickbacks] Schema applied successfully")
+            else:
+                print(f"[agent-kickbacks] Schema file not found at {schema_path}")
         except Exception as exc:
             print(f"[agent-kickbacks] Schema apply failed (non-fatal): {exc}")
 
