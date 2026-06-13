@@ -32,7 +32,12 @@ def get_engine() -> AsyncEngine:
     global _engine, _sessionmaker
     if _engine is None:
         url = _normalize_url(os.getenv("DATABASE_URL", DEFAULT_URL))
-        _engine = create_async_engine(url, pool_pre_ping=True)
+        # Railway's internal network (.railway.internal) does not support SSL;
+        # asyncpg negotiates TLS by default which causes ConnectionRefused.
+        connect_args: dict = {}
+        if ".railway.internal" in url:
+            connect_args["ssl"] = False
+        _engine = create_async_engine(url, pool_pre_ping=True, connect_args=connect_args)
         _sessionmaker = async_sessionmaker(
             _engine, class_=AsyncSession, expire_on_commit=False
         )
