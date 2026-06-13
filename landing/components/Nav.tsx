@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useAccount, useDisconnect } from "wagmi";
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
+  const { address, isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
+  const { disconnect } = useDisconnect();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
@@ -23,12 +28,12 @@ export function Nav() {
       <a href="#top" className="font-script text-3xl text-ivory no-underline leading-none">
         Latent
       </a>
-      <div className="flex gap-8 items-center max-md:hidden">
+      <div className="flex gap-6 items-center max-md:hidden">
         {[
           ["#how", "How it works"],
-          ["#surfaces", "Surfaces"],
-          ["#economics", "Economics"],
-          ["#protocol", "Protocol"],
+          ["#blocks", "Live Ads"],
+          ["#advertiser", "Advertise"],
+          ["#user", "Earnings"],
         ].map(([href, label]) => (
           <a
             key={href}
@@ -38,12 +43,18 @@ export function Nav() {
             {label}
           </a>
         ))}
-        <a
-          href="#install"
-          className="text-bronze border border-ivory-faint px-4 py-2.5 no-underline text-xs tracking-widest uppercase font-medium hover:border-bronze transition-colors"
-        >
-          Get paid to wait
-        </a>
+        {isConnected ? (
+          <button
+            onClick={() => disconnect()}
+            className="btn ghost text-xs py-2 px-4"
+          >
+            {address?.slice(0, 6)}...{address?.slice(-4)}
+          </button>
+        ) : (
+          <button onClick={openConnectModal} className="btn text-xs py-2 px-4">
+            Connect Wallet <span className="arrow">→</span>
+          </button>
+        )}
       </div>
     </nav>
   );

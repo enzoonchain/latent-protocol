@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Providers } from "@/components/Providers";
 
 export const metadata: Metadata = {
   title: "Latent — Monetize the Void",
@@ -21,9 +22,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="engrave-texture" />
-        <div className="grain" />
-        {children}
+        <Providers>
+          <div className="engrave-texture" />
+          <div className="grain" />
+          {children}
+        </Providers>
       </body>
     </html>
   );
