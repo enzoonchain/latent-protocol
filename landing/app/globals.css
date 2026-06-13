@@ -99,14 +99,10 @@ body {
 
 .curtain.left {
   left: 0;
-  background: linear-gradient(
-    135deg,
-    var(--teal-800) 0%,
-    var(--teal-700) 30%,
-    var(--teal-600) 50%,
-    var(--teal-700) 70%,
-    var(--teal-800) 100%
-  );
+  background-image: url("/curtain-left.png");
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: left top;
   filter: drop-shadow(8px 0 26px rgba(8, 24, 25, 0.55));
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 0 L90 0 C92 14 88 26 90 38 C92 50 87 62 84 74 C82 84 74 92 70 100 L0 100 Z' fill='%23fff'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 0 L90 0 C92 14 88 26 90 38 C92 50 87 62 84 74 C82 84 74 92 70 100 L0 100 Z' fill='%23fff'/%3E%3C/svg%3E");
@@ -116,31 +112,12 @@ body {
   mask-repeat: no-repeat;
 }
 
-/* Drape folds overlay for left curtain */
-.curtain.left::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    90deg,
-    transparent 0px,
-    rgba(255, 255, 255, 0.03) 2px,
-    transparent 4px,
-    rgba(0, 0, 0, 0.05) 8px,
-    transparent 12px
-  );
-}
-
 .curtain.right {
   right: 0;
-  background: linear-gradient(
-    -135deg,
-    var(--teal-800) 0%,
-    var(--teal-700) 30%,
-    var(--teal-600) 50%,
-    var(--teal-700) 70%,
-    var(--teal-800) 100%
-  );
+  background-image: url("/curtain-right.png");
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: right top;
   filter: drop-shadow(-8px 0 26px rgba(8, 24, 25, 0.55));
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M100 0 L10 0 C8 14 12 26 10 38 C8 50 13 62 16 74 C18 84 26 92 30 100 L100 100 Z' fill='%23fff'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M100 0 L10 0 C8 14 12 26 10 38 C8 50 13 62 16 74 C18 84 26 92 30 100 L100 100 Z' fill='%23fff'/%3E%3C/svg%3E");
@@ -148,21 +125,6 @@ body {
   mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
-}
-
-/* Drape folds overlay for right curtain */
-.curtain.right::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    90deg,
-    transparent 0px,
-    rgba(0, 0, 0, 0.05) 2px,
-    transparent 4px,
-    rgba(255, 255, 255, 0.03) 8px,
-    transparent 12px
-  );
 }
 
 /* Opened state */
