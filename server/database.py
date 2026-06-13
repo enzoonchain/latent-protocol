@@ -42,10 +42,20 @@ def get_engine() -> AsyncEngine:
     global _engine, _sessionmaker
     if _engine is None:
         url = _normalize_url(os.getenv("DATABASE_URL", DEFAULT_URL))
-        # Railway TCP proxy needs sslmode=require in the URL (asyncpg reads it natively)
+        # Strip sslmode= from URL — asyncpg doesn't understand it
+        if "sslmode=" in url:
+            url = url.split("?")[0]
+
+        # Railway TCP proxy wraps connection in TLS — asyncpg needs ssl context
+        import ssl as _ssl
+        ssl_ctx = _ssl.create_default_context()
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = _ssl.CERT_NONE
+
         _engine = create_async_engine(
             url,
             pool_pre_ping=True,
+            connect_args={"ssl": ssl_ctx},
         )
         _sessionmaker = async_sessionmaker(
             _engine, class_=AsyncSession, expire_on_commit=False
