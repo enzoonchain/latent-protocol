@@ -8,10 +8,20 @@
 
 | Phase | Status | Target |
 |-------|--------|--------|
-| Phase 1: Foundation | 🔴 Not started | Week 1-2 |
+| Phase 1: Foundation | 🟡 In progress (scaffold done, logic + DB pending) | Week 1-2 |
 | Phase 2: Display | 🔴 Not started | Week 2-3 |
 | Phase 3: Payments | 🔴 Not started | Week 3-4 |
 | Phase 4: Launch | 🔴 Not started | Week 4-5 |
+
+**Legend:** 🔴 Not started · 🟡 In progress / scaffolded · 🟢 Done
+
+### What's already in the repo (scaffold)
+
+- FastAPI app + routers (`/ad`, `/campaign`, `/earnings`, `/payout`), CORS, health check, lifespan.
+- x402 middleware wired but **commented out** until a facilitator + wallet are configured.
+- Pydantic models, Supabase client stub, `pyproject.toml` with deps, `.env.example`, Dockerfile + compose.
+- Hermes plugin scaffold: `plugin.yaml`, `register()`, `agent_ads` tool, `on_thinking_start` / `post_response` hooks, `/ads` command, ad client + tracker + wallet helpers.
+- **Still stubbed (return `None`/`pass`/placeholder):** `matcher.select_best_ad`, `tracker.log_impression/click`, all DB writes, campaign/earnings/payout business logic. These are the real Phase 1 work.
 
 ---
 
@@ -23,11 +33,11 @@
 
 | # | Task | Depends On | Skill | Status |
 |---|------|-----------|-------|--------|
-| 1.1.1 | Initialize Python project (pyproject.toml, venv) | — | — | 🔴 |
-| 1.1.2 | Install dependencies: fastapi, uvicorn, x402[httpx], supabase | 1.1.1 | — | 🔴 |
-| 1.1.3 | Create FastAPI app with x402 middleware | 1.1.2 | — | 🔴 |
+| 1.1.1 | Initialize Python project (pyproject.toml, venv) | — | — | 🟢 |
+| 1.1.2 | Install dependencies: fastapi, uvicorn, x402[httpx], supabase | 1.1.1 | — | 🟢 (declared in pyproject) |
+| 1.1.3 | Create FastAPI app + wire x402 middleware (currently commented out) | 1.1.2 | — | 🟡 |
 | 1.1.4 | Set up Coinbase CDP facilitator on Base | — | ethskills | 🔴 |
-| 1.1.5 | Create .env.example with all required vars | 1.1.3 | — | 🔴 |
+| 1.1.5 | Create .env.example with all required vars | 1.1.3 | — | 🟢 |
 | 1.1.6 | Test x402 payment flow (Base Sepolia first) | 1.1.3, 1.1.4 | — | 🔴 |
 
 **Key files:**
@@ -38,9 +48,9 @@
 - `.env.example` — template
 
 **Questions to resolve:**
-- [ ] Which facilitator? Coinbase CDP (recommended) vs PayAI vs self-hosted
-- [ ] Test on Base Sepolia first or go straight to mainnet?
-- [ ] USDC contract address for Base Mainnet: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
+- [x] Facilitator → Coinbase CDP (Q1)
+- [x] Test on Base Sepolia first, then mainnet (Q2)
+- [x] USDC Base Mainnet: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` · Base Sepolia: `0x036CbD53842c5426634e7929541eC2318f3dCF7e` (current `config.py` default)
 
 ---
 
@@ -62,8 +72,8 @@
 - `scripts/seed.sql` — test data
 
 **Questions to resolve:**
-- [ ] Supabase project name? `agent-kickbacks`?
-- [ ] Do we need Supabase Auth or just wallet-based auth?
+- [x] Supabase project name → `agent-kickbacks`
+- [x] Auth model → **wallet-based** (EIP-712 signature); no Supabase Auth. RLS keys off `wallet_address`.
 
 ---
 
@@ -94,13 +104,13 @@
 
 | # | Task | Depends On | Skill | Status |
 |---|------|-----------|-------|--------|
-| 1.4.1 | Create plugin.yaml manifest | — | hermes-agent | 🔴 |
-| 1.4.2 | Create __init__.py with register() | — | hermes-agent | 🔴 |
-| 1.4.3 | Build ad_client.py (API communication) | 1.1.3 | — | 🔴 |
-| 1.4.4 | Build config.py (ads.wallet, ads.frequency, etc.) | — | — | 🔴 |
-| 1.4.5 | Build tracker.py (impression + click logging) | 1.3.3 | — | 🔴 |
-| 1.4.6 | Register tool: agent_ads | 1.4.2 | hermes-agent | 🔴 |
-| 1.4.7 | Test plugin loads in Hermes | 1.4.1-1.4.6 | hermes-agent | 🔴 |
+| 1.4.1 | Create plugin.yaml manifest | — | hermes-agent | 🟢 |
+| 1.4.2 | Create __init__.py with register() | — | hermes-agent | 🟢 |
+| 1.4.3 | Build ad_client.py (API communication, 2s timeout, fail-open) | 1.1.3 | — | 🟢 |
+| 1.4.4 | Build config.py (ads.wallet, ads.frequency, etc.) | — | — | 🟢 |
+| 1.4.5 | Build tracker.py (impression + click logging) | 1.3.3 | — | 🟢 |
+| 1.4.6 | Register tool: agent_ads | 1.4.2 | hermes-agent | 🟢 |
+| 1.4.7 | Test plugin loads in Hermes (blocked on hook availability — see Q5) | 1.4.1-1.4.6 | hermes-agent | 🔴 |
 
 **Key files:**
 - `plugin/plugin.yaml` — manifest
@@ -130,8 +140,8 @@
 - `webui/patches/thinking-banner.patch` — ui.js patch
 
 **Questions to resolve:**
-- [ ] Do we patch ui.js directly or create a separate JS file that loads alongside?
-- [ ] How does the WebUI serve static files? Can we add our own?
+- [x] Separate JS file loaded alongside ui.js (no direct patch) — self-healing (Q4)
+- [ ] Confirm WebUI static-file serving path / how to register our own asset (verify in 2.1.1)
 
 ---
 
@@ -251,9 +261,9 @@
 - `portal/pages/profile.tsx` — user dashboard
 
 **Questions to resolve:**
-- [ ] Payout threshold: $5 USDC?
-- [ ] Batch payouts (weekly) or on-demand?
-- [ ] Who pays gas for user payouts? (operator absorbs ~$0.0001)
+- [x] Payout threshold → $5 USDC (Q8)
+- [x] On-demand (`/ads payout`) above threshold; weekly batch sweep as fallback. Payout engine must be idempotent.
+- [x] Operator pays gas (~$0.0001 on Base) — negligible, absorbed into the 30% operator share.
 
 ---
 
@@ -308,23 +318,47 @@
 
 ### Technical
 
-| # | Question | Status | Answer |
-|---|----------|--------|--------|
-| Q1 | Which x402 facilitator to use? | 🔴 | Coinbase CDP recommended (1K free tx/mo) |
-| Q2 | Base Sepolia for testing first? | 🔴 | Yes — test on Sepolia, then mainnet |
-| Q3 | Supabase vs raw Postgres? | 🔴 | Supabase (managed, RLS, realtime) |
-| Q4 | WebUI static file serving — can we add custom JS? | 🔴 | Need to check WebUI architecture |
-| Q5 | Hermes plugin hook names — what's available? | 🔴 | post_response confirmed, others TBD |
-| Q6 | How to handle x402 on advertiser portal? | 🔴 | Wagmi + x402 client-side |
+| # | Question | Status | Decision |
+|---|----------|--------|----------|
+| Q1 | Which x402 facilitator to use? | 🟢 | **Coinbase CDP** (1K free tx/mo). `FACILITATOR_URL` overridable for self-host. |
+| Q2 | Base Sepolia for testing first? | 🟢 | **Yes** — Sepolia (`eip155:84532`) is the default; flip to mainnet (`eip155:8453`) only after 1.1.6 passes. |
+| Q3 | Supabase vs raw Postgres? | 🟢 | **Supabase** (managed, RLS, realtime). |
+| Q4 | WebUI static file serving — can we add custom JS? | 🟡 | **Separate JS file loaded alongside ui.js, no direct patch** (self-healing, survives WebUI updates). Confirm serving path in 2.1.1. |
+| Q5 | Hermes plugin hook names — what's available? | 🟡 | `post_response` confirmed. `on_thinking_start` / `post_tool_call` **unverified** → plugin already wraps `register_hook` in try/except (fail-open). **Blocker for 1.4.7** — verify before Phase 2.3. |
+| Q6 | How to handle x402 on advertiser portal? | 🟢 | **Wagmi + x402 client-side**; campaign funding pays the server's `EVM_ADDRESS`. |
 
 ### Business
 
-| # | Question | Status | Answer |
-|---|----------|--------|--------|
-| Q7 | Minimum advertiser budget? | 🔴 | Suggest $10 USDC |
-| Q8 | Payout threshold? | 🔴 | Suggest $5 USDC |
-| Q9 | Frequency cap default? | 🔴 | Every 5 messages |
-| Q10 | Ad content policy? | 🔴 | No scams, no phishing, crypto-native OK |
+| # | Question | Status | Decision |
+|---|----------|--------|----------|
+| Q7 | Minimum advertiser budget? | 🟢 | **$10 USDC** minimum campaign budget. |
+| Q8 | Payout threshold? | 🟢 | **$5 USDC** (`PAYOUT_THRESHOLD_USDC`). |
+| Q9 | Frequency cap default? | 🟢 | **Every 5 messages** + max 20/session + 100/day (server-enforced, see Q11). |
+| Q10 | Ad content policy? | 🟢 | No scams, no phishing; crypto-native OK. Blocklist enforced in 4.1.3. |
+| Q11 | Where is the frequency cap authoritative? | 🟢 | **Server-side** (`MAX_IMPRESSIONS_PER_*`). The plugin's in-memory counter is a UX hint only — never trust the client for billing. |
+| Q12 | When is an impression billable? | 🟢 | On **confirmed display** via `POST /ad/impression`, *not* on `POST /ad/request` (fetch). Prevents double-counting. |
+
+---
+
+## Integrity & Anti-Fraud (cross-cutting — design now, harden in 4.1)
+
+The whole model depends on advertisers trusting that impressions/clicks are real. The client self-reports, so the server must treat all client input as untrusted:
+
+| Risk | Mitigation | Phase |
+|------|-----------|-------|
+| Fake impressions inflate user earnings / drain advertiser budget | Server-side frequency + rate caps (per user, per session, per day, per IP); ad must have been served via `/ad/request` before its `/ad/impression` is accepted | 1.3.2, 4.1.2 |
+| Click fraud (50× impression value) | Anti-misclick gate (click only billable after a min view threshold); 1 click per impression id | 1.3.4, 4.1.x |
+| Replay / forged impressions | Server issues a short-lived signed `impression_token` in the `/ad/request` response; `/ad/impression` must echo it | 1.3.3 (add to schema) |
+| Sybil wallets farming earnings | Earning caps tiered by verification; payout threshold; monitoring | 3.3, 4.1 |
+
+> **Decision:** impressions and earnings are **server-authoritative**. The plugin/WebUI can only *report* events; the server decides what is billable.
+
+## Custody & Payout Model (de-risk early)
+
+- Advertiser funds a campaign → USDC paid (via x402) to the operator-controlled `EVM_ADDRESS`.
+- User earnings accrue **off-chain** (Supabase `earnings`), paid out on-chain in batches once ≥ `$5`.
+- This is a **custodial** design: the operator holds funds and signs payouts with `EVM_PRIVATE_KEY`.
+  - **Action items:** key stored only in env/secret manager (never in DB or repo); payout engine idempotent (no double-pay on retry); reconcile `sum(earnings) + operator + protocol == sum(campaign spend)` as an invariant test; document the trust assumption clearly for self-hosters.
 
 ---
 
@@ -374,19 +408,19 @@ Phase 4 (Launch) ◄────────────────────
 ### Goal: Working ad server + plugin skeleton
 
 **Day 1-2:**
-- [x] Create GitHub repo
+- [x] Create GitHub repo (now private)
 - [x] Create project structure
 - [x] Write PRODUCT.md
 - [x] Write IMPLEMENTATION.md
-- [ ] Set up Python project (pyproject.toml, venv)
-- [ ] Create FastAPI app with x402 middleware
-- [ ] Set up Supabase project + schema
+- [x] Set up Python project (pyproject.toml)
+- [x] Create FastAPI app + plugin scaffold (x402 middleware wired but disabled until configured)
+- [ ] Set up Supabase project + schema (1.2)
 
 **Day 3-4:**
-- [ ] Build ad matcher + tracker
-- [ ] Build plugin scaffold (plugin.yaml, __init__.py)
-- [ ] Build ad_client.py (API communication)
-- [ ] Test: plugin loads in Hermes
+- [ ] Implement ad matcher + tracker against Supabase (replace stubs in 1.3)
+- [x] Build plugin scaffold (plugin.yaml, __init__.py)
+- [x] Build ad_client.py (API communication)
+- [ ] Verify available Hermes hooks, then test plugin loads (Q5 / 1.4.7)
 
 **Day 5:**
 - [ ] Integration test: ad server → plugin → ad display
@@ -395,4 +429,12 @@ Phase 4 (Launch) ◄────────────────────
 
 ---
 
-*Last updated: 2026-06-12*
+## Changelog
+
+- **2026-06-13** — Finalized plan: resolved Q1–Q10, added Q11/Q12, added Integrity & Anti-Fraud and Custody & Payout sections, marked scaffold tasks 🟢. Bug fixes landed in `server/routes/ads.py`:
+  - Removed duplicate impression logging — `/ad/request` no longer logs an impression (the plugin also reported it via `/ad/impression`, double-counting every served ad). Impression is now billable only on confirmed display (Q12).
+  - Fixed invalid `HTTPException(204, detail=…)` — a 204 must carry no body; now returns a bodiless `204 No Content` that the client already interprets as "no ad".
+  - Replaced hardcoded `* 0.5` earnings with the `USER_SHARE` constant from `config.py` (single source of truth for the 50/30/20 split).
+- **2026-06-12** — Initial repo, structure, PRODUCT.md, IMPLEMENTATION.md.
+
+*Last updated: 2026-06-13*
