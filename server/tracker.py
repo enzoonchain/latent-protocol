@@ -17,7 +17,7 @@ async def log_impression(
     - 30% to operator
     - 20% to protocol treasury
     """
-    # TODO: insert into Supabase impressions table
+    # TODO: insert into Postgres impressions table
     # TODO: calculate bid from ad_id
     # TODO: create earnings record for user share
     # TODO: update advertiser budget_remaining

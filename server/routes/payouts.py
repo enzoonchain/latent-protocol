@@ -11,7 +11,7 @@ async def request_payout(req: PayoutRequest):
     """Request payout of accumulated earnings."""
     # TODO: check balance >= threshold
     # TODO: execute USDC transfer on Base
-    # TODO: update payout status in Supabase
+    # TODO: update payout status in Postgres
     return PayoutResponse(
         payout_id="placeholder",
         amount=0.0,
@@ -23,5 +23,5 @@ async def request_payout(req: PayoutRequest):
 @router.get("/{wallet_address}")
 async def get_payout_history(wallet_address: str):
     """Get payout history for a user."""
-    # TODO: query Supabase payouts table
+    # TODO: query Postgres payouts table
     return {"payouts": [], "wallet": wallet_address}

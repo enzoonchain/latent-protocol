@@ -17,8 +17,7 @@ load_dotenv()
 EVM_ADDRESS = os.getenv("EVM_ADDRESS")
 EVM_NETWORK = os.getenv("EVM_NETWORK", "eip155:84532")  # Base Sepolia default
 FACILITATOR_URL = os.getenv("FACILITATOR_URL", "https://x402.org/facilitator")
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 @asynccontextmanager

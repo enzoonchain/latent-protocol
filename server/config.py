@@ -2,9 +2,8 @@
 
 import os
 
-# Supabase
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+# Database (Railway Postgres) — direct asyncpg connection
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 # x402 / Payments
 EVM_ADDRESS = os.getenv("EVM_ADDRESS", "")

@@ -9,7 +9,7 @@ router = APIRouter()
 @router.get("/{wallet_address}", response_model=EarningsResponse)
 async def get_earnings(wallet_address: str):
     """Get earnings for a user wallet."""
-    # TODO: query Supabase earnings table
+    # TODO: query Postgres earnings table
     return EarningsResponse(
         wallet_address=wallet_address,
         balance=0.0,
@@ -22,5 +22,5 @@ async def get_earnings(wallet_address: str):
 @router.get("/{wallet_address}/history")
 async def get_earnings_history(wallet_address: str, limit: int = 50):
     """Get earnings history for a user."""
-    # TODO: query Supabase impressions + earnings
+    # TODO: query Postgres impressions + earnings
     return {"history": [], "wallet": wallet_address}

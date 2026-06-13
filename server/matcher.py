@@ -23,11 +23,11 @@ async def select_best_ad(
     4. Frequency cap: skip if user seen this ad recently
     5. Weighted random selection from top candidates
     """
-    # TODO: implement with Supabase
+    # TODO: implement with Postgres
     # For now, return None (no ads available)
     #
     # Future implementation:
-    # 1. Query Supabase: SELECT * FROM ads WHERE status = 'active'
+    # 1. Query Postgres: SELECT * FROM ads WHERE status = 'active'
     #    AND budget_remaining > bid_per_impression
     #    AND (expires_at IS NULL OR expires_at > NOW())
     # 2. Filter by tag/category match

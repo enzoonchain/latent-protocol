@@ -174,8 +174,8 @@ A VS Code extension that replaces AI coding tool spinners (Claude Code, Codex) w
 │             │                     │                               │
 │             ▼                     ▼                               │
 │  ┌──────────────┐    ┌──────────────────────┐                   │
-│  │  Supabase     │    │  x402 Facilitator    │                   │
-│  │  (DB + Auth)  │    │  (Coinbase CDP)      │                   │
+│  │ Railway PG    │    │  x402 Facilitator    │                   │
+│  │ (Postgres)    │    │  (Coinbase CDP)      │                   │
 │  │               │    │                       │                   │
 │  │  ads          │    │  verify + settle      │                   │
 │  │  campaigns    │    │  USDC on Base         │                   │
@@ -310,7 +310,9 @@ async def request_ad(req: AdRequest):
     )
 ```
 
-### Database Schema (Supabase)
+### Database Schema (Railway Postgres)
+
+> Canonical DDL lives in [`scripts/schema.sql`](scripts/schema.sql). The block below is illustrative.
 
 ```sql
 -- Ads table
@@ -726,7 +728,7 @@ window._thinkingTick = function() {
 |------|-------------|-------|
 | Ad server API (FastAPI) | `/ad/request`, `/ad/click` endpoints | Backend |
 | x402 integration | Payment middleware on ad routes | Backend |
-| Supabase schema | All tables created | Backend |
+| Postgres schema | All tables created (`scripts/schema.sql`) | Backend |
 | Hermes plugin scaffold | `~/.hermes/plugins/agent-ads/` | Plugin |
 | Plugin: ad_client.py | Ad server communication | Plugin |
 | Plugin: tracker.py | Impression + click tracking | Plugin |
@@ -785,7 +787,7 @@ agent-kickbacks/
 │   ├── matcher.py                   # ad targeting engine
 │   ├── tracker.py                   # impression/click tracking
 │   ├── x402_payments.py             # x402 integration
-│   └── database.py                  # Supabase client
+│   └── database.py                  # async SQLAlchemy engine (asyncpg)
 │
 ├── plugin/                          # Hermes plugin
 │   ├── plugin.yaml                  # manifest

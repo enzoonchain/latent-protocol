@@ -19,7 +19,7 @@
 
 - FastAPI app + routers (`/ad`, `/campaign`, `/earnings`, `/payout`), CORS, health check, lifespan.
 - x402 middleware wired but **commented out** until a facilitator + wallet are configured.
-- Pydantic models, Supabase client stub, `pyproject.toml` with deps, `.env.example`, Dockerfile + compose.
+- Pydantic models, async Postgres (SQLAlchemy + asyncpg) client, `scripts/schema.sql`, `pyproject.toml` with deps, `.env.example`, Dockerfile + compose (server + Postgres).
 - Hermes plugin scaffold: `plugin.yaml`, `register()`, `agent_ads` tool, `on_thinking_start` / `post_response` hooks, `/ads` command, ad client + tracker + wallet helpers.
 - **Still stubbed (return `None`/`pass`/placeholder):** `matcher.select_best_ad`, `tracker.log_impression/click`, all DB writes, campaign/earnings/payout business logic. These are the real Phase 1 work.
 
@@ -34,7 +34,7 @@
 | # | Task | Depends On | Skill | Status |
 |---|------|-----------|-------|--------|
 | 1.1.1 | Initialize Python project (pyproject.toml, venv) | — | — | 🟢 |
-| 1.1.2 | Install dependencies: fastapi, uvicorn, x402[httpx], supabase | 1.1.1 | — | 🟢 (declared in pyproject) |
+| 1.1.2 | Install dependencies: fastapi, uvicorn, x402[httpx], sqlalchemy, asyncpg | 1.1.1 | — | 🟢 (declared in pyproject) |
 | 1.1.3 | Create FastAPI app + wire x402 middleware (currently commented out) | 1.1.2 | — | 🟡 |
 | 1.1.4 | Set up Coinbase CDP facilitator on Base | — | ethskills | 🔴 |
 | 1.1.5 | Create .env.example with all required vars | 1.1.3 | — | 🟢 |
@@ -56,24 +56,25 @@
 
 ### 1.2 Database Schema
 
-**Goal:** Supabase project with all tables, RLS policies, and indexes.
+**Goal:** Railway Postgres with all tables and indexes (no RLS — the FastAPI server is the only writer and enforces access control; see Q3).
 
 | # | Task | Depends On | Skill | Status |
 |---|------|-----------|-------|--------|
-| 1.2.1 | Create Supabase project | — | supabase | 🔴 |
-| 1.2.2 | Create tables: ads, campaigns, advertisers, impressions, earnings, payouts | 1.2.1 | supabase | 🔴 |
-| 1.2.3 | Set up RLS policies (advertisers own data, users see own earnings) | 1.2.2 | supabase | 🔴 |
-| 1.2.4 | Create indexes (wallet_address, ad_id, created_at) | 1.2.2 | supabase | 🔴 |
+| 1.2.1 | Provision Railway Postgres (attach plugin → `DATABASE_URL`) | — | — | 🔴 |
+| 1.2.2 | Create tables: ads, campaigns, advertisers, impressions, earnings, payouts | 1.2.1 | — | 🟡 (`scripts/schema.sql` written; apply to DB) |
+| 1.2.3 | Wire async engine/session + apply schema on deploy | 1.2.2 | — | 🟡 (`server/database.py` done) |
+| 1.2.4 | Create indexes (wallet_address, ad_id, created_at) | 1.2.2 | — | 🟢 (in `schema.sql`) |
 | 1.2.5 | Seed test data (sample ads, test advertiser) | 1.2.2 | — | 🔴 |
 
 **Key files:**
-- `server/database.py` — Supabase client setup
+- `server/database.py` — async SQLAlchemy engine + session (asyncpg)
+- `scripts/schema.sql` — table + index DDL
 - `server/models.py` — Pydantic models matching DB schema
 - `scripts/seed.sql` — test data
 
 **Questions to resolve:**
-- [x] Supabase project name → `agent-kickbacks`
-- [x] Auth model → **wallet-based** (EIP-712 signature); no Supabase Auth. RLS keys off `wallet_address`.
+- [x] DB hosting → **Railway Postgres** (same platform as the ad server; direct asyncpg, no REST hop)
+- [x] Auth model → **wallet-based** (EIP-712 signature); access control enforced in the FastAPI layer, not DB-level RLS.
 
 ---
 
@@ -285,7 +286,7 @@
 | # | Task | Depends On | Skill | Status |
 |---|------|-----------|-------|--------|
 | 4.2.1 | Create Dockerfile for ad server | 1.1.3 | — | 🔴 |
-| 4.2.2 | Create docker-compose.yml (server + Supabase) | 4.2.1 | — | 🔴 |
+| 4.2.2 | Create docker-compose.yml (server + Postgres) | 4.2.1 | — | 🟢 (server + Postgres + schema init) |
 | 4.2.3 | Create setup script (scripts/setup.sh) | 4.2.2 | — | 🔴 |
 | 4.2.4 | Test self-hosting from scratch | 4.2.3 | — | 🔴 |
 
@@ -322,7 +323,7 @@
 |---|----------|--------|----------|
 | Q1 | Which x402 facilitator to use? | 🟢 | **Coinbase CDP** (1K free tx/mo). `FACILITATOR_URL` overridable for self-host. |
 | Q2 | Base Sepolia for testing first? | 🟢 | **Yes** — Sepolia (`eip155:84532`) is the default; flip to mainnet (`eip155:8453`) only after 1.1.6 passes. |
-| Q3 | Supabase vs raw Postgres? | 🟢 | **Supabase** (managed, RLS, realtime). |
+| Q3 | Supabase vs raw Postgres? | 🟢 | **Railway Postgres** + SQLAlchemy async/asyncpg. One platform with the ad server, direct connection (no PostgREST latency on the 2s-budget ad path), no vendor lock-in. Revisit Supabase only if realtime dashboards are needed. |
 | Q4 | WebUI static file serving — can we add custom JS? | 🟡 | **Separate JS file loaded alongside ui.js, no direct patch** (self-healing, survives WebUI updates). Confirm serving path in 2.1.1. |
 | Q5 | Hermes plugin hook names — what's available? | 🟡 | `post_response` confirmed. `on_thinking_start` / `post_tool_call` **unverified** → plugin already wraps `register_hook` in try/except (fail-open). **Blocker for 1.4.7** — verify before Phase 2.3. |
 | Q6 | How to handle x402 on advertiser portal? | 🟢 | **Wagmi + x402 client-side**; campaign funding pays the server's `EVM_ADDRESS`. |
@@ -356,7 +357,7 @@ The whole model depends on advertisers trusting that impressions/clicks are real
 ## Custody & Payout Model (de-risk early)
 
 - Advertiser funds a campaign → USDC paid (via x402) to the operator-controlled `EVM_ADDRESS`.
-- User earnings accrue **off-chain** (Supabase `earnings`), paid out on-chain in batches once ≥ `$5`.
+- User earnings accrue **off-chain** (Postgres `earnings` table), paid out on-chain in batches once ≥ `$5`.
 - This is a **custodial** design: the operator holds funds and signs payouts with `EVM_PRIVATE_KEY`.
   - **Action items:** key stored only in env/secret manager (never in DB or repo); payout engine idempotent (no double-pay on retry); reconcile `sum(earnings) + operator + protocol == sum(campaign spend)` as an invariant test; document the trust assumption clearly for self-hosters.
 
@@ -394,8 +395,7 @@ Phase 4 (Launch) ◄────────────────────
 |-------|------|-----|
 | `hermes-agent` | Phase 1.4, 2.x | Plugin system, hooks, slash commands |
 | `ethskills` | Phase 3.3 | USDC transfers, Base chain interaction |
-| `supabase` | Phase 1.2 | Database setup, RLS, realtime |
-| `python-fastapi-service` | Phase 1.1 | FastAPI best practices |
+| `python-fastapi-service` | Phase 1.1-1.2 | FastAPI + SQLAlchemy async (DB is plain Railway Postgres) |
 | `web-deploy` | Phase 4.4 | Deploy server + portal |
 | `github-workflow` | All | Repo management, PRs |
 | `nextjs-best-practices` | Phase 3.1 | Advertiser portal |
@@ -414,10 +414,10 @@ Phase 4 (Launch) ◄────────────────────
 - [x] Write IMPLEMENTATION.md
 - [x] Set up Python project (pyproject.toml)
 - [x] Create FastAPI app + plugin scaffold (x402 middleware wired but disabled until configured)
-- [ ] Set up Supabase project + schema (1.2)
+- [ ] Provision Railway Postgres + apply `scripts/schema.sql` (1.2)
 
 **Day 3-4:**
-- [ ] Implement ad matcher + tracker against Supabase (replace stubs in 1.3)
+- [ ] Implement ad matcher + tracker against Postgres (replace stubs in 1.3)
 - [x] Build plugin scaffold (plugin.yaml, __init__.py)
 - [x] Build ad_client.py (API communication)
 - [ ] Verify available Hermes hooks, then test plugin loads (Q5 / 1.4.7)
@@ -431,6 +431,7 @@ Phase 4 (Launch) ◄────────────────────
 
 ## Changelog
 
+- **2026-06-13** — **Switched persistence from Supabase to Railway Postgres** (Q3 revised). Rationale: one platform with the ad server, direct asyncpg connection (no PostgREST hop on the 2s ad path), no vendor lock-in. `server/database.py` rewritten to SQLAlchemy async + asyncpg; added `scripts/schema.sql` (tables + indexes); `pyproject.toml` now depends on `sqlalchemy[asyncio]` + `asyncpg` (dropped `supabase`); `.env.example` uses `DATABASE_URL`; `docker-compose.yml` now runs Postgres + server with schema auto-init. Access control moves to the app layer (no RLS).
 - **2026-06-13** — Finalized plan: resolved Q1–Q10, added Q11/Q12, added Integrity & Anti-Fraud and Custody & Payout sections, marked scaffold tasks 🟢. Bug fixes landed in `server/routes/ads.py`:
   - Removed duplicate impression logging — `/ad/request` no longer logs an impression (the plugin also reported it via `/ad/impression`, double-counting every served ad). Impression is now billable only on confirmed display (Q12).
   - Fixed invalid `HTTPException(204, detail=…)` — a 204 must carry no body; now returns a bodiless `204 No Content` that the client already interprets as "no ad".

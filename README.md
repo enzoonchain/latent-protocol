@@ -89,7 +89,7 @@ agent-kickbacks/
 | Component | Tech |
 |-----------|------|
 | Ad Server | FastAPI + x402 Python SDK |
-| Database | Supabase (Postgres) |
+| Database | Railway Postgres (SQLAlchemy async + asyncpg) |
 | Payments | x402 protocol, USDC on Base |
 | Facilitator | Coinbase CDP (1K free tx/mo) |
 | Plugin | Hermes plugin system |
