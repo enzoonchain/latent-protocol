@@ -98,7 +98,7 @@ agent-kickbacks/
 
 ## Docs
 
-- [Product Implementation](docs/PRODUCT.md) — full product spec
+- [Product Implementation](PRODUCT.md) — full product spec
 - [Implementation Plan](docs/IMPLEMENTATION.md) — build roadmap + tasks
 - [Plugin Guide](docs/PLUGIN.md) — plugin installation + configuration
 - [Advertiser Guide](docs/ADVERTISER.md) — how to create campaigns

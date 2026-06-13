@@ -1,6 +1,7 @@
 """Ad serving endpoints."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Response, status
+from server.config import USER_SHARE
 from server.models import AdRequest, AdResponse, ImpressionRequest, ClickRequest
 from server.matcher import select_best_ad
 from server.tracker import log_impression, log_click
@@ -8,9 +9,19 @@ from server.tracker import log_impression, log_click
 router = APIRouter()
 
 
-@router.post("/request", response_model=AdResponse)
+@router.post(
+    "/request",
+    response_model=AdResponse,
+    responses={204: {"description": "No ads available"}},
+)
 async def request_ad(req: AdRequest):
-    """Serve best matching ad to agent."""
+    """Serve best matching ad to agent.
+
+    Note: serving an ad does NOT log an impression. The impression is logged
+    separately via POST /ad/impression once the client confirms the ad was
+    actually displayed. This keeps "fetched" and "displayed" distinct and
+    avoids double-counting (plugin calls both endpoints).
+    """
     ad = await select_best_ad(
         context=req.context,
         tags=req.tags,
@@ -20,19 +31,11 @@ async def request_ad(req: AdRequest):
     )
 
     if not ad:
-        raise HTTPException(204, detail="No ads available")
+        # 204 No Content — no body, client treats this as "no ad available".
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    # Calculate user earnings (50% of bid)
-    earn_amount = ad["bid_per_impression"] * 0.5
-
-    # Log impression
-    await log_impression(
-        ad_id=ad["id"],
-        user_wallet=req.user_wallet,
-        agent=req.agent,
-        surface=req.surface,
-        context=req.context,
-    )
+    # Estimated user earnings for this impression (user's share of the bid).
+    earn_amount = ad["bid_per_impression"] * USER_SHARE
 
     return AdResponse(
         ad_id=ad["id"],
