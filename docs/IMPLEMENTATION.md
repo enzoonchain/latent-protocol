@@ -119,6 +119,9 @@
 - `plugin/config.py` — configuration
 - `plugin/tracker.py` — tracking
 
+> **⚠️ MCP Migration:** This section is being replaced by MCP Server approach.
+> See `docs/MCP_MIGRATION.md` for the new architecture.
+
 ---
 
 ## Phase 2: Display (Week 2-3)
@@ -326,6 +329,7 @@
 | Q4 | WebUI static file serving — can we add custom JS? | 🟡 | **Separate JS file loaded alongside ui.js, no direct patch** (self-healing, survives WebUI updates). Confirm serving path in 2.1.1. |
 | Q5 | Hermes plugin hook names — what's available? | 🟡 | `post_response` confirmed. `on_thinking_start` / `post_tool_call` **unverified** → plugin already wraps `register_hook` in try/except (fail-open). **Blocker for 1.4.7** — verify before Phase 2.3. |
 | Q6 | How to handle x402 on advertiser portal? | 🟢 | **Wagmi + x402 client-side**; campaign funding pays the server's `EVM_ADDRESS`. |
+| Q7 | MCP migration? | 🟢 | **Yes** — migrating from Hermes plugin to MCP Server for universal agent integration. See `docs/MCP_MIGRATION.md`. |
 
 ### Business
 
@@ -431,6 +435,7 @@ Phase 4 (Launch) ◄────────────────────
 
 ## Changelog
 
+- **2026-06-13** — MCP Migration: Added MCP_MIGRATION.md, updated PRODUCT.md to reflect MCP-based architecture. Plugin approach replaced with MCP Server for universal agent integration.
 - **2026-06-13** — Finalized plan: resolved Q1–Q10, added Q11/Q12, added Integrity & Anti-Fraud and Custody & Payout sections, marked scaffold tasks 🟢. Bug fixes landed in `server/routes/ads.py`:
   - Removed duplicate impression logging — `/ad/request` no longer logs an impression (the plugin also reported it via `/ad/impression`, double-counting every served ad). Impression is now billable only on confirmed display (Q12).
   - Fixed invalid `HTTPException(204, detail=…)` — a 204 must carry no body; now returns a bodiless `204 No Content` that the client already interprets as "no ad".
