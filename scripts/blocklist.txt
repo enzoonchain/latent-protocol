@@ -1,0 +1,32 @@
+# Ad content blocklist — one keyword/phrase per line
+# Lines starting with # are ignored
+# Content matching any entry will be rejected
+
+# Scam patterns
+free money
+send eth
+send usdc
+seed phrase
+private key
+connect wallet and sign
+
+# Phishing
+airdrop claim
+verify wallet
+urgent action required
+limited time offer
+
+# Fraud
+guaranteed returns
+risk free
+double your
+100% profit
+get rich quick
+no risk
+
+# Suspicious
+click here now
+act now
+congratulations you won
+you have been selected
+winner announcement
