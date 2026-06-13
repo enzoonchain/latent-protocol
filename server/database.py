@@ -42,7 +42,16 @@ def get_engine() -> AsyncEngine:
     global _engine, _sessionmaker
     if _engine is None:
         url = _normalize_url(os.getenv("DATABASE_URL", DEFAULT_URL))
-        _engine = create_async_engine(url, pool_pre_ping=True)
+        # Railway proxy requires SSL — pass connect_args for asyncpg
+        connect_args = {}
+        if "sslmode=" in url or "ssl=" in url:
+            url = url.split("?")[0]  # remove query params
+            connect_args["ssl"] = "require"
+        _engine = create_async_engine(
+            url,
+            pool_pre_ping=True,
+            connect_args=connect_args,
+        )
         _sessionmaker = async_sessionmaker(
             _engine, class_=AsyncSession, expire_on_commit=False
         )
