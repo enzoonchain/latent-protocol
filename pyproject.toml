@@ -24,6 +24,10 @@ dependencies = [
 x402 = [
     "x402[httpx]>=1.8.0",
 ]
+# Client-side MCP server (run on the user's machine; the ad server doesn't need it).
+mcp = [
+    "mcp>=1.0.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
@@ -31,9 +35,20 @@ dev = [
     "alembic>=1.13.0",
 ]
 
+[project.scripts]
+agent-kickbacks-mcp = "agent_kickbacks.mcp_server:main"
+
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = [
+    "server",
+    "server.routes",
+    "agent_kickbacks",
+    "agent_kickbacks.adapters",
+]
 
 [tool.ruff]
 line-length = 100
