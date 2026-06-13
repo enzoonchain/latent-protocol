@@ -28,14 +28,16 @@ async def lifespan(app: FastAPI):
     if DATABASE_URL:
         try:
             from pathlib import Path
-            from sqlalchemy import text
             from server.database import get_engine
             schema_path = Path(__file__).parent.parent / "scripts" / "schema.sql"
             if schema_path.exists():
                 engine = get_engine()
                 async with engine.begin() as conn:
                     sql = schema_path.read_text()
-                    await conn.execute(text(sql))
+                    # asyncpg rejects multi-statement prepared statements;
+                    # use the raw driver connection which accepts raw SQL scripts.
+                    raw = await conn.get_raw_connection()
+                    await raw.driver_connection.execute(sql)
                 print("[agent-kickbacks] Schema applied successfully")
             else:
                 print(f"[agent-kickbacks] Schema file not found at {schema_path}")
