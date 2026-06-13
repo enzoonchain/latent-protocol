@@ -62,6 +62,8 @@ def install_payment_middleware(app: "FastAPI") -> bool:
     except Exception:
         net = network  # fall back to the raw CAIP-2 string
 
+    fund_price = os.getenv("X402_FUND_PRICE", "$1.00")  # price per block purchase
+
     routes = {
         "POST /ad/request": RouteConfig(
             accepts=PaymentOption(
@@ -71,6 +73,16 @@ def install_payment_middleware(app: "FastAPI") -> bool:
                 network=net,  # type: ignore[arg-type]
             ),
             description="Request an ad impression",
+            mime_type="application/json",
+        ),
+        "POST /campaign/{campaign_id}/buy": RouteConfig(
+            accepts=PaymentOption(
+                scheme="exact",
+                pay_to=pay_to,
+                price=fund_price,
+                network=net,  # type: ignore[arg-type]
+            ),
+            description="Buy impression blocks for a campaign",
             mime_type="application/json",
         ),
     }

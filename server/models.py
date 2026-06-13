@@ -51,6 +51,10 @@ class CampaignFund(BaseModel):
     amount: float = Field(gt=0)  # USDC to add to the campaign budget
 
 
+class BlockPurchase(BaseModel):
+    blocks: int = Field(gt=0, le=1000)  # number of 1000-impression blocks to buy
+
+
 class AdCreate(BaseModel):
     campaign_id: str
     title: str = Field(max_length=30)

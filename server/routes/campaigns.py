@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.auction import blocks_affordable
+from server.auction import block_cost, blocks_affordable
 from server.database import get_db
-from server.models import AdCreate, CampaignCreate, CampaignFund
+from server.models import AdCreate, BlockPurchase, CampaignCreate, CampaignFund
 
 router = APIRouter()
 
@@ -126,6 +126,68 @@ async def fund_campaign(
     return {
         "campaign_id": campaign_id,
         "budget_remaining": float(row["budget_remaining"]),
+        "status": row["status"],
+    }
+
+
+@router.post("/{campaign_id}/buy")
+async def buy_blocks(
+    campaign_id: str, req: BlockPurchase, db: AsyncSession = Depends(get_db)
+):
+    """Buy impression blocks for a campaign.
+
+    In production this is gated by x402 (advertiser pays USDC per block).
+    The cost is: blocks × 1000 × bid_per_impression.
+
+    This endpoint expects the x402 payment to have been made separately
+    (via the middleware or client-side x402 flow). We apply the budget
+    once the payment is confirmed.
+    """
+    # Get campaign + its ads' bid to calculate block cost
+    c = (
+        await db.execute(
+            text(
+                "SELECT id, status, COALESCE(MIN(a.bid_per_impression), 0.005) AS min_bid "
+                "FROM campaigns c "
+                "LEFT JOIN ads a ON a.campaign_id = c.id "
+                "WHERE c.id = CAST(:id AS uuid) "
+                "GROUP BY c.id"
+            ),
+            {"id": campaign_id},
+        )
+    ).mappings().first()
+    if not c:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "campaign not found")
+
+    bid = float(c["min_bid"]) if c["min_bid"] else 0.005
+    cost = block_cost(bid, req.blocks)
+
+    row = (
+        await db.execute(
+            text(
+                """
+                UPDATE campaigns
+                SET total_budget = total_budget + :cost,
+                    budget_remaining = budget_remaining + :cost,
+                    status = CASE WHEN status = 'exhausted' THEN 'active'
+                                  ELSE status END
+                WHERE id = CAST(:id AS uuid)
+                RETURNING budget_remaining, status, total_budget
+                """
+            ),
+            {"cost": cost, "id": campaign_id},
+        )
+    ).mappings().first()
+    await db.commit()
+
+    return {
+        "campaign_id": campaign_id,
+        "blocks_purchased": req.blocks,
+        "impressions_added": req.blocks * 1000,
+        "cost_usdc": cost,
+        "bid_per_impression": bid,
+        "budget_remaining": float(row["budget_remaining"]),
+        "total_budget": float(row["total_budget"]),
         "status": row["status"],
     }
 
