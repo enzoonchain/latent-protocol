@@ -21,6 +21,9 @@
   --bronze-glow: rgba(198, 168, 104, 0.18);
   --maxw: 1240px;
   --gutter: clamp(20px, 5vw, 64px);
+  --serif: "Italiana", "Times New Roman", serif;
+  --sans: "Manrope", system-ui, sans-serif;
+  --script: "Marck Script", cursive;
 }
 
 * {
@@ -36,14 +39,295 @@ html {
 body {
   background: var(--teal-900);
   color: var(--ivory);
-  font-family: "Manrope", system-ui, sans-serif;
+  font-family: var(--sans);
   font-weight: 300;
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
 
-/* Engraving texture overlay */
+/* ============================================================
+   HERO — curtain reveal
+   ============================================================ */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+  background: radial-gradient(
+    120% 80% at 50% 0%,
+    var(--teal-700),
+    var(--teal-900) 62%,
+    var(--ink)
+  );
+  padding: 120px var(--gutter) 80px;
+}
+
+.hero .stage-glow {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  transform: translate(-50%, -50%);
+  width: 70vw;
+  height: 60vh;
+  max-width: 900px;
+  background: radial-gradient(
+    ellipse at center,
+    var(--bronze-glow),
+    transparent 70%
+  );
+  filter: blur(20px);
+  z-index: 0;
+}
+
+/* Curtains */
+.curtain {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40vw;
+  max-width: 540px;
+  min-width: 320px;
+  z-index: 6;
+  pointer-events: none;
+  will-change: transform;
+  transition: transform 2.1s cubic-bezier(0.66, 0, 0.2, 1);
+}
+
+.curtain.left {
+  left: 0;
+  background: linear-gradient(
+    135deg,
+    var(--teal-800) 0%,
+    var(--teal-700) 30%,
+    var(--teal-600) 50%,
+    var(--teal-700) 70%,
+    var(--teal-800) 100%
+  );
+  filter: drop-shadow(8px 0 26px rgba(8, 24, 25, 0.55));
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 0 L90 0 C92 14 88 26 90 38 C92 50 87 62 84 74 C82 84 74 92 70 100 L0 100 Z' fill='%23fff'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 0 L90 0 C92 14 88 26 90 38 C92 50 87 62 84 74 C82 84 74 92 70 100 L0 100 Z' fill='%23fff'/%3E%3C/svg%3E");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+/* Drape folds overlay for left curtain */
+.curtain.left::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0px,
+    rgba(255, 255, 255, 0.03) 2px,
+    transparent 4px,
+    rgba(0, 0, 0, 0.05) 8px,
+    transparent 12px
+  );
+}
+
+.curtain.right {
+  right: 0;
+  background: linear-gradient(
+    -135deg,
+    var(--teal-800) 0%,
+    var(--teal-700) 30%,
+    var(--teal-600) 50%,
+    var(--teal-700) 70%,
+    var(--teal-800) 100%
+  );
+  filter: drop-shadow(-8px 0 26px rgba(8, 24, 25, 0.55));
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M100 0 L10 0 C8 14 12 26 10 38 C8 50 13 62 16 74 C18 84 26 92 30 100 L100 100 Z' fill='%23fff'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M100 0 L10 0 C8 14 12 26 10 38 C8 50 13 62 16 74 C18 84 26 92 30 100 L100 100 Z' fill='%23fff'/%3E%3C/svg%3E");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+/* Drape folds overlay for right curtain */
+.curtain.right::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0px,
+    rgba(0, 0, 0, 0.05) 2px,
+    transparent 4px,
+    rgba(255, 255, 255, 0.03) 8px,
+    transparent 12px
+  );
+}
+
+/* Opened state */
+.curtains-open .curtain.left {
+  transform: translateX(-72%);
+}
+.curtains-open .curtain.right {
+  transform: translateX(72%);
+}
+
+/* Valance shadow */
+.hero .valance {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 120px;
+  z-index: 7;
+  pointer-events: none;
+  background: linear-gradient(180deg, var(--ink), transparent);
+  opacity: 0.7;
+}
+
+/* Centre vignette */
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: radial-gradient(
+    58% 70% at 50% 46%,
+    rgba(16, 43, 44, 0.78),
+    transparent 72%
+  );
+}
+
+.hero-inner {
+  position: relative;
+  z-index: 8;
+  max-width: 780px;
+}
+
+.hero .kicker {
+  margin-bottom: 30px;
+  opacity: 0;
+}
+
+.hero .display {
+  font-family: var(--serif);
+  font-weight: 400;
+  line-height: 1.02;
+  letter-spacing: 0.01em;
+  font-size: clamp(3.4rem, 11vw, 10rem);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 0.92;
+  color: var(--ivory);
+  margin-bottom: 6px;
+}
+
+.hero .display .void {
+  display: block;
+  color: var(--bronze);
+}
+
+.hero .wordmark {
+  font-family: var(--script);
+  font-size: clamp(2.4rem, 6vw, 4.6rem);
+  color: var(--ivory);
+  line-height: 1;
+  margin: 6px 0 28px;
+}
+
+.hero p.lead {
+  margin: 0 auto 40px;
+  text-align: center;
+  font-size: clamp(1.05rem, 1.6vw, 1.3rem);
+  color: var(--ivory-soft);
+  max-width: 56ch;
+  font-weight: 300;
+}
+
+.hero .cta-row {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.hero .scroll-cue {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8;
+  color: var(--ivory-dim);
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.hero .scroll-cue .dot {
+  width: 1px;
+  height: 40px;
+  background: linear-gradient(var(--bronze), transparent);
+  animation: cue 2.4s ease-in-out infinite;
+}
+
+@keyframes cue {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scaleY(0.6);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+/* Hero content rise */
+.hero-inner > * {
+  opacity: 0;
+  transform: translateY(26px);
+}
+
+.curtains-open .hero-inner > * {
+  animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+.curtains-open .hero .kicker {
+  animation-delay: 0.9s;
+}
+
+.curtains-open .hero .display {
+  animation-delay: 1.05s;
+}
+
+.curtains-open .hero .wordmark {
+  animation-delay: 1.2s;
+}
+
+.curtains-open .hero p.lead {
+  animation-delay: 1.35s;
+}
+
+.curtains-open .hero .cta-row {
+  animation-delay: 1.5s;
+}
+
+@keyframes rise {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================================
+   Engraving texture overlay
+   ============================================================ */
 .engrave-texture {
   position: fixed;
   inset: 0;
@@ -74,9 +358,11 @@ body {
   mix-blend-mode: overlay;
 }
 
-/* Buttons */
+/* ============================================================
+   Buttons
+   ============================================================ */
 .btn {
-  font-family: "Manrope", system-ui, sans-serif;
+  font-family: var(--sans);
   font-weight: 500;
   font-size: 13px;
   letter-spacing: 0.22em;
@@ -119,9 +405,11 @@ body {
   transform: translateX(4px);
 }
 
-/* Eyebrow */
+/* ============================================================
+   Eyebrow
+   ============================================================ */
 .eyebrow {
-  font-family: "Manrope", system-ui, sans-serif;
+  font-family: var(--sans);
   font-weight: 500;
   font-size: clamp(11px, 1vw, 13px);
   letter-spacing: 0.42em;
@@ -144,9 +432,11 @@ body {
   background: linear-gradient(90deg, var(--bronze), transparent);
 }
 
-/* Section titles */
+/* ============================================================
+   Section titles
+   ============================================================ */
 h2.section-title {
-  font-family: "Italiana", "Times New Roman", serif;
+  font-family: var(--serif);
   font-weight: 400;
   line-height: 1.02;
   letter-spacing: 0.01em;
@@ -162,7 +452,9 @@ p.lead {
   font-weight: 300;
 }
 
-/* Layout */
+/* ============================================================
+   Layout
+   ============================================================ */
 .section {
   position: relative;
   z-index: 3;
@@ -179,7 +471,9 @@ p.lead {
   margin-bottom: clamp(48px, 7vw, 88px);
 }
 
-/* Marquee animation */
+/* ============================================================
+   Marquee animation
+   ============================================================ */
 @keyframes marquee {
   0% {
     transform: translateX(0);
@@ -191,4 +485,18 @@ p.lead {
 
 .animate-marquee {
   animation: marquee 30s linear infinite;
+}
+
+/* ============================================================
+   Reduced motion
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .hero-inner > * {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+  .curtain {
+    transition: none;
+  }
 }
