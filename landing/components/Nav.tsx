@@ -26,9 +26,9 @@ export function Nav() {
       <div className="flex gap-8 items-center max-md:hidden">
         {[
           ["#how", "How it works"],
-          ["#surfaces", "Surfaces"],
-          ["#economics", "Economics"],
-          ["#protocol", "Protocol"],
+          ["#blocks", "Live Ads"],
+          ["#advertiser", "Advertise"],
+          ["#user", "Earnings"],
         ].map(([href, label]) => (
           <a
             key={href}
