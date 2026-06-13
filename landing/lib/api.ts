@@ -114,19 +114,56 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+// ── Response mappers (backend is snake_case, frontend is camelCase) ──
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapCampaign(c: any): Campaign {
+  return {
+    id: c.campaign_id ?? c.id ?? "",
+    name: c.name,
+    totalBudget: c.total_budget ?? c.totalBudget ?? 0,
+    budgetRemaining: c.budget_remaining ?? c.budgetRemaining ?? 0,
+    status: c.status,
+    impressions: c.impressions ?? 0,
+    clicks: c.clicks ?? 0,
+    ctr: c.ctr ?? 0,
+    blocksRemaining: c.blocks_remaining ?? c.blocksRemaining ?? 0,
+    ads: (c.ads ?? []).map((a: any) => ({
+      id: a.id ?? "",
+      title: a.title ?? "",
+      body: a.body ?? "",
+      bid: a.bid_per_impression ?? a.bid ?? 0,
+    })),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapEarnings(e: any): Earnings {
+  return {
+    balance: e.balance ?? 0,
+    totalEarned: e.total_earned ?? e.totalEarned ?? 0,
+    totalImpressions: e.total_impressions ?? e.totalImpressions ?? 0,
+    totalClicks: e.total_clicks ?? e.totalClicks ?? 0,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapEarningEvent(e: any): EarningEvent {
+  return {
+    id: e.id ?? "",
+    amount: e.amount ?? 0,
+    kind: e.kind ?? "impression",
+    paid: e.paid_out ?? e.paid ?? false,
+    date: (e.created_at ?? e.date ?? "").replace("T", " ").slice(0, 16),
+  };
+}
+
 // ── Public functions (with mock fallback) ──
 
 export async function fetchCampaigns(wallet: string): Promise<Campaign[]> {
   try {
-    const data = await api<{ campaigns: Campaign[] }>(`/campaign/?wallet=${wallet}`);
-    return data.campaigns.map((c) => ({
-      ...c,
-      ads: [],
-      blocksRemaining: 0,
-      impressions: 0,
-      clicks: 0,
-      ctr: 0,
-    }));
+    const data = await api<{ campaigns: unknown[] }>(`/campaign/?wallet=${wallet}`);
+    return data.campaigns.map(mapCampaign);
   } catch {
     return MOCK_CAMPAIGNS;
   }
@@ -134,7 +171,8 @@ export async function fetchCampaigns(wallet: string): Promise<Campaign[]> {
 
 export async function fetchCampaign(id: string): Promise<Campaign | null> {
   try {
-    return await api<Campaign>(`/campaign/${id}`);
+    const data = await api<unknown>(`/campaign/${id}`);
+    return mapCampaign(data);
   } catch {
     return MOCK_CAMPAIGNS.find((c) => c.id === id) || null;
   }
@@ -171,7 +209,8 @@ export async function buyBlocks(
 
 export async function fetchEarnings(wallet: string): Promise<Earnings> {
   try {
-    return await api<Earnings>(`/earnings/${wallet}`);
+    const data = await api<unknown>(`/earnings/${wallet}`);
+    return mapEarnings(data);
   } catch {
     return MOCK_EARNINGS;
   }
@@ -179,8 +218,8 @@ export async function fetchEarnings(wallet: string): Promise<Earnings> {
 
 export async function fetchEarningsHistory(wallet: string): Promise<EarningEvent[]> {
   try {
-    const data = await api<{ history: EarningEvent[] }>(`/earnings/${wallet}/history`);
-    return data.history;
+    const data = await api<{ history: unknown[] }>(`/earnings/${wallet}/history`);
+    return data.history.map(mapEarningEvent);
   } catch {
     return MOCK_HISTORY;
   }
@@ -206,8 +245,14 @@ export async function requestPayout(wallet: string): Promise<Payout> {
 
 export async function fetchPayouts(wallet: string): Promise<Payout[]> {
   try {
-    const data = await api<{ payouts: Payout[] }>(`/payout/${wallet}`);
-    return data.payouts;
+    const data = await api<{ payouts: { payout_id: string; amount: number; tx_hash: string; status: string; created_at: string }[] }>(`/payout/${wallet}`);
+    return data.payouts.map((p) => ({
+      id: p.payout_id,
+      amount: p.amount,
+      txHash: p.tx_hash,
+      status: p.status,
+      date: (p.created_at ?? "").split("T")[0],
+    }));
   } catch {
     return MOCK_PAYOUTS;
   }
@@ -215,8 +260,8 @@ export async function fetchPayouts(wallet: string): Promise<Payout[]> {
 
 export async function fetchActiveBlocks() {
   try {
-    const data = await api<{ campaigns: Campaign[] }>("/campaign/");
-    return data.campaigns.filter((c) => c.status === "active");
+    const data = await api<{ campaigns: unknown[] }>("/campaign/");
+    return data.campaigns.map(mapCampaign).filter((c) => c.status === "active");
   } catch {
     return MOCK_ACTIVE_BLOCKS;
   }
@@ -224,8 +269,8 @@ export async function fetchActiveBlocks() {
 
 export async function fetchPastBlocks() {
   try {
-    const data = await api<{ campaigns: Campaign[] }>("/campaign/");
-    return data.campaigns.filter((c) => c.status !== "active");
+    const data = await api<{ campaigns: unknown[] }>("/campaign/");
+    return data.campaigns.map(mapCampaign).filter((c) => c.status !== "active");
   } catch {
     return MOCK_PAST_BLOCKS;
   }
