@@ -28,3 +28,11 @@ PROTOCOL_SHARE = 0.20   # 20% to protocol treasury
 
 # A click is worth this many times an impression (bid multiplier).
 CLICK_MULTIPLIER = float(os.getenv("CLICK_MULTIPLIER", "50"))
+
+# Integrity / anti-fraud
+IMPRESSION_SIGNING_SECRET = os.getenv("IMPRESSION_SIGNING_SECRET", "")
+IMPRESSION_TOKEN_TTL_SECONDS = int(os.getenv("IMPRESSION_TOKEN_TTL_SECONDS", "300"))
+# Reject a duplicate impression for the same ad+user within this window (replay guard).
+IMPRESSION_REPLAY_WINDOW_SECONDS = int(os.getenv("IMPRESSION_REPLAY_WINDOW_SECONDS", "60"))
+# A click only counts once the impression is at least this old (anti-misclick / fraud gate).
+CLICK_MIN_VIEW_SECONDS = int(os.getenv("CLICK_MIN_VIEW_SECONDS", "2"))
