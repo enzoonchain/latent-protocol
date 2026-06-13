@@ -95,19 +95,19 @@ export function UserPortal() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
           <div className="border border-ivory-faint p-4">
             <div className="text-2xl font-serif text-bronze">
-              ${earnings?.balance.toFixed(2) ?? "0.00"}
+              ${(earnings?.balance ?? 0).toFixed(2)}
             </div>
             <div className="text-ivory-dim text-xs mt-1">Balance</div>
           </div>
           <div className="border border-ivory-faint p-4">
             <div className="text-2xl font-serif text-bronze">
-              ${earnings?.totalEarned.toFixed(2) ?? "0.00"}
+              ${(earnings?.totalEarned ?? 0).toFixed(2)}
             </div>
             <div className="text-ivory-dim text-xs mt-1">Total earned</div>
           </div>
           <div className="border border-ivory-faint p-4">
             <div className="text-2xl font-serif text-bronze">
-              {earnings?.totalImpressions.toLocaleString() ?? "0"}
+              {(earnings?.totalImpressions ?? 0).toLocaleString()}
             </div>
             <div className="text-ivory-dim text-xs mt-1">Impressions</div>
           </div>
