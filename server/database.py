@@ -42,9 +42,18 @@ def get_engine() -> AsyncEngine:
     global _engine, _sessionmaker
     if _engine is None:
         url = _normalize_url(os.getenv("DATABASE_URL", DEFAULT_URL))
+        # asyncpg doesn't understand sslmode=, convert to ssl= for asyncpg
+        connect_args = {}
+        if "sslmode=require" in url:
+            url = url.replace("sslmode=require", "")
+            url = url.rstrip("?&")
+            if "?" not in url:
+                url = url.split("?")[0]
+            connect_args["ssl"] = "require"
         _engine = create_async_engine(
             url,
             pool_pre_ping=True,
+            connect_args=connect_args,
         )
         _sessionmaker = async_sessionmaker(
             _engine, class_=AsyncSession, expire_on_commit=False
