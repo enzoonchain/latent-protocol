@@ -47,6 +47,10 @@ class CampaignCreate(BaseModel):
     daily_cap: Optional[float] = None
 
 
+class CampaignFund(BaseModel):
+    amount: float = Field(gt=0)  # USDC to add to the campaign budget
+
+
 class AdCreate(BaseModel):
     campaign_id: str
     title: str = Field(max_length=30)
