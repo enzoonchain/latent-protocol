@@ -1,0 +1,194 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Italiana&family=Manrope:wght@300;400;500;600;700&family=Marck+Script&display=swap");
+
+:root {
+  --ink: #102b2c;
+  --teal-900: #143536;
+  --teal-800: #1a4143;
+  --teal-700: #235052;
+  --teal-600: #2f6063;
+  --teal-500: #4b7c80;
+  --teal-400: #6a989b;
+  --ivory: #efe9d6;
+  --ivory-soft: rgba(239, 233, 214, 0.72);
+  --ivory-dim: rgba(239, 233, 214, 0.46);
+  --ivory-faint: rgba(239, 233, 214, 0.12);
+  --bronze: #c6a868;
+  --bronze-soft: #a98f57;
+  --bronze-glow: rgba(198, 168, 104, 0.18);
+  --maxw: 1240px;
+  --gutter: clamp(20px, 5vw, 64px);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--teal-900);
+  color: var(--ivory);
+  font-family: "Manrope", system-ui, sans-serif;
+  font-weight: 300;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Engraving texture overlay */
+.engrave-texture {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.05;
+  mix-blend-mode: screen;
+  background-image: repeating-linear-gradient(
+      45deg,
+      var(--ivory) 0 0.5px,
+      transparent 0.5px 5px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      var(--ivory) 0 0.5px,
+      transparent 0.5px 5px
+    );
+}
+
+/* Film grain overlay */
+.grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+/* Buttons */
+.btn {
+  font-family: "Manrope", system-ui, sans-serif;
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  padding: 17px 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  border: 1px solid var(--bronze);
+  color: var(--ink);
+  background: var(--bronze);
+  transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.3, 1),
+    background 0.35s, color 0.35s, box-shadow 0.35s;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 34px -14px var(--bronze);
+}
+
+.btn.ghost {
+  background: transparent;
+  color: var(--ivory);
+  border-color: var(--ivory-faint);
+}
+
+.btn.ghost:hover {
+  border-color: var(--bronze);
+  color: var(--bronze);
+  box-shadow: none;
+}
+
+.btn .arrow {
+  transition: transform 0.35s;
+}
+
+.btn:hover .arrow {
+  transform: translateX(4px);
+}
+
+/* Eyebrow */
+.eyebrow {
+  font-family: "Manrope", system-ui, sans-serif;
+  font-weight: 500;
+  font-size: clamp(11px, 1vw, 13px);
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--bronze);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.9em;
+}
+
+.eyebrow::before,
+.eyebrow.flank::after {
+  content: "";
+  width: 34px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--bronze));
+}
+
+.eyebrow.flank::after {
+  background: linear-gradient(90deg, var(--bronze), transparent);
+}
+
+/* Section titles */
+h2.section-title {
+  font-family: "Italiana", "Times New Roman", serif;
+  font-weight: 400;
+  line-height: 1.02;
+  letter-spacing: 0.01em;
+  font-size: clamp(2.2rem, 5.5vw, 4.4rem);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+p.lead {
+  font-size: clamp(1.05rem, 1.6vw, 1.3rem);
+  color: var(--ivory-soft);
+  max-width: 56ch;
+  font-weight: 300;
+}
+
+/* Layout */
+.section {
+  position: relative;
+  z-index: 3;
+  padding: clamp(90px, 12vw, 170px) var(--gutter);
+}
+
+.wrap {
+  max-width: var(--maxw);
+  margin: 0 auto;
+}
+
+.section-head {
+  max-width: 760px;
+  margin-bottom: clamp(48px, 7vw, 88px);
+}
+
+/* Marquee animation */
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-33.333%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
