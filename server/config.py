@@ -6,6 +6,8 @@ import os
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 # x402 / Payments
+X402_ENABLED = os.getenv("X402_ENABLED", "false").lower() == "true"
+X402_AD_PRICE = os.getenv("X402_AD_PRICE", "$0.001")  # price per /ad/request
 EVM_ADDRESS = os.getenv("EVM_ADDRESS", "")
 EVM_PRIVATE_KEY = os.getenv("EVM_PRIVATE_KEY", "")
 EVM_NETWORK = os.getenv("EVM_NETWORK", "eip155:84532")
