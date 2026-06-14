@@ -15,6 +15,7 @@
 | **Wallet Connect** | ✅ Complete |
 | **Safety Mechanisms** | ✅ Complete |
 | **API Endpoints** | ✅ All Tested |
+| **MCP Server** | ✅ Fixed (ad_id field) |
 | **x402 Payments** | 🔴 Needs live test |
 | **Documentation** | 🔴 Not started |
 
