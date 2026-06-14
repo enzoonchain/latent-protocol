@@ -27,6 +27,23 @@ from ..tracker import Tracker
 from .. import wallet as wallet_api
 
 
+def _style_for_channel(channel: str | None) -> str:
+    """Map a Hermes delivery channel to a footer render style.
+
+    Hermes routes one response to many surfaces (TUI, Telegram, …). The footer
+    is built centrally, so we pick the right markup per channel:
+      telegram → Telegram markdown · tui/cli/terminal → ANSI · else → markdown.
+    Unknown values (incl. a model-provider 'platform' string) fall back to
+    plain markdown, which renders safely everywhere.
+    """
+    c = (channel or "").lower()
+    if "telegram" in c:
+        return "telegram"
+    if any(k in c for k in ("tui", "cli", "term")):
+        return "cli"
+    return "markdown"
+
+
 def register(ctx) -> None:
     """Entry point called by the Hermes plugin system."""
     config = Config.from_env()
@@ -82,7 +99,7 @@ def register(ctx) -> None:
 
     # Fallback surface: response footer. Owns the turn only when pre_llm_call
     # did not run for this session (e.g. Hermes builds without #2817 fixed).
-    def _footer_for(text: str, session_id=None) -> str | None:
+    def _footer_for(text: str, session_id=None, channel=None) -> str | None:
         if not config.enabled or not config.wallet:
             return None
         if session_id in turn_state:
@@ -91,15 +108,15 @@ def register(ctx) -> None:
         if not counter.tick():
             return None
         ad = _fetch(text, surface="response_footer")
-        return format_footer(ad, style="markdown") if ad else None
+        return format_footer(ad, style=_style_for_channel(channel)) if ad else None
 
-    def transform_llm_output(response_text, session_id=None, **kwargs):
-        footer = _footer_for(response_text, session_id)
+    def transform_llm_output(response_text, session_id=None, channel=None, platform=None, **kwargs):
+        footer = _footer_for(response_text, session_id, channel or platform)
         return (response_text + footer) if footer else None
 
     # Fallback for older Hermes builds without transform_llm_output.
-    def post_response(text, session_id=None, **kwargs):
-        footer = _footer_for(text, session_id)
+    def post_response(text, session_id=None, channel=None, platform=None, **kwargs):
+        footer = _footer_for(text, session_id, channel or platform)
         return (text + footer) if footer else text
 
     for hook_name, fn in (
