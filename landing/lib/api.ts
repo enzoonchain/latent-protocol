@@ -14,6 +14,8 @@ export type Campaign = {
   clicks: number;
   ctr: number;
   blocksRemaining: number;
+  minBid: number;
+  blockCostUsdc: number;
   ads: { id: string; title: string; body: string; bid: number }[];
 };
 
@@ -80,6 +82,8 @@ function mapCampaign(c: any): Campaign {
     clicks: c.clicks ?? 0,
     ctr: c.ctr ?? 0,
     blocksRemaining: c.blocks_remaining ?? c.blocksRemaining ?? 0,
+    minBid: c.min_bid ?? c.minBid ?? 0.005,
+    blockCostUsdc: c.block_cost_usdc ?? c.blockCostUsdc ?? (c.min_bid ?? 0.005) * 1000,
     ads: (c.ads ?? []).map((a: any) => ({
       id: a.id ?? "",
       title: a.title ?? "",

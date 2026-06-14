@@ -453,7 +453,9 @@ export function AdvertiserPortal() {
                           disabled={buying === c.id}
                           className="btn text-xs py-2 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {buying === c.id ? "Sign payment →" : "Buy 1 Block"}
+                          {buying === c.id
+                            ? "Sign payment →"
+                            : `Buy 1 Block ($${c.blockCostUsdc.toFixed(2)})`}
                         </button>
                         <button
                           onClick={(e) => {
