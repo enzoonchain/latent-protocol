@@ -279,12 +279,13 @@ the frequency counter, session caps, and daily limits.
 
 | Platform | Integration | Ad Delivery | Thinking State | Status |
 |----------|------------|-------------|----------------|--------|
-| **Hermes** | Plugin | ✅ Automatic | ✅ `pre_llm_call` | Ready |
-| **Claude Code** | Hook | ✅ `MessageDisplay` | ❌ No | Ready |
-| **Codex / MiMo** | Skill + Hook | ✅ Session start | ❌ No | Ready |
-| **Telegram** | Adapter | ✅ `wrap_response` | N/A | Ready |
-| **CLI** | Decorator | ✅ `@inject` | N/A | Ready |
-| **BankrBot** | Skill | ⏳ Pending | ❌ No | Planned |
+| **OpenClaw** | Plugin (`api.on(...)`) | ✅ `before_prompt_build` | ✅ **Best!** | 📝 Design kész |
+| **Hermes** | Plugin | ✅ Automatic | ✅ `pre_llm_call` | ✅ Ready |
+| **Claude Code** | Hook | ✅ `MessageDisplay` | ❌ No | ✅ Ready |
+| **Codex / MiMo** | Skill + Hook | ✅ Session start | ❌ No | ✅ Ready |
+| **Telegram** | Adapter | ✅ `wrap_response` | N/A | ✅ Ready |
+| **CLI** | Decorator | ✅ `@inject` | N/A | ✅ Ready |
+| **BankrBot** | Skill | ⏳ Pending | ❌ No | 📝 Skill kész |
 | **Aeon** | MCP only | ❌ Manual only | ❌ No | Limited |
 | **MCP (any)** | Tool server | ⚠️ Test only | ❌ No | Test phase |
 
