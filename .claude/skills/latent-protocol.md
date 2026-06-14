@@ -162,7 +162,7 @@ Expected output (JSON):
   "enabled": true,
   "wallet": "0x...",
   "frequency": 5,
-  "server": "https://ads.latentprotocol.io",
+  "server": "https://agent-kickbacks-production.up.railway.app",
   "min_payout": 5.0,
   "detection_method": "auto",
   "setup": "..."
@@ -195,7 +195,7 @@ sponsored footer is appended.
 | `ADS_WALLET` | — | EVM address for earnings (Base) |
 | `ADS_ENABLED` | `true` | Master on/off switch |
 | `ADS_FREQUENCY` | `5` | Show ad every N responses |
-| `ADS_SERVER` | `https://ads.latentprotocol.io` | Ad server URL |
+| `ADS_SERVER` | `https://agent-kickbacks-production.up.railway.app` | Ad server URL |
 | `ADS_MIN_PAYOUT` | `5.0` | USDC minimum payout threshold |
 | `AGENT_KICKBACKS_PLATFORM` | auto | Override detection: `hermes` / `telegram` / `cli` / `mcp` |
 

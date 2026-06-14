@@ -196,7 +196,7 @@ Config is read in priority order: **config file > env vars > defaults**.
 | Wallet address | `wallet` | `ADS_WALLET` | — |
 | Enabled | `enabled` | `ADS_ENABLED` | `true` |
 | Ad frequency | `frequency` | `ADS_FREQUENCY` | `5` (every 5 msgs) |
-| Server URL | `server` | `ADS_SERVER` | `https://ads.latentprotocol.io` |
+| Server URL | `server` | `ADS_SERVER` | `https://agent-kickbacks-production.up.railway.app` |
 | Min payout | `min_payout` | `ADS_MIN_PAYOUT` | `5.0` USDC |
 
 Config file location: `~/.latent-protocol/config.json`

@@ -279,7 +279,7 @@ pip install latent-protocol
 ```bash
 latent-protocol config \
   --wallet 0xYOUR_WALLET \
-  --ad-server https://ads.latentprotocol.io
+  --ad-server https://agent-kickbacks-production.up.railway.app
 ```
 
 ### 3. Hozzáadás agenthez:

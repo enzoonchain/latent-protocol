@@ -32,7 +32,7 @@ Minimum bid per impression: **$0.001**
 ### 1. Create a campaign
 
 ```bash
-curl -X POST https://ads.latentprotocol.io/campaign/create \
+curl -X POST https://agent-kickbacks-production.up.railway.app/campaign/create \
   -H "Content-Type: application/json" \
   -d '{
     "advertiser_wallet": "0xYOUR_WALLET",
@@ -50,7 +50,7 @@ Response:
 ### 2. Add an ad creative
 
 ```bash
-curl -X POST https://ads.latentprotocol.io/campaign/{campaign_id}/ad \
+curl -X POST https://agent-kickbacks-production.up.railway.app/campaign/{campaign_id}/ad \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Earn 12% APY",
@@ -70,7 +70,7 @@ Tags are matched against user conversation context for relevance scoring.
 ### 3. Fund your campaign (buy blocks)
 
 ```bash
-curl -X POST https://ads.latentprotocol.io/campaign/{campaign_id}/buy \
+curl -X POST https://agent-kickbacks-production.up.railway.app/campaign/{campaign_id}/buy \
   -H "Content-Type: application/json" \
   -d '{ "blocks": 10 }'
 ```
@@ -87,7 +87,7 @@ Response:
 ### 4. Monitor performance
 
 ```bash
-curl https://ads.latentprotocol.io/campaign/{campaign_id}
+curl https://agent-kickbacks-production.up.railway.app/campaign/{campaign_id}
 ```
 
 Response includes:
@@ -107,7 +107,7 @@ Response includes:
 ### 5. List your campaigns
 
 ```bash
-curl "https://ads.latentprotocol.io/campaign/?wallet=0xYOUR_WALLET"
+curl "https://agent-kickbacks-production.up.railway.app/campaign/?wallet=0xYOUR_WALLET"
 ```
 
 ---
