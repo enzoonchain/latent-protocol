@@ -1,4 +1,4 @@
-# Agent Kickbacks — Plugin Installation Guide
+# Latent Protocol — Plugin Installation Guide
 
 Earn USDC from sponsored ads shown in your AI agent. Pick your platform below.
 
@@ -18,16 +18,16 @@ Works with **Claude, OpenClaw, Cursor, Windsurf**, and any MCP-capable agent.
 ### 1. Install
 
 ```bash
-pip install 'agent-kickbacks[mcp]'
+pip install 'latent-protocol[mcp]'
 ```
 
 ### 2. Set up your wallet
 
 ```bash
-agent-kickbacks-setup
+latent-setup
 ```
 
-Generates a new wallet or imports your existing address. Config saved to `~/.agent-kickbacks/config.json`. You only need to do this once.
+Generates a new wallet or imports your existing address. Config saved to `~/.latent-protocol/config.json`. You only need to do this once.
 
 ### 3. Add to your MCP config
 
@@ -36,8 +36,8 @@ Generates a new wallet or imports your existing address. Config saved to `~/.age
 ```json
 {
   "mcpServers": {
-    "agent-kickbacks": {
-      "command": "agent-kickbacks-mcp"
+    "latent-protocol": {
+      "command": "latent-mcp"
     }
   }
 }
@@ -48,8 +48,8 @@ Generates a new wallet or imports your existing address. Config saved to `~/.age
 ```json
 {
   "mcpServers": {
-    "agent-kickbacks": {
-      "command": "agent-kickbacks-mcp"
+    "latent-protocol": {
+      "command": "latent-mcp"
     }
   }
 }
@@ -72,14 +72,14 @@ Generates a new wallet or imports your existing address. Config saved to `~/.age
 ### 1. Clone the plugin
 
 ```bash
-git clone https://github.com/enzoonchain/agent-kickbacks \
-  ~/.hermes/plugins/agent-kickbacks
+git clone https://github.com/enzoonchain/latent-protocol \
+  ~/.hermes/plugins/latent-protocol
 ```
 
 ### 2. Set up your wallet
 
 ```bash
-agent-kickbacks-setup
+latent-setup
 ```
 
 Or set `ADS_WALLET=0x...` in your Hermes environment.
@@ -88,7 +88,7 @@ Or set `ADS_WALLET=0x...` in your Hermes environment.
 
 ```json
 {
-  "plugins": ["agent-kickbacks"]
+  "plugins": ["latent-protocol"]
 }
 ```
 
@@ -113,19 +113,19 @@ Works with **python-telegram-bot**, **aiogram**, **telebot**, and any Python bot
 ### 1. Install
 
 ```bash
-pip install agent-kickbacks
+pip install latent-protocol
 ```
 
 ### 2. Set up your wallet
 
 ```bash
-agent-kickbacks-setup
+latent-setup
 ```
 
 ### 3. Wrap your response handler
 
 ```python
-from agent_kickbacks.adapters.telegram import TelegramAdAdapter
+from latent_protocol.adapters.telegram import TelegramAdAdapter
 
 adapter = TelegramAdAdapter()
 
@@ -155,19 +155,19 @@ Works with **Click**, **Typer**, **argparse**, and plain Python scripts.
 ### 1. Install
 
 ```bash
-pip install agent-kickbacks
+pip install latent-protocol
 ```
 
 ### 2. Set up your wallet
 
 ```bash
-agent-kickbacks-setup
+latent-setup
 ```
 
 ### 3a. Decorator (zero boilerplate)
 
 ```python
-from agent_kickbacks.adapters.cli import CliAdAdapter
+from latent_protocol.adapters.cli import CliAdAdapter
 
 adapter = CliAdAdapter()
 
@@ -196,10 +196,10 @@ Config is read in priority order: **config file > env vars > defaults**.
 | Wallet address | `wallet` | `ADS_WALLET` | — |
 | Enabled | `enabled` | `ADS_ENABLED` | `true` |
 | Ad frequency | `frequency` | `ADS_FREQUENCY` | `5` (every 5 msgs) |
-| Server URL | `server` | `ADS_SERVER` | `https://ads.agentkickbacks.io` |
+| Server URL | `server` | `ADS_SERVER` | `https://ads.latentprotocol.io` |
 | Min payout | `min_payout` | `ADS_MIN_PAYOUT` | `5.0` USDC |
 
-Config file location: `~/.agent-kickbacks/config.json`
+Config file location: `~/.latent-protocol/config.json`
 
 ---
 

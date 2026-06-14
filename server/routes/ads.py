@@ -73,7 +73,7 @@ async def request_ad(
         title=ad["title"],
         body=ad["body"],
         cta_text=ad["cta_text"],
-        cta_url=f"{ad['cta_url']}?ref=agent-kickbacks&ad={ad['id']}",
+        cta_url=f"{ad['cta_url']}?ref=latent-protocol&ad={ad['id']}",
         earn_amount=round(earn_amount, 6),
         image_url=ad.get("image_url"),
         impression_token=make_impression_token(ad["id"], req.user_wallet),
@@ -125,3 +125,68 @@ async def safety_status():
         "max_impressions_per_session": 20,
         "default_frequency": 5,
     }
+
+
+@router.get("/leaderboard")
+async def get_leaderboard(limit: int = 20, db: AsyncSession = Depends(get_db)):
+    """Return active ads ranked by bid_per_impression with impression counts."""
+    from sqlalchemy import text
+
+    sql = text(
+        """
+        SELECT
+            a.id,
+            a.title,
+            a.image_url,
+            a.bid_per_impression,
+            c.name AS campaign_name,
+            c.advertiser_wallet,
+            COUNT(i.id) AS impressions,
+            COUNT(i.id) FILTER (WHERE i.clicked) AS clicks,
+            RANK() OVER (ORDER BY a.bid_per_impression DESC) AS rank
+        FROM ads a
+        JOIN campaigns c ON c.id = a.campaign_id
+        LEFT JOIN impressions i ON i.ad_id = a.id
+        WHERE a.status = 'active' AND c.status = 'active'
+        GROUP BY a.id, a.title, a.image_url, a.bid_per_impression, c.name, c.advertiser_wallet
+        ORDER BY a.bid_per_impression DESC
+        LIMIT :limit
+        """
+    )
+    result = await db.execute(sql, {"limit": limit})
+    rows = result.mappings().all()
+    return {
+        "leaderboard": [
+            {
+                "id": str(r["id"]),
+                "title": r["title"],
+                "image_url": r["image_url"],
+                "bid_per_impression": float(r["bid_per_impression"]),
+                "campaign_name": r["campaign_name"],
+                "advertiser_wallet": r["advertiser_wallet"],
+                "impressions": int(r["impressions"]),
+                "clicks": int(r["clicks"]),
+                "rank": int(r["rank"]),
+            }
+            for r in rows
+        ]
+    }
+
+
+@router.get("/top-bid")
+async def get_top_bid(db: AsyncSession = Depends(get_db)):
+    """Return the current highest bid per impression across active ads."""
+    from sqlalchemy import text
+
+    sql = text(
+        """
+        SELECT MAX(a.bid_per_impression) AS top_bid
+        FROM ads a
+        JOIN campaigns c ON c.id = a.campaign_id
+        WHERE a.status = 'active' AND c.status = 'active'
+        """
+    )
+    result = await db.execute(sql)
+    row = result.fetchone()
+    top_bid = float(row[0]) if row and row[0] is not None else 0.005
+    return {"top_bid": top_bid}

@@ -253,14 +253,14 @@ def request_payout() -> dict:
 
 ### OpenClaw
 ```bash
-pip install agent-kickbacks
+pip install latent-protocol
 # Plugin telepítés
-openclaw plugin install agent-kickbacks
+openclaw plugin install latent-protocol
 ```
 
 ### Hermes
 ```bash
-pip install agent-kickbacks
+pip install latent-protocol
 # Plugin telepítés
 hermes plugins install agent-ads
 hermes config set ads.wallet 0xYOUR_WALLET
@@ -268,17 +268,17 @@ hermes config set ads.wallet 0xYOUR_WALLET
 
 ### Claude Code
 ```bash
-pip install agent-kickbacks
+pip install latent-protocol
 # MCP szerver hozzáadása
-claude mcp add agent-kickbacks -- agent-kickbacks-mcp
+claude mcp add latent-protocol -- latent-mcp
 ```
 
 ### Aeon
 ```bash
-pip install agent-kickbacks
+pip install latent-protocol
 # Skill telepítés
 cd aeon
-./add-skill enzoonchain/agent-kickbacks agent-ads
+./add-skill enzoonchain/latent-protocol agent-ads
 ```
 
 ---

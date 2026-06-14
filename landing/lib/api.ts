@@ -135,7 +135,6 @@ export async function buyBlocks(
   const body = JSON.stringify({ blocks });
   const headers: Record<string, string> = { "Content-Type": "application/json" };
 
-  // First attempt
   const res = await fetch(`${API_BASE}/campaign/${campaignId}/buy`, {
     method: "POST",
     headers,
@@ -228,5 +227,66 @@ export async function fetchPastBlocks() {
     return data.campaigns.map(mapCampaign).filter((c) => c.status !== "active");
   } catch {
     return [];
+  }
+}
+
+export type AdCreatePayload = {
+  title: string;
+  body: string;
+  cta_url: string;
+  cta_text?: string;
+  image_url?: string;
+  bid_per_impression: number;
+  category?: string;
+};
+
+export async function createAd(
+  campaignId: string,
+  data: AdCreatePayload
+): Promise<{ ad_id: string }> {
+  return api(`/campaign/${campaignId}/ad`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export type LeaderboardEntry = {
+  id: string;
+  title: string;
+  imageUrl: string | null;
+  bid: number;
+  campaignName: string;
+  advertiserWallet: string;
+  impressions: number;
+  clicks: number;
+  rank: number;
+};
+
+export async function fetchLeaderboard(limit = 20): Promise<LeaderboardEntry[]> {
+  try {
+    const data = await api<{ leaderboard: unknown[] }>(`/ad/leaderboard?limit=${limit}`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return data.leaderboard.map((e: any) => ({
+      id: e.id,
+      title: e.title,
+      imageUrl: e.image_url ?? null,
+      bid: e.bid_per_impression,
+      campaignName: e.campaign_name,
+      advertiserWallet: e.advertiser_wallet,
+      impressions: e.impressions,
+      clicks: e.clicks,
+      rank: e.rank,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchTopBid(): Promise<number> {
+  try {
+    const data = await api<{ top_bid: number }>("/ad/top-bid");
+    return data.top_bid;
+  } catch {
+    return 0.005;
   }
 }

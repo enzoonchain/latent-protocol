@@ -1,11 +1,11 @@
-# Agent Kickbacks — Hermes Plugin
+# Latent Protocol — Hermes Plugin
 
 name: agent-ads
 version: "0.1.0"
 description: "Earn USDC while your agent works. Open ad marketplace for AI agents on Base."
-author: "Agent Kickbacks"
+author: "Latent Protocol"
 license: Apache-2.0
-homepage: "https://github.com/enzoonchain/agent-kickbacks"
+homepage: "https://github.com/enzoonchain/latent-protocol"
 
 requires_env: []
 
@@ -15,5 +15,5 @@ config:
   ads.frequency: 5
   ads.categories:
     - all
-  ads.server: "https://ads.agentkickbacks.io"
+  ads.server: "https://ads.latentprotocol.io"
   ads.min_payout: 5.0

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-DEFAULT_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/agent_kickbacks"
+DEFAULT_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/latent_protocol"
 
 _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None

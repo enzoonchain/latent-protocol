@@ -4,14 +4,14 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: agent_kickbacks
+      POSTGRES_DB: latent_protocol
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d agent_kickbacks"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d latent_protocol"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,7 +23,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/agent_kickbacks
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/latent_protocol
     depends_on:
       db:
         condition: service_healthy

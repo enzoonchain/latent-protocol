@@ -17,22 +17,22 @@ const platforms: Platform[] = [
     steps: [
       {
         title: "1. Install the package",
-        code: "pip install 'agent-kickbacks[mcp]'",
+        code: "pip install 'latent-protocol[mcp]'",
         lang: "bash",
       },
       {
         title: "2. Set up your earning wallet",
-        code: "agent-kickbacks-setup",
+        code: "latent-setup",
         lang: "bash",
-        note: "Generates a new wallet or imports your existing address. Saves to ~/.agent-kickbacks/config.json",
+        note: "Generates a new wallet or imports your existing address. Saves to ~/.latent-protocol/config.json",
       },
       {
         title: "3. Add to your MCP config",
         code: JSON.stringify(
           {
             mcpServers: {
-              "agent-kickbacks": {
-                command: "agent-kickbacks-mcp",
+              "latent-protocol": {
+                command: "latent-mcp",
               },
             },
           },
@@ -55,12 +55,12 @@ const platforms: Platform[] = [
     steps: [
       {
         title: "1. Clone the plugin into Hermes skills",
-        code: "git clone https://github.com/enzoonchain/agent-kickbacks \\\n  ~/.hermes/plugins/agent-kickbacks",
+        code: "git clone https://github.com/enzoonchain/latent-protocol \\\n  ~/.hermes/plugins/latent-protocol",
         lang: "bash",
       },
       {
         title: "2. Set up your wallet",
-        code: "agent-kickbacks-setup",
+        code: "latent-setup",
         lang: "bash",
         note: "Or set ADS_WALLET=0x... in your Hermes environment.",
       },
@@ -68,7 +68,7 @@ const platforms: Platform[] = [
         title: "3. Enable in Hermes config",
         code: JSON.stringify(
           {
-            plugins: ["agent-kickbacks"],
+            plugins: ["latent-protocol"],
           },
           null,
           2
@@ -90,17 +90,17 @@ const platforms: Platform[] = [
     steps: [
       {
         title: "1. Install",
-        code: "pip install agent-kickbacks",
+        code: "pip install latent-protocol",
         lang: "bash",
       },
       {
         title: "2. Set up wallet",
-        code: "agent-kickbacks-setup",
+        code: "latent-setup",
         lang: "bash",
       },
       {
         title: "3. Wrap your handler",
-        code: `from agent_kickbacks.adapters.telegram import TelegramAdAdapter
+        code: `from latent_protocol.adapters.telegram import TelegramAdAdapter
 
 adapter = TelegramAdAdapter()
 
@@ -122,17 +122,17 @@ async def handle_message(update, context):
     steps: [
       {
         title: "1. Install",
-        code: "pip install agent-kickbacks",
+        code: "pip install latent-protocol",
         lang: "bash",
       },
       {
         title: "2. Set up wallet",
-        code: "agent-kickbacks-setup",
+        code: "latent-setup",
         lang: "bash",
       },
       {
         title: "3a. Decorator (zero boilerplate)",
-        code: `from agent_kickbacks.adapters.cli import CliAdAdapter
+        code: `from latent_protocol.adapters.cli import CliAdAdapter
 
 adapter = CliAdAdapter()
 
@@ -235,7 +235,7 @@ export function Install() {
         {/* CTA row */}
         <div className="flex gap-4 justify-center mt-12 flex-wrap">
           <a
-            href="https://github.com/enzoonchain/agent-kickbacks"
+            href="https://github.com/enzoonchain/latent-protocol"
             className="btn"
             target="_blank"
             rel="noopener noreferrer"

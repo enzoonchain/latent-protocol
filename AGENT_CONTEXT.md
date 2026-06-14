@@ -118,7 +118,7 @@ User → Agent (Hermes) → Plugin → Ad Server → Ad returned → Displayed t
 
 ## Current Status
 
-- ✅ GitHub repo: https://github.com/enzoonchain/agent-kickbacks
+- ✅ GitHub repo: https://github.com/enzoonchain/latent-protocol
 - ✅ Product spec: PRODUCT.md (41KB)
 - ✅ Implementation plan: docs/IMPLEMENTATION.md
 - ✅ Plugin scaffold: plugin/__init__.py (working structure)
@@ -148,7 +148,7 @@ Design:    Viktor Oddy / MotionSites inspired — dark, minimal, animated, premi
 
 | Resource | URL |
 |----------|-----|
-| GitHub | https://github.com/enzoonchain/agent-kickbacks |
+| GitHub | https://github.com/enzoonchain/latent-protocol |
 | Product Spec | docs/PRODUCT.md |
 | Implementation Plan | docs/IMPLEMENTATION.md |
 | x402 Protocol | https://x402.org |

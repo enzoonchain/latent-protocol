@@ -44,5 +44,10 @@ coverage.xml
 # pytest
 .pytest_cache/
 
-# Claude Code
-.claude/
+# Claude Code — ignore session data but track skills
+.claude/commands/
+.claude/todos/
+.claude/worktrees/
+.claude/session*
+.claude/*.jsonl
+.claude/*.log

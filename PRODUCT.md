@@ -1,4 +1,4 @@
-# Agent Kickbacks — Product Implementation Doc
+# Latent Protocol — Product Implementation Doc
 
 > Crypto-native ad marketplace for AI agents. x402 micropayments on Base. Open source.
 
@@ -75,7 +75,7 @@ A VS Code extension that replaces AI coding tool spinners (Claude Code, Codex) w
 
 ### Core Differences from Kickbacks
 
-| Kickbacks | Agent Kickbacks |
+| Kickbacks | Latent Protocol |
 |-----------|----------------|
 | Google OAuth | Wallet signature (EIP-712) |
 | Stripe/fiat | x402 + USDC on Base |
@@ -105,7 +105,7 @@ A VS Code extension that replaces AI coding tool spinners (Claude Code, Codex) w
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  MCP SERVER: agent-kickbacks                         │
+│  MCP SERVER: latent-protocol                         │
 ├─────────────────────────────────────────────────────┤
 │                                                      │
 │  TOOLS (user can call):                              │
@@ -217,7 +217,7 @@ EVM_ADDRESS = os.getenv("EVM_ADDRESS")  # Marketplace treasury wallet
 EVM_NETWORK: Network = "eip155:8453"     # Base Mainnet
 FACILITATOR_URL = os.getenv("FACILITATOR_URL", "https://x402.org/facilitator")
 
-app = FastAPI(title="Agent Kickbacks")
+app = FastAPI(title="Latent Protocol")
 
 # x402 setup
 facilitator = HTTPFacilitatorClient(FacilitatorConfig(url=FACILITATOR_URL))
@@ -306,7 +306,7 @@ async def request_ad(req: AdRequest):
         title=ad["title"],
         body=ad["body"],
         cta_text=ad["cta_text"],
-        cta_url=f"{ad['cta_url']}?ref=agent-kickbacks&ad={ad['id']}",
+        cta_url=f"{ad['cta_url']}?ref=latent-protocol&ad={ad['id']}",
         earn_amount=ad["bid_per_impression"] * 0.5,  # 50% to user
         image_url=ad.get("image_url")
     )
@@ -398,7 +398,7 @@ CREATE TABLE payouts (
 ### MCP Server Structure
 
 ```
-src/agent_kickbacks/
+src/latent_protocol/
 ├── __init__.py                 # version
 ├── mcp_server.py               # MCP server entry point
 ├── tools/
@@ -419,7 +419,7 @@ src/agent_kickbacks/
 ### MCP Server Code
 
 ```python
-# src/agent_kickbacks/mcp_server.py
+# src/latent_protocol/mcp_server.py
 
 from mcp.server.fastmcp import FastMCP
 from .ad_client import AdClient
@@ -427,7 +427,7 @@ from .tracker import Tracker
 from .wallet import Wallet
 from .config import Config
 
-mcp = FastMCP("Agent Kickbacks", version="0.1.0")
+mcp = FastMCP("Latent Protocol", version="0.1.0")
 
 config = Config()
 client = AdClient(config.ad_server_url)
@@ -789,7 +789,7 @@ window._thinkingTick = function() {
 ## 8. File Structure
 
 ```
-agent-kickbacks/
+latent-protocol/
 ├── README.md
 ├── LICENSE                          # Apache-2.0
 ├── docker-compose.yml               # self-hostable
@@ -797,7 +797,7 @@ agent-kickbacks/
 ├── pyproject.toml                   # pip install
 │
 ├── src/
-│   └── agent_kickbacks/
+│   └── latent_protocol/
 │       ├── __init__.py              # version
 │       ├── mcp_server.py            # MCP server entry point
 │       ├── tools/
@@ -862,7 +862,7 @@ agent-kickbacks/
 | Channel | Method |
 |---------|--------|
 | **GitHub** | Main repo, Apache-2.0 |
-| **PyPI** | `pip install agent-kickbacks` |
+| **PyPI** | `pip install latent-protocol` |
 | **Docker** | `docker compose up` for self-hosted |
 | **MCP** | Works with any MCP-compatible agent |
 
@@ -870,28 +870,28 @@ agent-kickbacks/
 
 ```bash
 # Clone and run server
-git clone https://github.com/agent-kickbacks/agent-kickbacks.git
-cd agent-kickbacks
+git clone https://github.com/latent-protocol/latent-protocol.git
+cd latent-protocol
 cp .env.example .env  # edit with your values
 docker compose up -d
 
 # Or install MCP server only
-pip install agent-kickbacks
-agent-kickbacks config --wallet 0xYOUR_WALLET --ad-server https://your-server.com
+pip install latent-protocol
+latent-protocol config --wallet 0xYOUR_WALLET --ad-server https://your-server.com
 ```
 
 ### Adding to Your Agent
 
 ```bash
 # Claude Code
-claude mcp add agent-kickbacks -- agent-kickbacks-mcp
+claude mcp add latent-protocol -- latent-mcp
 
 # Any MCP-compatible agent
 # Add to your agent's MCP config:
 {
   "mcpServers": {
-    "agent-kickbacks": {
-      "command": "agent-kickbacks-mcp",
+    "latent-protocol": {
+      "command": "latent-mcp",
       "args": ["serve"]
     }
   }

@@ -17,7 +17,7 @@ export function OpenSource() {
             </p>
             <div className="flex gap-4 mt-8 flex-wrap">
               <a
-                href="https://github.com/enzoonchain/agent-kickbacks"
+                href="https://github.com/enzoonchain/latent-protocol"
                 className="btn"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -37,11 +37,11 @@ export function OpenSource() {
             <div className="space-y-2">
               <div>
                 <span className="text-bronze">$</span>{" "}
-                <span className="text-ivory-soft">pip install agent-kickbacks</span>
+                <span className="text-ivory-soft">pip install latent-protocol</span>
               </div>
               <div>
                 <span className="text-bronze">$</span>{" "}
-                <span className="text-ivory-soft">agent-kickbacks-mcp serve</span>
+                <span className="text-ivory-soft">latent-mcp serve</span>
               </div>
               <div className="text-ivory-dim mt-4">
                 # Add to your agent config:
@@ -50,7 +50,7 @@ export function OpenSource() {
                 <span className="text-ivory-soft">export ADS_WALLET=0x...</span>
               </div>
               <div>
-                <span className="text-ivory-soft">export ADS_SERVER=https://ads.agentkickbacks.io</span>
+                <span className="text-ivory-soft">export ADS_SERVER=https://ads.latentprotocol.io</span>
               </div>
             </div>
           </div>

@@ -35,7 +35,7 @@ export function Footer() {
             <h4 className="font-medium text-ivory mb-4 text-sm">Build</h4>
             <ul className="space-y-2">
               {[
-                ["https://github.com/enzoonchain/agent-kickbacks", "GitHub"],
+                ["https://github.com/enzoonchain/latent-protocol", "GitHub"],
                 ["#opensource", "Plugin"],
                 ["#protocol", "x402"],
                 ["#install", "Spec"],
