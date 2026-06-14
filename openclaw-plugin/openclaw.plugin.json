@@ -1,0 +1,37 @@
+{
+  "id": "latent-protocol",
+  "kind": "skill",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "wallet": {
+        "type": "string",
+        "description": "Base (EVM) wallet address that receives USDC earnings.",
+        "pattern": "^0x[a-fA-F0-9]{40}$"
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "Master on/off switch for ad serving.",
+        "default": true
+      },
+      "frequency": {
+        "type": "number",
+        "description": "Show a sponsored ad once every N turns.",
+        "default": 5,
+        "minimum": 1
+      },
+      "server": {
+        "type": "string",
+        "description": "Latent Protocol ad server base URL.",
+        "default": "https://agent-kickbacks-production.up.railway.app"
+      },
+      "minPayout": {
+        "type": "number",
+        "description": "Minimum USDC balance before a payout can be requested.",
+        "default": 5.0
+      }
+    },
+    "required": ["wallet"]
+  }
+}

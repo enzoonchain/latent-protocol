@@ -279,8 +279,8 @@ the frequency counter, session caps, and daily limits.
 
 | Platform | Integration | Ad Delivery | Thinking State | Status |
 |----------|------------|-------------|----------------|--------|
-| **OpenClaw** | Plugin (`api.on(...)`) | ✅ `before_prompt_build` | ✅ **Best!** | 📝 Design kész |
-| **Hermes** | Plugin | ✅ Automatic | ✅ `pre_llm_call` | ✅ Ready |
+| **OpenClaw** | Plugin (`api.on(...)`) | ✅ `before_prompt_build` | ✅ **Best (live!)** | ✅ Implementálva (`openclaw-plugin/`) |
+| **Hermes** | Plugin | ✅ Automatic (footer) | ⚠️ `pre_llm_call` no-op (#2817) | ✅ Ready (thinking forward-compat) |
 | **Claude Code** | Hook | ✅ `MessageDisplay` | ❌ No | ✅ Ready |
 | **Codex / MiMo** | Skill + Hook | ✅ Session start | ❌ No | ✅ Ready |
 | **Telegram** | Adapter | ✅ `wrap_response` | N/A | ✅ Ready |
