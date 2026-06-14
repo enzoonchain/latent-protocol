@@ -85,10 +85,12 @@ export function Nav() {
         </button>
       </nav>
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer — slides down from navbar */}
       <div
-        className={`fixed inset-0 z-40 bg-ink/97 flex flex-col justify-center items-center gap-8 transition-all duration-300 md:hidden ${
-          open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        className={`fixed left-0 right-0 z-40 bg-ink border-b border-ivory-faint flex flex-col items-center gap-7 py-8 transition-all duration-300 md:hidden ${
+          open
+            ? "top-[56px] opacity-100 pointer-events-auto"
+            : "-top-full opacity-0 pointer-events-none"
         }`}
       >
         {NAV_LINKS.map(([href, label]) => (
