@@ -10,7 +10,7 @@ from server.models import AdCreate, BlockPurchase, CampaignCreate, CampaignFund
 
 router = APIRouter()
 
-MIN_CAMPAIGN_BUDGET = 10.0  # Q7
+MIN_CAMPAIGN_BUDGET = 1.0  # minimum campaign budget in USDC
 
 
 @router.post("/create", status_code=status.HTTP_201_CREATED)

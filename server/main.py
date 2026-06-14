@@ -55,19 +55,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — configurable origins via env
 import os
-
-_raw_origins = os.getenv("CORS_ORIGINS", "*")
-allow_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allow_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 # ── Health ──
@@ -93,6 +81,11 @@ app.include_router(payouts_router, prefix="/payout", tags=["payouts"])
 
 
 # ── x402 Payment Middleware (env-gated; see server/x402_payments.py) ──
+# NOTE: install the payment middleware BEFORE CORS. Starlette runs the
+# last-added middleware first (outermost), so CORS must be added last to
+# wrap the 402 responses and answer OPTIONS preflights — otherwise the
+# payment middleware intercepts the preflight without CORS headers and the
+# browser reports "Failed to fetch" on gated routes (e.g. /campaign/*/buy).
 from server.x402_payments import install_payment_middleware
 
 try:
@@ -102,6 +95,20 @@ try:
         print("[latent-protocol] x402 payment disabled (set X402_ENABLED=true to enable)")
 except Exception as exc:
     print(f"[latent-protocol] ⚠️  x402 NOT installed — serving unpaid: {exc}")
+
+
+# ── CORS — added LAST so it is the outermost middleware ──
+_raw_origins = os.getenv("CORS_ORIGINS", "*")
+allow_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allow_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
 
 
 if __name__ == "__main__":

@@ -61,7 +61,7 @@ export function AdvertiserPortal() {
   const totalImpressions = active.reduce((a, c) => a + c.impressions, 0);
   const totalClicks = active.reduce((a, c) => a + c.clicks, 0);
 
-  const MIN_BUDGET = 10;
+  const MIN_BUDGET = 1;
 
   const handleCreate = async () => {
     if (!address) return;
@@ -278,13 +278,13 @@ export function AdvertiserPortal() {
                     setNewCampaign({ ...newCampaign, budget: e.target.value })
                   }
                   placeholder="10.00"
-                  min="10"
+                  min="1"
                   className="w-full mt-1 px-4 py-2 bg-teal-900 border border-ivory-faint text-ivory text-sm focus:border-bronze outline-none"
                 />
               </div>
             </div>
             <p className="text-ivory-dim text-xs mt-3">
-              Minimum budget is $10.00 USDC.
+              Minimum budget is $1.00 USDC.
             </p>
             {createError && (
               <p className="text-red-400 text-xs mt-2">{createError}</p>
