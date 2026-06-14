@@ -63,7 +63,7 @@ class CliAdAdapter:
             return text
 
         self._tracker.log_impression(
-            ad["id"], self._cfg.wallet, ad.get("impression_token", "")
+            ad.get("ad_id", ad.get("id", "")), self._cfg.wallet, ad.get("impression_token", "")
         )
         return text + format_footer(ad, style="cli")
 
