@@ -56,7 +56,8 @@ class BlockPurchase(BaseModel):
 
 
 class AdCreate(BaseModel):
-    campaign_id: str
+    # Sourced from the URL path; optional in the request body.
+    campaign_id: Optional[str] = None
     title: str = Field(max_length=30)
     body: str = Field(max_length=140)
     cta_text: str = "Learn more"
