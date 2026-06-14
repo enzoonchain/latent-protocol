@@ -11,15 +11,69 @@ x402 2.13 but has not been exercised against a real facilitator yet.
 
 from __future__ import annotations
 
+import base64
+import json
 import os
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fastapi import FastAPI
+    from fastapi import FastAPI, Request
 
 
 def is_enabled() -> bool:
     return os.getenv("X402_ENABLED", "false").lower() == "true"
+
+
+def payment_present(request: "Request") -> bool:
+    """True if the request carries an x402 payment proof header."""
+    return bool(
+        request.headers.get("x-payment") or request.headers.get("payment")
+    )
+
+
+def build_payment_required_header(amount_usdc: float) -> str:
+    """Build the base64 `payment-required` header value the web client signs.
+
+    Matches the shape parsed by landing/lib/x402Client.ts:
+    base64(JSON({ accepts: [{ scheme, network, maxAmountRequired, asset, payTo }] }))
+    """
+    network = os.getenv("EVM_NETWORK", "eip155:84532")
+    pay_to = os.getenv("EVM_ADDRESS", "")
+    asset = os.getenv("USDC_ADDRESS", "0x036CbD53842c5426634e7929541eC2318f3dCF7e")
+    # USDC has 6 decimals.
+    base_units = str(int(round(amount_usdc * 1_000_000)))
+    payload = {
+        "accepts": [
+            {
+                "scheme": "exact",
+                "network": network,
+                "maxAmountRequired": base_units,
+                "asset": asset,
+                "payTo": pay_to,
+            }
+        ]
+    }
+    return base64.b64encode(json.dumps(payload).encode()).decode()
+
+
+def require_payment_or_402(request: "Request", amount_usdc: float) -> None:
+    """Fail closed: raise 402 with a signable header if payment is enabled but
+    no x402 proof is present. A no-op when x402 is disabled.
+
+    This is a handler-level guard so a paid route can never credit budget for
+    free even if the ASGI middleware's route matching does not catch it.
+    """
+    if not is_enabled():
+        return
+    if payment_present(request):
+        return
+    from fastapi import HTTPException, status
+
+    raise HTTPException(
+        status_code=status.HTTP_402_PAYMENT_REQUIRED,
+        detail="Payment required — sign the x402 payment to continue.",
+        headers={"payment-required": build_payment_required_header(amount_usdc)},
+    )
 
 
 def install_payment_middleware(app: "FastAPI") -> bool:
