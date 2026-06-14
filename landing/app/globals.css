@@ -90,11 +90,18 @@ body {
   bottom: 0;
   width: 40vw;
   max-width: 540px;
-  min-width: 320px;
+  min-width: 160px;
   z-index: 6;
   pointer-events: none;
   will-change: transform;
   transition: transform 2.1s cubic-bezier(0.66, 0, 0.2, 1);
+}
+
+@media (max-width: 767px) {
+  .curtain {
+    min-width: 0;
+    width: 38vw;
+  }
 }
 
 .curtain.left {
@@ -133,6 +140,15 @@ body {
 }
 .curtains-open .curtain.right {
   transform: translateX(72%);
+}
+
+@media (max-width: 767px) {
+  .curtains-open .curtain.left {
+    transform: translateX(-110%);
+  }
+  .curtains-open .curtain.right {
+    transform: translateX(110%);
+  }
 }
 
 /* Valance shadow */
