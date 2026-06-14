@@ -47,7 +47,22 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
-  if (!res.ok) throw new Error(`API ${res.status}`);
+  if (!res.ok) {
+    // Surface the FastAPI `detail` message when present, fall back to status.
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail =
+        typeof body?.detail === "string"
+          ? body.detail
+          : Array.isArray(body?.detail)
+          ? body.detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join(", ")
+          : "";
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(detail || `API ${res.status}`);
+  }
   return res.json();
 }
 
