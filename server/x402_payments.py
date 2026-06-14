@@ -202,19 +202,16 @@ async def settle_payment_or_402(
 def install_payment_middleware(app: "FastAPI") -> bool:
     """Attach the x402 ASGI middleware to the static paid route(s).
 
-    Only ``POST /ad/request`` is gated here — the middleware matches *static*
-    route keys, so the templated advertiser money routes use the explicit
-    ``settle_payment_or_402`` guard instead.
-
-    Returns True if installed, False if disabled. Raises if enabled but
-    misconfigured (we never silently serve a paid route for free).
+    Only advertiser funding routes are gated — the ad request endpoint is
+    FREE for users (advertisers pay via campaign funding).
+    
+    Returns True if installed, False if disabled.
     """
     if not is_enabled():
         return False
 
     pay_to = _pay_to()
     facilitator_url = os.getenv("FACILITATOR_URL", "")
-    price = os.getenv("X402_AD_PRICE", "$0.001")
     if not pay_to or not facilitator_url:
         raise RuntimeError(
             "X402_ENABLED=true but EVM_ADDRESS / FACILITATOR_URL are not set"
@@ -227,22 +224,13 @@ def install_payment_middleware(app: "FastAPI") -> bool:
     server = _get_resource_server()
 
     try:
-        net: object = Network(_network())  # coerce CAIP-2 to the Network type
+        net: object = Network(_network())
     except Exception:
-        net = _network()  # fall back to the raw CAIP-2 string
+        net = _network()
 
-    routes = {
-        "POST /ad/request": RouteConfig(
-            accepts=PaymentOption(
-                scheme="exact",
-                pay_to=pay_to,
-                price=price,
-                network=net,  # type: ignore[arg-type]
-            ),
-            description="Request an ad impression",
-            mime_type="application/json",
-        ),
-    }
+    # NO routes gated here — ad request is free for users
+    # Campaign funding is gated via settle_payment_or_402() in the route handlers
+    routes = {}
 
     app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
     return True
