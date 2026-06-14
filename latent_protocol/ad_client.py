@@ -1,4 +1,4 @@
-"""Fetch ads from the Agent Kickbacks marketplace."""
+"""Fetch ads from the Latent Protocol marketplace."""
 
 import httpx
 

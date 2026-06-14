@@ -7,7 +7,7 @@ appended (or the original text unchanged if no ad is available).
 
 Quick start (python-telegram-bot example)
 -----------------------------------------
-    from agent_kickbacks.adapters.telegram import TelegramAdAdapter
+    from latent_protocol.adapters.telegram import TelegramAdAdapter
 
     adapter = TelegramAdAdapter()          # reads ADS_WALLET / config file
 
@@ -21,7 +21,7 @@ Quick start (python-telegram-bot example)
 aiogram middleware example
 --------------------------
     from aiogram import BaseMiddleware
-    from agent_kickbacks.adapters.telegram import TelegramAdAdapter
+    from latent_protocol.adapters.telegram import TelegramAdAdapter
 
     class AgentKickbacksMiddleware(BaseMiddleware):
         def __init__(self):

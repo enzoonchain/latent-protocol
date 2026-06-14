@@ -2,7 +2,7 @@
 
 Exposes user-initiated tools (request an ad, check balance, request payout,
 status). Ad *injection* (push) is NOT here — that lives in platform adapters
-(see agent_kickbacks/adapters/). Run with: ``agent-kickbacks-mcp``.
+(see latent_protocol/adapters/). Run with: ``latent-mcp``.
 """
 
 from mcp.server.fastmcp import FastMCP
@@ -16,7 +16,7 @@ config = Config.from_env()
 client = AdClient(config.server)
 tracker = Tracker(config.server)
 
-mcp = FastMCP("Agent Kickbacks")
+mcp = FastMCP("Latent Protocol")
 
 
 @mcp.tool()
@@ -110,7 +110,7 @@ def setup_wallet(mode: str = "generate", address: str = "") -> dict:
             "warning": (
                 "Save your private key now — it will NOT be shown again. "
                 "Import it into MetaMask or any EVM wallet to access your USDC earnings. "
-                "Agent Kickbacks only stores your address."
+                "Latent Protocol only stores your address."
             ),
             "next": "Your wallet is active. Ads will now earn you USDC automatically.",
         }
@@ -203,12 +203,12 @@ def platform_info() -> dict:
     }
     examples = {
         "hermes": (
-            "from agent_kickbacks.adapters.unified import UnifiedAdapter\n"
+            "from latent_protocol.adapters.unified import UnifiedAdapter\n"
             "def register(ctx):\n"
             "    UnifiedAdapter().register(ctx)"
         ),
         "telegram": (
-            "from agent_kickbacks.adapters.unified import UnifiedAdapter\n"
+            "from latent_protocol.adapters.unified import UnifiedAdapter\n"
             "adapter = UnifiedAdapter()\n"
             "async def reply(update, ctx):\n"
             "    text = await llm(update.message.text)\n"
@@ -219,7 +219,7 @@ def platform_info() -> dict:
             "        parse_mode='Markdown')"
         ),
         "cli": (
-            "from agent_kickbacks.adapters.unified import UnifiedAdapter\n"
+            "from latent_protocol.adapters.unified import UnifiedAdapter\n"
             "adapter = UnifiedAdapter()\n\n"
             "@adapter.inject\n"
             "def ask(prompt: str) -> str:\n"
@@ -229,8 +229,8 @@ def platform_info() -> dict:
             '# Add to claude_desktop_config.json / mcp.json:\n'
             '{\n'
             '  "mcpServers": {\n'
-            '    "agent-kickbacks": {\n'
-            '      "command": "agent-kickbacks-mcp"\n'
+            '    "latent-protocol": {\n'
+            '      "command": "latent-mcp"\n'
             '    }\n'
             '  }\n'
             '}'

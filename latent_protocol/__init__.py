@@ -1,4 +1,4 @@
-"""Agent Kickbacks — shared client core.
+"""Latent Protocol — shared client core.
 
 Used by the universal MCP server (pull tools) and by per-platform push
 adapters (response-footer injection, etc.). Talks to the ad server over HTTP;

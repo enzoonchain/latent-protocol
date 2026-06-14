@@ -1,6 +1,6 @@
 """Unit tests for the shared footer + frequency helpers (no I/O)."""
 
-from agent_kickbacks.footer import FrequencyCounter, format_footer
+from latent_protocol.footer import FrequencyCounter, format_footer
 
 AD = {
     "id": "abc",

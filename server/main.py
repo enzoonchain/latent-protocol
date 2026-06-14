@@ -1,4 +1,4 @@
-"""Agent Kickbacks — FastAPI Ad Server.
+"""Latent Protocol — FastAPI Ad Server.
 
 Crypto-native ad marketplace for AI agents.
 x402 micropayments on Base.
@@ -18,7 +18,7 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup/shutdown lifecycle."""
-    print("[agent-kickbacks] Starting ad server")
+    print("[latent-protocol] Starting ad server")
     print(f"  Network: {EVM_NETWORK}")
     print(f"  Treasury: {EVM_ADDRESS}")
     print(f"  Facilitator: {FACILITATOR_URL}")
@@ -38,18 +38,18 @@ async def lifespan(app: FastAPI):
                     # use the raw driver connection which accepts raw SQL scripts.
                     raw = await conn.get_raw_connection()
                     await raw.driver_connection.execute(sql)
-                print("[agent-kickbacks] Schema applied successfully")
+                print("[latent-protocol] Schema applied successfully")
             else:
-                print(f"[agent-kickbacks] Schema file not found at {schema_path}")
+                print(f"[latent-protocol] Schema file not found at {schema_path}")
         except Exception as exc:
-            print(f"[agent-kickbacks] Schema apply failed (non-fatal): {exc}")
+            print(f"[latent-protocol] Schema apply failed (non-fatal): {exc}")
 
     yield
-    print("[agent-kickbacks] Shutting down")
+    print("[latent-protocol] Shutting down")
 
 
 app = FastAPI(
-    title="Agent Kickbacks",
+    title="Latent Protocol",
     description="Crypto-native ad marketplace for AI agents. x402 on Base.",
     version="0.1.0",
     lifespan=lifespan,
@@ -97,11 +97,11 @@ from server.x402_payments import install_payment_middleware
 
 try:
     if install_payment_middleware(app):
-        print(f"[agent-kickbacks] x402 payment ENABLED on POST /ad/request ({EVM_NETWORK})")
+        print(f"[latent-protocol] x402 payment ENABLED on POST /ad/request ({EVM_NETWORK})")
     else:
-        print("[agent-kickbacks] x402 payment disabled (set X402_ENABLED=true to enable)")
+        print("[latent-protocol] x402 payment disabled (set X402_ENABLED=true to enable)")
 except Exception as exc:
-    print(f"[agent-kickbacks] ⚠️  x402 NOT installed — serving unpaid: {exc}")
+    print(f"[latent-protocol] ⚠️  x402 NOT installed — serving unpaid: {exc}")
 
 
 if __name__ == "__main__":

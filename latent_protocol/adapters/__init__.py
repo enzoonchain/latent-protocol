@@ -3,7 +3,7 @@ a thin adapter that calls the shared core.
 
 The recommended entry point for new integrations is ``UnifiedAdapter``:
 
-    from agent_kickbacks.adapters import UnifiedAdapter
+    from latent_protocol.adapters import UnifiedAdapter
     adapter = UnifiedAdapter()          # auto-detects platform
     output = adapter.wrap(text)         # works on every platform
 """

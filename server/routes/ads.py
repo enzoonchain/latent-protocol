@@ -73,7 +73,7 @@ async def request_ad(
         title=ad["title"],
         body=ad["body"],
         cta_text=ad["cta_text"],
-        cta_url=f"{ad['cta_url']}?ref=agent-kickbacks&ad={ad['id']}",
+        cta_url=f"{ad['cta_url']}?ref=latent-protocol&ad={ad['id']}",
         earn_amount=round(earn_amount, 6),
         image_url=ad.get("image_url"),
         impression_token=make_impression_token(ad["id"], req.user_wallet),

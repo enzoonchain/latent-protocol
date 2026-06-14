@@ -1,14 +1,14 @@
-# Agent Kickbacks
+# Latent Protocol
 
 [project]
-name = "agent-kickbacks"
+name = "latent-protocol"
 version = "0.1.0"
 description = "Crypto-native ad marketplace for AI agents. x402 micropayments on Base."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
 authors = [
-    {name = "Agent Kickbacks"},
+    {name = "Latent Protocol"},
 ]
 dependencies = [
     "fastapi>=0.104.0",
@@ -38,9 +38,9 @@ dev = [
 ]
 
 [project.scripts]
-agent-kickbacks-mcp     = "agent_kickbacks.mcp_server:main"
-agent-kickbacks-setup   = "agent_kickbacks.setup:main"
-agent-kickbacks-adapter = "agent_kickbacks.adapters.unified:adapter_main"
+latent-mcp     = "latent_protocol.mcp_server:main"
+latent-setup   = "latent_protocol.setup:main"
+latent-adapter = "latent_protocol.adapters.unified:adapter_main"
 
 [build-system]
 requires = ["setuptools>=68.0"]
@@ -50,8 +50,8 @@ build-backend = "setuptools.build_meta"
 packages = [
     "server",
     "server.routes",
-    "agent_kickbacks",
-    "agent_kickbacks.adapters",
+    "latent_protocol",
+    "latent_protocol.adapters",
 ]
 
 [tool.ruff]

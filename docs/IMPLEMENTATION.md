@@ -1,4 +1,4 @@
-# Implementation Plan — Agent Kickbacks
+# Implementation Plan — Latent Protocol
 
 > Build roadmap, task breakdown, questions, dependencies, and execution order.
 

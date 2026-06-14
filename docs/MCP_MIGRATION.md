@@ -1,4 +1,4 @@
-# MCP Migration Plan — Agent Kickbacks
+# MCP Migration Plan — Latent Protocol
 
 > Integrációs modell: **MCP core + platform adapterek**. Univerzális agent integráció.
 
@@ -17,7 +17,7 @@
 |----------------------|-----------------|
 | Egyedi hook API (`ctx.register_tool()`) | Szabvány MCP protocol |
 | Csak Hermes-ben működik | Bármilyen MCP-t támogató agentben |
-| `hermes plugins install` | `pip install agent-kickbacks` |
+| `hermes plugins install` | `pip install latent-protocol` |
 | Közvetlen framework függőség | Framework-független |
 | Egyedi életciklus hookok | MCP sampling + notifications |
 
@@ -47,7 +47,7 @@ Bármilyen Agent (Claude, OpenClaw, Aeon, Hermes)
     ↓
 MCP Protocol (stdio/SSE)
     ↓
-MCP Server (agent-kickbacks-mcp)
+MCP Server (latent-mcp)
     ↓
 Ad Server API
 ```
@@ -57,9 +57,9 @@ Ad Server API
 ## Új Plugin Struktúra
 
 ```
-agent-kickbacks/
+latent-protocol/
 ├── src/
-│   └── agent_kickbacks/
+│   └── latent_protocol/
 │       ├── __init__.py              # verzió
 │       ├── mcp_server.py            # MCP szerver entry point
 │       ├── tools/
@@ -93,7 +93,7 @@ agent-kickbacks/
 ### Fő belépési pont:
 
 ```python
-# src/agent_kickbacks/mcp_server.py
+# src/latent_protocol/mcp_server.py
 
 from mcp.server.fastmcp import FastMCP
 from .ad_client import AdClient
@@ -101,7 +101,7 @@ from .tracker import Tracker
 from .wallet import Wallet
 from .config import Config
 
-mcp = FastMCP("Agent Kickbacks", version="0.1.0")
+mcp = FastMCP("Latent Protocol", version="0.1.0")
 
 config = Config()
 client = AdClient(config.ad_server_url)
@@ -272,29 +272,29 @@ if __name__ == "__main__":
 
 ### 1. Telepítés:
 ```bash
-pip install agent-kickbacks
+pip install latent-protocol
 ```
 
 ### 2. Konfiguráció (első alkalommal):
 ```bash
-agent-kickbacks config \
+latent-protocol config \
   --wallet 0xYOUR_WALLET \
-  --ad-server https://ads.agentkickbacks.ai
+  --ad-server https://ads.latentprotocol.io
 ```
 
 ### 3. Hozzáadás agenthez:
 
 #### Claude Code:
 ```bash
-claude mcp add agent-kickbacks -- agent-kickbacks-mcp
+claude mcp add latent-protocol -- latent-mcp
 ```
 
 #### Hermes (config.json):
 ```json
 {
   "mcpServers": {
-    "agent-kickbacks": {
-      "command": "agent-kickbacks-mcp",
+    "latent-protocol": {
+      "command": "latent-mcp",
       "args": ["serve"]
     }
   }
@@ -303,12 +303,12 @@ claude mcp add agent-kickbacks -- agent-kickbacks-mcp
 
 #### Aeon:
 ```bash
-aeon mcp add --name agent-kickbacks -- command agent-kickbacks-mcp
+aeon mcp add --name latent-protocol -- command latent-mcp
 ```
 
 #### OpenClaw:
 ```bash
-openclaw mcp add agent-kickbacks -- agent-kickbacks-mcp
+openclaw mcp add latent-protocol -- latent-mcp
 ```
 
 ### 4. Indítás:
@@ -363,23 +363,23 @@ Az agent automatikusan elindítja a MCP szerver indulásakor.
 
 ## CLI Commands
 
-### agent-kickbacks-mcp
+### latent-mcp
 
 ```bash
 # MCP szerver indítása (stdio)
-agent-kickbacks-mcp serve
+latent-mcp serve
 
 # Konfiguráció
-agent-kickbacks config --wallet 0x... --ad-server https://...
+latent-protocol config --wallet 0x... --ad-server https://...
 
 # Státusz ellenőrzése
-agent-kickbacks status
+latent-protocol status
 
 # Egyenleg lekérdezése
-agent-kickbacks balance
+latent-protocol balance
 
 # Kifizetés
-agent-kickbacks payout
+latent-protocol payout
 ```
 
 ---
@@ -388,7 +388,7 @@ agent-kickbacks payout
 
 ```toml
 [project]
-name = "agent-kickbacks"
+name = "latent-protocol"
 version = "0.1.0"
 description = "Crypto-native ad marketplace for AI agents. x402 micropayments on Base."
 requires-python = ">=3.10"
@@ -402,8 +402,8 @@ dependencies = [
 # (sqlalchemy + asyncpg) lives only in the server/ package.
 
 [project.scripts]
-agent-kickbacks-mcp = "agent_kickbacks.mcp_server:main"
-agent-kickbacks = "agent_kickbacks.cli:main"
+latent-mcp = "latent_protocol.mcp_server:main"
+latent-protocol = "latent_protocol.cli:main"
 ```
 
 ---
@@ -417,7 +417,7 @@ agent-kickbacks = "agent_kickbacks.cli:main"
 | §1 Vision | "Hermes plugin" → "MCP Server" |
 | §3 What We Build | Plugin → MCP Server |
 | §4 Technical Architecture | Plugin structúra → MCP structúra |
-| §8 File Structure | plugin/ → src/agent_kickbacks/ |
+| §8 File Structure | plugin/ → src/latent_protocol/ |
 | §9 Open Source Strategy | hermes plugins → pip install |
 
 ### IMPLEMENTATION.md
@@ -438,7 +438,7 @@ agent-kickbacks = "agent_kickbacks.cli:main"
 | M1 | MCP transport? | **stdio** (alapértelmezett) + SSE (távoli) |
 | M2 | MCP SDK? | **mcp** (hivatalos Python SDK) |
 | M3 | Thinking state hogyan? | MCP **prompt** (sampling) vagy **notification** |
-| M4 | Config hol tárolódik? | `~/.agent-kickbacks/config.json` |
+| M4 | Config hol tárolódik? | `~/.latent-protocol/config.json` |
 | M5 | Több wallet? | Egyelőre egy wallet per user |
 
 ---
@@ -516,7 +516,7 @@ agent-kickbacks = "agent_kickbacks.cli:main"
 | M1 | MCP transport? | **stdio** (alapértelmezett) + SSE (távoli) |
 | M2 | MCP SDK? | **mcp** (hivatalos Python SDK) |
 | M3 | Thinking state hogyan? | **MCP nem tudja** — platform adapterek kellenek |
-| M4 | Config hol tárolódik? | `~/.agent-kickbacks/config.json` |
+| M4 | Config hol tárolódik? | `~/.latent-protocol/config.json` |
 | M5 | Több wallet? | Egyelőre egy wallet per user |
 | M6 | Melyik platform a legjobb? | **OpenClaw** (thinking + injection), második: **Hermes** |
 | M7 | Response footer mindenhol? | **Igen** — `message_sending`, `transform_llm_output`, `Stop` hook |

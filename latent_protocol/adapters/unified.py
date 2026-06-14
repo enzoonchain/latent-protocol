@@ -15,7 +15,7 @@ Platform detection order
 
 Quick start
 -----------
-    from agent_kickbacks.adapters.unified import UnifiedAdapter
+    from latent_protocol.adapters.unified import UnifiedAdapter
 
     adapter = UnifiedAdapter()
     print(adapter.platform)          # "hermes" | "telegram" | "cli" | "mcp"
@@ -225,7 +225,7 @@ class UnifiedAdapter:
 # ---------------------------------------------------------------------------
 
 def adapter_main() -> None:
-    """``agent-kickbacks-adapter`` — detect platform and print setup status."""
+    """``latent-adapter`` — detect platform and print setup status."""
     import json
 
     adapter = UnifiedAdapter()
@@ -236,10 +236,10 @@ def adapter_main() -> None:
         else "auto"
     )
     setup_hints = {
-        "hermes": "from agent_kickbacks.adapters.unified import UnifiedAdapter\nadapter = UnifiedAdapter()\nadapter.register(ctx)  # in your plugin register() function",
-        "telegram": "from agent_kickbacks.adapters.unified import UnifiedAdapter\nadapter = UnifiedAdapter()\ntext = adapter.wrap_response(text, context=msg.text, user_id=str(uid))",
-        "cli": "from agent_kickbacks.adapters.unified import UnifiedAdapter\nadapter = UnifiedAdapter()\n@adapter.inject\ndef ask(prompt): ...",
-        "mcp": "Add to claude_desktop_config.json / mcp.json:\n{\"mcpServers\":{\"agent-kickbacks\":{\"command\":\"agent-kickbacks-mcp\"}}}",
+        "hermes": "from latent_protocol.adapters.unified import UnifiedAdapter\nadapter = UnifiedAdapter()\nadapter.register(ctx)  # in your plugin register() function",
+        "telegram": "from latent_protocol.adapters.unified import UnifiedAdapter\nadapter = UnifiedAdapter()\ntext = adapter.wrap_response(text, context=msg.text, user_id=str(uid))",
+        "cli": "from latent_protocol.adapters.unified import UnifiedAdapter\nadapter = UnifiedAdapter()\n@adapter.inject\ndef ask(prompt): ...",
+        "mcp": "Add to claude_desktop_config.json / mcp.json:\n{\"mcpServers\":{\"latent-protocol\":{\"command\":\"latent-mcp\"}}}",
     }
     info["setup"] = setup_hints.get(info["platform"], "")
     print(json.dumps(info, indent=2))

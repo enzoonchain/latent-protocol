@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agent_kickbacks.adapters.unified import UnifiedAdapter, detect_platform
-from agent_kickbacks.config import Config
+from latent_protocol.adapters.unified import UnifiedAdapter, detect_platform
+from latent_protocol.config import Config
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +154,7 @@ class TestRegister:
     def test_delegates_to_hermes_adapter(self):
         adapter = _adapter(platform="hermes")
         ctx = MagicMock()
-        with patch("agent_kickbacks.adapters.hermes.register") as mock_reg:
+        with patch("latent_protocol.adapters.hermes.register") as mock_reg:
             adapter.register(ctx)
             mock_reg.assert_called_once_with(ctx)
 
@@ -179,6 +179,6 @@ class TestStatus:
 # ---------------------------------------------------------------------------
 
 def test_top_level_import():
-    from agent_kickbacks.adapters import UnifiedAdapter as UA, detect_platform as dp
+    from latent_protocol.adapters import UnifiedAdapter as UA, detect_platform as dp
     assert UA is UnifiedAdapter
     assert dp is detect_platform

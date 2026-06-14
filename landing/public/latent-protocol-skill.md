@@ -1,6 +1,6 @@
-# Skill: agent-kickbacks
+# Skill: latent-protocol
 
-Complete onboarding for the Agent Kickbacks ad SDK. When invoked, this skill
+Complete onboarding for the Latent Protocol ad SDK. When invoked, this skill
 detects your platform, installs the SDK, wires the adapter into your code,
 sets up an earning wallet, and verifies the integration — all in one shot.
 
@@ -10,12 +10,12 @@ sets up an earning wallet, and verifies the integration — all in one shot.
 
 Run:
 ```bash
-python -c "import agent_kickbacks; print(agent_kickbacks.__version__)"
+python -c "import latent_protocol; print(latent_protocol.__version__)"
 ```
 
 If it fails or isn't installed:
 ```bash
-pip install "agent-kickbacks[mcp]"
+pip install "latent-protocol[mcp]"
 ```
 
 ---
@@ -24,7 +24,7 @@ pip install "agent-kickbacks[mcp]"
 
 Run:
 ```bash
-python -c "from agent_kickbacks.adapters.unified import detect_platform; print(detect_platform())"
+python -c "from latent_protocol.adapters.unified import detect_platform; print(detect_platform())"
 ```
 
 If that fails (package not yet installed), infer from the project:
@@ -42,7 +42,7 @@ If that fails (package not yet installed), infer from the project:
 Find the file with `def register(ctx):` and insert at the **top** of the function body:
 
 ```python
-from agent_kickbacks.adapters.unified import UnifiedAdapter
+from latent_protocol.adapters.unified import UnifiedAdapter
 UnifiedAdapter().register(ctx)
 ```
 
@@ -54,7 +54,7 @@ This registers the `transform_llm_output` hook (response footer) and the
 Find the main message handler function and wrap the outgoing text:
 
 ```python
-from agent_kickbacks.adapters.unified import UnifiedAdapter
+from latent_protocol.adapters.unified import UnifiedAdapter
 _ad_adapter = UnifiedAdapter()   # one instance per process
 
 # In your handler, replace direct send with:
@@ -74,7 +74,7 @@ await message.reply_text(
 Find the function that calls the LLM and returns/prints its output:
 
 ```python
-from agent_kickbacks.adapters.unified import UnifiedAdapter
+from latent_protocol.adapters.unified import UnifiedAdapter
 _ad_adapter = UnifiedAdapter()
 
 @_ad_adapter.inject              # appends ANSI banner automatically
@@ -96,8 +96,8 @@ or via `/mcp add`):
 ```json
 {
   "mcpServers": {
-    "agent-kickbacks": {
-      "command": "agent-kickbacks-mcp"
+    "latent-protocol": {
+      "command": "latent-mcp"
     }
   }
 }
@@ -107,8 +107,8 @@ For Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.
 ```json
 {
   "mcpServers": {
-    "agent-kickbacks": {
-      "command": "agent-kickbacks-mcp"
+    "latent-protocol": {
+      "command": "latent-mcp"
     }
   }
 }
@@ -131,12 +131,12 @@ Available tools after adding:
 
 Run:
 ```bash
-agent-kickbacks-setup
+latent-setup
 ```
 
-This creates `~/.agent-kickbacks/config.json` with a new wallet.
+This creates `~/.latent-protocol/config.json` with a new wallet.
 
-If `agent-kickbacks-setup` isn't available yet (pre-install), use the MCP
+If `latent-setup` isn't available yet (pre-install), use the MCP
 tool `setup_wallet` with `mode="generate"`, or set the env var:
 ```bash
 export ADS_WALLET=0xYourExistingWalletAddress
@@ -151,7 +151,7 @@ Import it into MetaMask or any EVM wallet to access USDC earnings.
 
 Run:
 ```bash
-agent-kickbacks-adapter
+latent-adapter
 ```
 
 Expected output (JSON):
@@ -162,7 +162,7 @@ Expected output (JSON):
   "enabled": true,
   "wallet": "0x...",
   "frequency": 5,
-  "server": "https://ads.agentkickbacks.io",
+  "server": "https://ads.latentprotocol.io",
   "min_payout": 5.0,
   "detection_method": "auto",
   "setup": "..."
@@ -176,7 +176,7 @@ If `enabled` is `false` or `wallet` is `"not set"`, fix those before proceeding.
 ### Step 6 — Run a quick smoke test
 
 ```python
-from agent_kickbacks.adapters.unified import UnifiedAdapter
+from latent_protocol.adapters.unified import UnifiedAdapter
 adapter = UnifiedAdapter()
 print(adapter.status())
 result = adapter.wrap("Hello world", context="test")
@@ -195,7 +195,7 @@ sponsored footer is appended.
 | `ADS_WALLET` | — | EVM address for earnings (Base) |
 | `ADS_ENABLED` | `true` | Master on/off switch |
 | `ADS_FREQUENCY` | `5` | Show ad every N responses |
-| `ADS_SERVER` | `https://ads.agentkickbacks.io` | Ad server URL |
+| `ADS_SERVER` | `https://ads.latentprotocol.io` | Ad server URL |
 | `ADS_MIN_PAYOUT` | `5.0` | USDC minimum payout threshold |
 | `AGENT_KICKBACKS_PLATFORM` | auto | Override detection: `hermes` / `telegram` / `cli` / `mcp` |
 
@@ -212,14 +212,14 @@ Payouts settle in USDC on Base. Minimum $5. No sign-up required — just a walle
 
 **From repo (project-level):**
 ```bash
-# Already included in .claude/skills/ if you cloned agent-kickbacks
+# Already included in .claude/skills/ if you cloned latent-protocol
 ```
 
 **From URL (any project):**
 ```bash
 mkdir -p ~/.claude/skills
-curl -o ~/.claude/skills/agent-kickbacks.md \
-  https://raw.githubusercontent.com/enzoonchain/agent-kickbacks/main/.claude/skills/agent-kickbacks.md
+curl -o ~/.claude/skills/latent-protocol.md \
+  https://raw.githubusercontent.com/enzoonchain/latent-protocol/main/.claude/skills/latent-protocol.md
 ```
 
-Then invoke with `/agent-kickbacks` in any Claude Code session.
+Then invoke with `/latent-protocol` in any Claude Code session.

@@ -1,4 +1,4 @@
-# Agent Kickbacks — Project Status
+# Latent Protocol — Project Status
 
 > Auto-updated: 2026-06-13
 
@@ -81,9 +81,9 @@ server/
     └── payouts.py       # POST /payout/request, GET /payout/{wallet}
 ```
 
-### Client Library (agent_kickbacks/)
+### Client Library (latent_protocol/)
 ```
-agent_kickbacks/
+latent_protocol/
 ├── __init__.py          # v0.1.0
 ├── config.py            # Env-based Config dataclass
 ├── ad_client.py         # HTTP client for /ad/request

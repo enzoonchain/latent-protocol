@@ -1,4 +1,4 @@
-# Agent Kickbacks
+# Latent Protocol
 
 > Crypto-native ad marketplace for AI agents. x402 micropayments on Base. Open source.
 
@@ -6,7 +6,7 @@
 
 ## What Is This?
 
-Agent Kickbacks is an open-source ad marketplace that monetizes AI agent idle time. When your agent is processing, thinking, or waiting — sponsored recommendations are shown, and you earn 50% of ad revenue in USDC on Base.
+Latent Protocol is an open-source ad marketplace that monetizes AI agent idle time. When your agent is processing, thinking, or waiting — sponsored recommendations are shown, and you earn 50% of ad revenue in USDC on Base.
 
 Built on [x402](https://x402.org) — the internet's native payment protocol by Coinbase.
 
@@ -16,7 +16,7 @@ Built on [x402](https://x402.org) — the internet's native payment protocol by 
 
 ```bash
 cd ~/.hermes/plugins/
-git clone https://github.com/enzoonchain/agent-kickbacks.git agent-ads
+git clone https://github.com/enzoonchain/latent-protocol.git agent-ads
 hermes config set plugins.enabled '[agent-ads]'
 hermes config set ads.wallet 0xYOUR_BASE_WALLET
 hermes gateway restart
@@ -25,8 +25,8 @@ hermes gateway restart
 ### Self-Host Ad Server
 
 ```bash
-git clone https://github.com/enzoonchain/agent-kickbacks.git
-cd agent-kickbacks
+git clone https://github.com/enzoonchain/latent-protocol.git
+cd latent-protocol
 cp .env.example .env  # edit with your values
 docker compose up -d
 ```
@@ -74,7 +74,7 @@ Advertiser (Protocol/Token)     User/Agent (Hermes)
 ## Project Structure
 
 ```
-agent-kickbacks/
+latent-protocol/
 ├── server/          # FastAPI ad server + x402
 ├── plugin/          # Hermes plugin
 ├── webui/           # WebUI patches (thinking state, footer)

@@ -1,6 +1,6 @@
-"""Wallet setup and config persistence for Agent Kickbacks.
+"""Wallet setup and config persistence for Latent Protocol.
 
-Config file: ~/.agent-kickbacks/config.json
+Config file: ~/.latent-protocol/config.json
 Priority:    config file > env vars > built-in defaults
 """
 
@@ -10,7 +10,7 @@ import json
 import re
 from pathlib import Path
 
-_CONFIG_DIR = Path.home() / ".agent-kickbacks"
+_CONFIG_DIR = Path.home() / ".latent-protocol"
 _CONFIG_FILE = _CONFIG_DIR / "config.json"
 _EVM_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 
@@ -50,7 +50,7 @@ def is_valid_address(address: str) -> bool:
 
 def run_interactive_setup() -> None:
     """Walk the user through first-time wallet configuration."""
-    print("\n🚀 Agent Kickbacks Setup\n")
+    print("\n🚀 Latent Protocol Setup\n")
 
     cfg = load_config_file()
     if cfg.get("wallet"):
@@ -73,7 +73,7 @@ def run_interactive_setup() -> None:
         print(f"   Private key: {private_key}")
         print("\n   ⚠️  Save your private key now — import it into MetaMask or")
         print("      any EVM wallet to access your USDC earnings.")
-        print("      Agent Kickbacks only stores your address, not the private key.\n")
+        print("      Latent Protocol only stores your address, not the private key.\n")
         input("Press Enter once you've saved your private key... ")
         save_config_file({"wallet": address})
         print(f"\n✅ Wallet saved to {_CONFIG_FILE}")
@@ -88,7 +88,7 @@ def run_interactive_setup() -> None:
         print(f"\n✅ Wallet saved to {_CONFIG_FILE}")
 
     else:
-        print("Invalid choice. Run `agent-kickbacks setup` again.")
+        print("Invalid choice. Run `latent-protocol setup` again.")
         return
 
     # Optional: customise frequency
@@ -103,5 +103,5 @@ def run_interactive_setup() -> None:
 
 
 def main() -> None:
-    """Console-script entry point for `agent-kickbacks setup`."""
+    """Console-script entry point for `latent-protocol setup`."""
     run_interactive_setup()

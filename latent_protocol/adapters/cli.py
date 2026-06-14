@@ -5,7 +5,7 @@ plain print() wrappers, Typer apps, etc.
 
 Quick start
 -----------
-    from agent_kickbacks.adapters.cli import CliAdAdapter
+    from latent_protocol.adapters.cli import CliAdAdapter
 
     adapter = CliAdAdapter()               # reads ADS_WALLET / config file
 
