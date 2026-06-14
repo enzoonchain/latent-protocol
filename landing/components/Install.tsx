@@ -216,19 +216,12 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }) {
 export function Install() {
   const [active, setActive] = useState("openclaw");
   const [skillCopied, setSkillCopied] = useState(false);
-  const [pipCopied, setPipCopied] = useState(false);
   const platform = platforms.find((p) => p.id === active)!;
 
   const copySkill = () => {
     navigator.clipboard.writeText(`/skills add ${SKILL_URL}`);
     setSkillCopied(true);
     setTimeout(() => setSkillCopied(false), 1500);
-  };
-
-  const copyPip = () => {
-    navigator.clipboard.writeText("pip install latent-protocol");
-    setPipCopied(true);
-    setTimeout(() => setPipCopied(false), 1500);
   };
 
   return (
@@ -270,10 +263,10 @@ export function Install() {
               </div>
             </div>
 
-            {/* Step 1 */}
+            {/* One command — the skill handles install itself */}
             <div className="space-y-3">
               <p className="text-xs text-ivory-soft tracking-widest uppercase opacity-60">
-                Step 1 — load the skill in your agent
+                Load the skill in your agent
               </p>
               <div className="relative rounded bg-[#0d0c0b] border border-[rgba(180,140,80,0.2)] overflow-x-auto">
                 <button
@@ -287,24 +280,11 @@ export function Install() {
                 </pre>
               </div>
 
-              {/* Step 2 */}
-              <p className="text-xs text-ivory-soft tracking-widest uppercase opacity-60 pt-1">
-                Step 2 — install the Python package
-              </p>
-              <div className="relative rounded bg-[#0d0c0b] border border-[rgba(180,140,80,0.2)] overflow-x-auto">
-                <button
-                  onClick={copyPip}
-                  className="absolute top-2 right-3 text-[10px] text-ivory-soft hover:text-bronze transition-colors"
-                >
-                  {pipCopied ? "copied ✓" : "copy"}
-                </button>
-                <pre className="p-4 pr-14 text-[0.82rem] leading-relaxed text-ivory-soft font-mono">
-                  <code>pip install latent-protocol</code>
-                </pre>
-              </div>
-
               <p className="text-[0.72rem] text-ivory-soft opacity-50 leading-relaxed">
-                The skill guides you through wallet setup, platform detection, and a smoke test — all interactively.
+                That&apos;s it. The skill installs the right way for your platform
+                (ClawHub for OpenClaw, pip for the Python adapters, the status-line
+                installer for Claude Code), then sets up your wallet and verifies it
+                — all interactively. No separate install step.
               </p>
             </div>
           </div>
