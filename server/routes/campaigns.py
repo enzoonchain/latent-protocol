@@ -421,11 +421,11 @@ async def list_campaigns(wallet: str = "", status: str = "", db: AsyncSession = 
                         """
                         SELECT campaign_id, id, title, body, bid_per_impression
                         FROM ads
-                        WHERE campaign_id = ANY(:ids::uuid[])
+                        WHERE campaign_id IN :ids
                           AND status = 'active'
                         """
                     ),
-                    {"ids": campaign_ids},
+                    {"ids": tuple(campaign_ids)},
                 )
             ).mappings().all()
             for ad in ads_rows:
