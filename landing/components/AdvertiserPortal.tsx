@@ -1,17 +1,31 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAccount } from "wagmi";
+import { useState, useEffect, useRef } from "react";
+import { useAccount, useWalletClient } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import {
   fetchCampaigns,
   createCampaign,
   buyBlocks,
+  createAd,
+  fetchTopBid,
   type Campaign,
+  type AdCreatePayload,
 } from "@/lib/api";
+
+const EMPTY_AD: AdCreatePayload = {
+  title: "",
+  body: "",
+  cta_url: "",
+  cta_text: "Learn more",
+  image_url: "",
+  bid_per_impression: 0.005,
+  category: "general",
+};
 
 export function AdvertiserPortal() {
   const { address, isConnected } = useAccount();
+  const { data: walletClient } = useWalletClient();
   const { openConnectModal } = useConnectModal();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(false);
@@ -19,6 +33,15 @@ export function AdvertiserPortal() {
   const [showCreate, setShowCreate] = useState(false);
   const [newCampaign, setNewCampaign] = useState({ name: "", budget: "" });
   const [buying, setBuying] = useState<string | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
+  // Ad creation state
+  const [addAdCampaignId, setAddAdCampaignId] = useState<string | null>(null);
+  const [newAd, setNewAd] = useState<AdCreatePayload>(EMPTY_AD);
+  const [adSubmitting, setAdSubmitting] = useState(false);
+  const [adError, setAdError] = useState<string | null>(null);
+  const [topBid, setTopBid] = useState<number | null>(null);
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isConnected || !address) return;
@@ -62,14 +85,61 @@ export function AdvertiserPortal() {
     setShowCreate(false);
   };
 
-  const handleBuyBlocks = async (campaignId: string, blocks: number) => {
-    setBuying(campaignId);
+  const openAddAd = (campaignId: string) => {
+    setAddAdCampaignId(campaignId);
+    setNewAd(EMPTY_AD);
+    setAdError(null);
+    setIconPreview(null);
+    fetchTopBid().then(setTopBid);
+  };
+
+  const handleIconFile = (file: File) => {
+    if (file.size > 500_000) {
+      setAdError("Icon must be under 500 KB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const url = e.target?.result as string;
+      setIconPreview(url);
+      setNewAd((p) => ({ ...p, image_url: url }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAdSubmit = async () => {
+    if (!addAdCampaignId) return;
+    if (!newAd.title.trim()) { setAdError("Brand name is required"); return; }
+    if (!newAd.body.trim()) { setAdError("One-liner is required"); return; }
+    if (!newAd.cta_url.trim()) { setAdError("CTA URL is required"); return; }
+    if (newAd.bid_per_impression < 0.001) { setAdError("Minimum bid is $0.001"); return; }
+    setAdSubmitting(true);
+    setAdError(null);
     try {
-      await buyBlocks(campaignId, blocks);
+      await createAd(addAdCampaignId, newAd);
       if (address) {
         const updated = await fetchCampaigns(address);
         setCampaigns(updated);
       }
+      setAddAdCampaignId(null);
+    } catch (e) {
+      setAdError(e instanceof Error ? e.message : "Failed to create ad");
+    } finally {
+      setAdSubmitting(false);
+    }
+  };
+
+  const handleBuyBlocks = async (campaignId: string, blocks: number) => {
+    setBuying(campaignId);
+    setPayError(null);
+    try {
+      await buyBlocks(campaignId, blocks, walletClient ?? undefined, address);
+      if (address) {
+        const updated = await fetchCampaigns(address);
+        setCampaigns(updated);
+      }
+    } catch (e) {
+      setPayError(e instanceof Error ? e.message : "Payment failed");
     } finally {
       setBuying(null);
     }
@@ -203,8 +273,15 @@ export function AdvertiserPortal() {
           <div className="text-center py-12 text-ivory-dim">Loading...</div>
         )}
 
+        {/* Empty state */}
+        {!loading && campaigns.length === 0 && (
+          <div className="text-center py-12 text-ivory-dim">
+            No campaigns yet. Create your first campaign above.
+          </div>
+        )}
+
         {/* Campaign list */}
-        {!loading && (
+        {!loading && campaigns.length > 0 && (
           <div className="space-y-4">
             {campaigns.map((c) => (
               <div
@@ -265,7 +342,7 @@ export function AdvertiserPortal() {
                     <h4 className="text-sm text-ivory-dim uppercase tracking-wider mb-2">
                       Ads
                     </h4>
-                    <div className="space-y-2">
+                    <div className="space-y-2 mb-4">
                       {c.ads.map((ad) => (
                         <div
                           key={ad.id}
@@ -278,22 +355,38 @@ export function AdvertiserPortal() {
                           <div className="text-bronze text-sm">${ad.bid}/imp</div>
                         </div>
                       ))}
+                      {c.ads.length === 0 && (
+                        <div className="text-ivory-dim text-xs py-2">
+                          No ads yet — add one below.
+                        </div>
+                      )}
                     </div>
 
-                    <div className="flex gap-3 mt-4">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleBuyBlocks(c.id, 1);
-                        }}
-                        disabled={buying === c.id}
-                        className="btn text-xs py-2 px-4"
-                      >
-                        {buying === c.id ? "Buying..." : "Buy 1 Block"}
-                      </button>
-                      <button className="btn ghost text-xs py-2 px-4">
-                        Add Ad
-                      </button>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleBuyBlocks(c.id, 1);
+                          }}
+                          disabled={buying === c.id}
+                          className="btn text-xs py-2 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {buying === c.id ? "Sign payment →" : "Buy 1 Block"}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openAddAd(c.id);
+                          }}
+                          className="btn ghost text-xs py-2 px-4"
+                        >
+                          Add Ad
+                        </button>
+                      </div>
+                      {payError && selectedCampaign === c.id && (
+                        <div className="text-red-400 text-xs mt-1">{payError}</div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -302,6 +395,151 @@ export function AdvertiserPortal() {
           </div>
         )}
       </div>
+
+      {/* Add Ad Modal */}
+      {addAdCampaignId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setAddAdCampaignId(null)}
+        >
+          <div
+            className="bg-ink border border-bronze w-full max-w-lg p-6 space-y-4 overflow-y-auto max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-serif text-xl">Create Ad</h3>
+
+            {/* Brand name */}
+            <div>
+              <label className="text-ivory-dim text-xs uppercase tracking-wider flex justify-between">
+                Brand Name <span>{newAd.title.length}/30</span>
+              </label>
+              <input
+                type="text"
+                maxLength={30}
+                value={newAd.title}
+                onChange={(e) => setNewAd((p) => ({ ...p, title: e.target.value }))}
+                placeholder="Acme Corp"
+                className="w-full mt-1 px-4 py-2 bg-teal-900 border border-ivory-faint text-ivory text-sm focus:border-bronze outline-none"
+              />
+            </div>
+
+            {/* Brand icon */}
+            <div>
+              <label className="text-ivory-dim text-xs uppercase tracking-wider">
+                Brand Icon (URL or upload PNG/SVG ≤ 500 KB)
+              </label>
+              <div className="flex gap-2 mt-1 items-center">
+                {iconPreview && (
+                  <img
+                    src={iconPreview}
+                    alt="preview"
+                    className="w-10 h-10 object-contain border border-ivory-faint flex-shrink-0"
+                  />
+                )}
+                <input
+                  type="text"
+                  value={newAd.image_url?.startsWith("data:") ? "" : (newAd.image_url ?? "")}
+                  onChange={(e) => {
+                    setIconPreview(e.target.value || null);
+                    setNewAd((p) => ({ ...p, image_url: e.target.value }));
+                  }}
+                  placeholder="https://example.com/logo.png"
+                  className="flex-1 px-4 py-2 bg-teal-900 border border-ivory-faint text-ivory text-sm focus:border-bronze outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="btn ghost text-xs py-2 px-3 flex-shrink-0"
+                >
+                  Upload
+                </button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/png,image/svg+xml,image/jpeg"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleIconFile(f);
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* One-liner */}
+            <div>
+              <label className="text-ivory-dim text-xs uppercase tracking-wider flex justify-between">
+                One-liner <span>{newAd.body.length}/140</span>
+              </label>
+              <textarea
+                maxLength={140}
+                value={newAd.body}
+                onChange={(e) => setNewAd((p) => ({ ...p, body: e.target.value }))}
+                placeholder="The best product for AI-native workflows."
+                rows={2}
+                className="w-full mt-1 px-4 py-2 bg-teal-900 border border-ivory-faint text-ivory text-sm focus:border-bronze outline-none resize-none"
+              />
+            </div>
+
+            {/* CTA URL */}
+            <div>
+              <label className="text-ivory-dim text-xs uppercase tracking-wider">
+                CTA URL
+              </label>
+              <input
+                type="url"
+                value={newAd.cta_url}
+                onChange={(e) => setNewAd((p) => ({ ...p, cta_url: e.target.value }))}
+                placeholder="https://acme.com"
+                className="w-full mt-1 px-4 py-2 bg-teal-900 border border-ivory-faint text-ivory text-sm focus:border-bronze outline-none"
+              />
+            </div>
+
+            {/* Bid panel */}
+            <div>
+              <label className="text-ivory-dim text-xs uppercase tracking-wider">
+                Bid per Impression (USDC)
+              </label>
+              <input
+                type="number"
+                min={0.001}
+                step={0.001}
+                value={newAd.bid_per_impression}
+                onChange={(e) =>
+                  setNewAd((p) => ({
+                    ...p,
+                    bid_per_impression: parseFloat(e.target.value) || 0.001,
+                  }))
+                }
+                className="w-full mt-1 px-4 py-2 bg-teal-900 border border-ivory-faint text-ivory text-sm focus:border-bronze outline-none"
+              />
+              <p className="text-ivory-dim text-xs mt-1">
+                {topBid !== null
+                  ? `Current highest bid: $${topBid.toFixed(3)}/impression — bid higher to rank #1`
+                  : "Loading current top bid…"}
+              </p>
+            </div>
+
+            {adError && <div className="text-red-400 text-xs">{adError}</div>}
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleAdSubmit}
+                disabled={adSubmitting}
+                className="btn text-xs py-2 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {adSubmitting ? "Creating…" : "Create Ad"}
+              </button>
+              <button
+                onClick={() => setAddAdCampaignId(null)}
+                className="btn ghost text-xs py-2 px-4"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
