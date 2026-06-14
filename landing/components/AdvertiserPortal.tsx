@@ -123,15 +123,54 @@ export function AdvertiserPortal() {
   };
 
   const handleIconFile = (file: File) => {
-    if (file.size > 500_000) {
-      setAdError("Icon must be under 500 KB");
+    setAdError(null);
+    // Accept generous input; we downscale rasters client-side so the stored
+    // data URL stays small regardless of the original file size.
+    if (file.size > 10_000_000) {
+      setAdError("Image must be under 10 MB");
       return;
     }
+
+    const useAsIs = () => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const url = e.target?.result as string;
+        setIconPreview(url);
+        setNewAd((p) => ({ ...p, image_url: url }));
+      };
+      reader.readAsDataURL(file);
+    };
+
+    // SVGs (already tiny, vector) and small files: store directly.
+    if (file.type === "image/svg+xml" || file.size <= 100_000) {
+      useAsIs();
+      return;
+    }
+
+    // Larger raster images: downscale to max 256px via canvas.
     const reader = new FileReader();
     reader.onload = (e) => {
-      const url = e.target?.result as string;
-      setIconPreview(url);
-      setNewAd((p) => ({ ...p, image_url: url }));
+      const img = document.createElement("img");
+      img.onload = () => {
+        const MAX_DIM = 256;
+        const scale = Math.min(1, MAX_DIM / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          useAsIs();
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        const out = canvas.toDataURL("image/png");
+        setIconPreview(out);
+        setNewAd((p) => ({ ...p, image_url: out }));
+      };
+      img.onerror = () => setAdError("Could not load that image — try another file");
+      img.src = e.target?.result as string;
     };
     reader.readAsDataURL(file);
   };
@@ -468,7 +507,7 @@ export function AdvertiserPortal() {
             {/* Brand icon */}
             <div>
               <label className="text-ivory-dim text-xs uppercase tracking-wider">
-                Brand Icon (URL or upload PNG/SVG ≤ 500 KB)
+                Brand Icon (URL or upload — auto-resized, ≤ 10 MB)
               </label>
               <div className="flex gap-2 mt-1 items-center">
                 {iconPreview && (
