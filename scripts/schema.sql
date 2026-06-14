@@ -74,6 +74,19 @@ CREATE TABLE IF NOT EXISTS payouts (
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ── Payments (settled advertiser x402 payments on Base — audit trail) ──
+CREATE TABLE IF NOT EXISTS payments (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    campaign_id    UUID REFERENCES campaigns(id) ON DELETE SET NULL,
+    kind           TEXT NOT NULL,            -- buy | fund
+    amount         NUMERIC(18, 6) NOT NULL,
+    network        TEXT NOT NULL,
+    payer          TEXT,
+    tx_hash        TEXT,
+    status         TEXT NOT NULL DEFAULT 'settled',
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ── Indexes ──
 CREATE INDEX IF NOT EXISTS idx_impressions_user_wallet ON impressions (user_wallet);
 CREATE INDEX IF NOT EXISTS idx_impressions_ad_id       ON impressions (ad_id);
@@ -82,3 +95,4 @@ CREATE INDEX IF NOT EXISTS idx_earnings_wallet         ON earnings (wallet_addre
 CREATE INDEX IF NOT EXISTS idx_earnings_unpaid         ON earnings (wallet_address) WHERE paid_out = FALSE;
 CREATE INDEX IF NOT EXISTS idx_ads_status              ON ads (status);
 CREATE INDEX IF NOT EXISTS idx_campaigns_advertiser    ON campaigns (advertiser_wallet);
+CREATE INDEX IF NOT EXISTS idx_payments_campaign       ON payments (campaign_id);
