@@ -144,10 +144,10 @@ body {
 
 @media (max-width: 767px) {
   .curtains-open .curtain.left {
-    transform: translateX(-110%);
+    transform: translateX(-88%);
   }
   .curtains-open .curtain.right {
-    transform: translateX(110%);
+    transform: translateX(88%);
   }
 }
 
