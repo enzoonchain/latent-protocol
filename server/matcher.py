@@ -103,6 +103,7 @@ async def select_best_ad(
                 JOIN campaigns c ON c.id = a.campaign_id
                 WHERE a.status = 'active'
                   AND c.status = 'active'
+                  AND c.budget_remaining > 0
                   AND c.budget_remaining >= a.bid_per_impression
                   AND (a.expires_at IS NULL OR a.expires_at > now())
                   AND NOT EXISTS (

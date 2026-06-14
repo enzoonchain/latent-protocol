@@ -58,8 +58,8 @@ async def create_campaign(req: CampaignCreate, db: AsyncSession = Depends(get_db
             text(
                 """
                 INSERT INTO campaigns
-                    (advertiser_wallet, name, total_budget, budget_remaining, daily_cap)
-                VALUES (:w, :name, :budget, :budget, :cap)
+                    (advertiser_wallet, name, total_budget, budget_remaining, daily_cap, status)
+                VALUES (:w, :name, :budget, :budget, :cap, 'active')
                 RETURNING id
                 """
             ),
@@ -142,8 +142,7 @@ async def fund_campaign(
                 UPDATE campaigns
                 SET total_budget = total_budget + :amt,
                     budget_remaining = budget_remaining + :amt,
-                    status = CASE WHEN status = 'exhausted' THEN 'active'
-                                  ELSE status END
+                    status = 'active'
                 WHERE id = CAST(:id AS uuid)
                 RETURNING budget_remaining, status
                 """
@@ -211,8 +210,7 @@ async def buy_blocks(
                 UPDATE campaigns
                 SET total_budget = total_budget + :cost,
                     budget_remaining = budget_remaining + :cost,
-                    status = CASE WHEN status = 'exhausted' THEN 'active'
-                                  ELSE status END
+                    status = 'active'
                 WHERE id = CAST(:id AS uuid)
                 RETURNING budget_remaining, status, total_budget
                 """
@@ -233,6 +231,88 @@ async def buy_blocks(
         "total_budget": float(row["total_budget"]),
         "status": row["status"],
         "tx_hash": settlement.get("tx_hash"),
+    }
+
+
+@router.get("/{campaign_id}/status")
+async def get_campaign_status(campaign_id: str, db: AsyncSession = Depends(get_db)):
+    """Debug endpoint: detailed campaign + ad status for troubleshooting."""
+    c = (
+        await db.execute(
+            text(
+                """
+                SELECT c.id, c.advertiser_wallet, c.name, c.total_budget,
+                       c.budget_remaining, c.status AS campaign_status, c.created_at
+                FROM campaigns c
+                WHERE c.id = CAST(:id AS uuid)
+                """
+            ),
+            {"id": campaign_id},
+        )
+    ).mappings().first()
+    if not c:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "campaign not found")
+
+    ads = (
+        await db.execute(
+            text(
+                """
+                SELECT a.id, a.title, a.status AS ad_status, a.bid_per_impression,
+                       a.created_at
+                FROM ads a
+                WHERE a.campaign_id = CAST(:id AS uuid)
+                """
+            ),
+            {"id": campaign_id},
+        )
+    ).mappings().all()
+
+    impressions = (
+        await db.execute(
+            text(
+                """
+                SELECT count(*) AS total,
+                       count(*) FILTER (WHERE clicked) AS clicks
+                FROM impressions i
+                JOIN ads a ON a.id = i.ad_id
+                WHERE a.campaign_id = CAST(:id AS uuid)
+                """
+            ),
+            {"id": campaign_id},
+        )
+    ).mappings().first()
+
+    return {
+        "campaign": {
+            "id": str(c["id"]),
+            "name": c["name"],
+            "status": c["campaign_status"],
+            "total_budget": float(c["total_budget"]),
+            "budget_remaining": float(c["budget_remaining"]),
+            "created_at": c["created_at"].isoformat(),
+        },
+        "ads": [
+            {
+                "id": str(a["id"]),
+                "title": a["title"],
+                "status": a["ad_status"],
+                "bid_per_impression": float(a["bid_per_impression"]),
+                "created_at": a["created_at"].isoformat(),
+            }
+            for a in ads
+        ],
+        "stats": {
+            "total_impressions": int(impressions["total"]),
+            "total_clicks": int(impressions["clicks"]),
+        },
+        "checks": {
+            "budget_positive": float(c["budget_remaining"]) > 0,
+            "has_active_ads": any(a["ad_status"] == "active" for a in ads),
+            "can_serve": (
+                float(c["budget_remaining"]) > 0
+                and any(a["ad_status"] == "active" for a in ads)
+            ),
+        },
     }
 
 
