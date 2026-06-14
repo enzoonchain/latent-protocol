@@ -12,7 +12,7 @@ import {
   type Campaign,
 } from "@/lib/api";
 
-const DEFAULT_BLOCK_BID = 5.0; // $5.00 per block (= $0.005 per impression)
+const DEFAULT_BLOCK_BID = 5.0;
 
 type LaunchForm = {
   title: string;
@@ -20,7 +20,7 @@ type LaunchForm = {
   cta_url: string;
   cta_text: string;
   image_url: string;
-  blockBid: string; // USD per block (user-facing); divided by 1000 = bid_per_impression
+  blockBid: string;
 };
 
 const EMPTY_LAUNCH: LaunchForm = {
@@ -39,12 +39,14 @@ export function AdvertiserPortal() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
+
+  // Create campaign form
   const [showCreate, setShowCreate] = useState(false);
-  const [newCampaign, setNewCampaign] = useState({ name: "", budget: "" });
+  const [newCampaignName, setNewCampaignName] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  // Combined "Launch Ad" modal state
+  // Launch Ad modal (buy block + create ad inside an existing campaign)
   const [launchCampaignId, setLaunchCampaignId] = useState<string | null>(null);
   const [launchForm, setLaunchForm] = useState<LaunchForm>(EMPTY_LAUNCH);
   const [launching, setLaunching] = useState(false);
@@ -52,9 +54,6 @@ export function AdvertiserPortal() {
   const [topBidPerBlock, setTopBidPerBlock] = useState<number | null>(null);
   const [iconPreview, setIconPreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  const [buying, setBuying] = useState<string | null>(null);
-  const [payError, setPayError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isConnected || !address) return;
@@ -64,36 +63,35 @@ export function AdvertiserPortal() {
       .finally(() => setLoading(false));
   }, [isConnected, address]);
 
+  const refresh = async () => {
+    if (!address) return;
+    const updated = await fetchCampaigns(address);
+    setCampaigns(updated);
+  };
+
   const active = campaigns.filter((c) => c.status === "active");
-  const totalSpent = active.reduce(
-    (a, c) => a + (c.totalBudget - c.budgetRemaining),
-    0
-  );
+  const totalSpent = active.reduce((a, c) => a + (c.totalBudget - c.budgetRemaining), 0);
   const totalImpressions = active.reduce((a, c) => a + c.impressions, 0);
   const totalClicks = active.reduce((a, c) => a + c.clicks, 0);
 
-  const MIN_BUDGET = 1;
-
+  // ── Create campaign ──
   const handleCreate = async () => {
     if (!address) return;
     setCreateError(null);
-    const name = newCampaign.name.trim();
-    const budget = parseFloat(newCampaign.budget);
+    const name = newCampaignName.trim();
     if (!name) { setCreateError("Campaign name is required."); return; }
-    if (!newCampaign.budget || Number.isNaN(budget)) { setCreateError("Enter a budget amount."); return; }
-    if (budget < MIN_BUDGET) { setCreateError(`Minimum campaign budget is $${MIN_BUDGET.toFixed(2)} USDC.`); return; }
     setCreating(true);
     try {
-      const result = await createCampaign({ advertiser_wallet: address, name, total_budget: budget });
+      const result = await createCampaign({ advertiser_wallet: address, name, total_budget: 0 });
       setCampaigns((prev) => [
         ...prev,
         {
-          id: result.campaign_id, name, totalBudget: budget, budgetRemaining: budget,
+          id: result.campaign_id, name, totalBudget: 0, budgetRemaining: 0,
           status: "active", impressions: 0, clicks: 0, ctr: 0,
           blocksRemaining: 0, minBid: 0.005, blockCostUsdc: 5.0, ads: [],
         },
       ]);
-      setNewCampaign({ name: "", budget: "" });
+      setNewCampaignName("");
       setShowCreate(false);
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : "Failed to create campaign.");
@@ -102,6 +100,7 @@ export function AdvertiserPortal() {
     }
   };
 
+  // ── Launch Ad modal ──
   const openLaunch = (campaignId: string) => {
     setLaunchCampaignId(campaignId);
     setLaunchForm(EMPTY_LAUNCH);
@@ -109,6 +108,8 @@ export function AdvertiserPortal() {
     setIconPreview(null);
     fetchTopBid().then((bid) => setTopBidPerBlock(bid * 1000));
   };
+
+  const closeLaunch = () => { if (!launching) { setLaunchCampaignId(null); } };
 
   const handleIconFile = (file: File) => {
     setLaunchError(null);
@@ -150,7 +151,7 @@ export function AdvertiserPortal() {
   };
 
   const handleLaunch = async () => {
-    if (!launchCampaignId) return;
+    if (!address || !launchCampaignId) return;
     const blockBid = parseFloat(launchForm.blockBid);
     if (!launchForm.title.trim()) { setLaunchError("Brand name is required"); return; }
     if (!launchForm.body.trim()) { setLaunchError("One-liner is required"); return; }
@@ -161,9 +162,7 @@ export function AdvertiserPortal() {
     setLaunching(true);
     setLaunchError(null);
     try {
-      // 1. Buy the block (x402 payment, bid override from form)
       await buyBlocks(launchCampaignId, 1, walletClient ?? undefined, address, bidPerImpression);
-      // 2. Create the ad after payment confirmed
       await createAd(launchCampaignId, {
         title: launchForm.title,
         body: launchForm.body,
@@ -173,32 +172,12 @@ export function AdvertiserPortal() {
         bid_per_impression: bidPerImpression,
         category: "general",
       });
-      if (address) {
-        const updated = await fetchCampaigns(address);
-        setCampaigns(updated);
-      }
+      await refresh();
       setLaunchCampaignId(null);
     } catch (e) {
       setLaunchError(e instanceof Error ? e.message : "Launch failed");
     } finally {
       setLaunching(false);
-    }
-  };
-
-  // Buy more blocks for a campaign that already has ads (no ad creation needed)
-  const handleBuyMore = async (campaignId: string) => {
-    setBuying(campaignId);
-    setPayError(null);
-    try {
-      await buyBlocks(campaignId, 1, walletClient ?? undefined, address);
-      if (address) {
-        const updated = await fetchCampaigns(address);
-        setCampaigns(updated);
-      }
-    } catch (e) {
-      setPayError(e instanceof Error ? e.message : "Payment failed");
-    } finally {
-      setBuying(null);
     }
   };
 
@@ -220,6 +199,8 @@ export function AdvertiserPortal() {
       </section>
     );
   }
+
+  const blockBidNum = parseFloat(launchForm.blockBid || "0");
 
   return (
     <section id="advertiser" className="section bg-ink">
@@ -258,37 +239,24 @@ export function AdvertiserPortal() {
         {/* Create campaign form */}
         {showCreate && (
           <div className="border border-bronze p-6 mb-8 bg-bronze/5">
-            <h3 className="font-serif text-lg mb-4">Create Campaign</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-ivory-dim text-xs uppercase tracking-wider">Campaign Name</label>
-                <input
-                  type="text"
-                  value={newCampaign.name}
-                  onChange={(e) => setNewCampaign({ ...newCampaign, name: e.target.value })}
-                  placeholder="My Campaign"
-                  className="w-full mt-1 px-4 py-2 bg-teal-900 border border-ivory-faint text-ivory text-sm focus:border-bronze outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-ivory-dim text-xs uppercase tracking-wider">Budget (USDC)</label>
-                <input
-                  type="number"
-                  value={newCampaign.budget}
-                  onChange={(e) => setNewCampaign({ ...newCampaign, budget: e.target.value })}
-                  placeholder="10.00"
-                  min="1"
-                  className="w-full mt-1 px-4 py-2 bg-teal-900 border border-ivory-faint text-ivory text-sm focus:border-bronze outline-none"
-                />
-              </div>
-            </div>
-            <p className="text-ivory-dim text-xs mt-3">Minimum budget is $1.00 USDC.</p>
+            <h3 className="font-serif text-lg mb-4">New Campaign</h3>
+            <input
+              type="text"
+              value={newCampaignName}
+              onChange={(e) => setNewCampaignName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              placeholder="Campaign name"
+              className="w-full px-4 py-2 bg-teal-900 border border-ivory-faint text-ivory text-sm focus:border-bronze outline-none"
+            />
+            <p className="text-ivory-dim text-xs mt-2">
+              A campaign is a container for your ads. Add and pay for ads inside it.
+            </p>
             {createError && <p className="text-red-400 text-xs mt-2">{createError}</p>}
             <div className="flex gap-3 mt-4">
               <button onClick={handleCreate} disabled={creating} className="btn text-xs py-2 px-4 disabled:opacity-50">
-                {creating ? "Creating…" : "Create Campaign"}
+                {creating ? "Creating…" : "Create"}
               </button>
-              <button onClick={() => { setShowCreate(false); setCreateError(null); }} className="btn ghost text-xs py-2 px-4">
+              <button onClick={() => { setShowCreate(false); setCreateError(null); setNewCampaignName(""); }} className="btn ghost text-xs py-2 px-4">
                 Cancel
               </button>
             </div>
@@ -296,8 +264,11 @@ export function AdvertiserPortal() {
         )}
 
         {loading && <div className="text-center py-12 text-ivory-dim">Loading...</div>}
+
         {!loading && campaigns.length === 0 && (
-          <div className="text-center py-12 text-ivory-dim">No campaigns yet. Create your first campaign above.</div>
+          <div className="text-center py-16 text-ivory-dim">
+            No campaigns yet — create one above, then launch your first ad inside it.
+          </div>
         )}
 
         {/* Campaign list */}
@@ -317,13 +288,13 @@ export function AdvertiserPortal() {
                     <div>
                       <div className="font-medium">{c.name}</div>
                       <div className="text-ivory-dim text-xs mt-0.5">
-                        {c.blocksRemaining} blocks remaining · {c.ads.length} ad{c.ads.length !== 1 ? "s" : ""}
+                        {c.blocksRemaining} blocks · {c.ads.length} ad{c.ads.length !== 1 ? "s" : ""}
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-bronze font-serif">${c.budgetRemaining.toFixed(2)}</div>
-                    <div className="text-ivory-dim text-xs">of ${c.totalBudget}</div>
+                    <div className="text-ivory-dim text-xs">of ${c.totalBudget.toFixed(2)} budget</div>
                   </div>
                 </div>
 
@@ -361,29 +332,12 @@ export function AdvertiserPortal() {
                       </>
                     )}
 
-                    <div className="flex flex-col gap-2">
-                      <div className="flex gap-3">
-                        {c.ads.length === 0 ? (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); openLaunch(c.id); }}
-                            className="btn text-xs py-2 px-4"
-                          >
-                            Launch Ad →
-                          </button>
-                        ) : (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleBuyMore(c.id); }}
-                            disabled={buying === c.id}
-                            className="btn text-xs py-2 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {buying === c.id ? "Sign payment →" : `Buy 1 More Block ($${c.blockCostUsdc.toFixed(2)})`}
-                          </button>
-                        )}
-                      </div>
-                      {payError && selectedCampaign === c.id && (
-                        <div className="text-red-400 text-xs mt-1">{payError}</div>
-                      )}
-                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openLaunch(c.id); }}
+                      className="btn text-xs py-2 px-4"
+                    >
+                      Launch Ad →
+                    </button>
                   </div>
                 )}
               </div>
@@ -396,7 +350,7 @@ export function AdvertiserPortal() {
       {launchCampaignId && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-          onClick={() => !launching && setLaunchCampaignId(null)}
+          onClick={closeLaunch}
         >
           <div
             className="bg-ink border border-bronze w-full max-w-lg p-6 space-y-4 overflow-y-auto max-h-[90vh]"
@@ -404,7 +358,7 @@ export function AdvertiserPortal() {
           >
             <h3 className="font-serif text-xl">Launch Ad</h3>
             <p className="text-ivory-dim text-xs">
-              Fill in your ad creative and bid. Payment is collected via x402 — your wallet will prompt you to sign.
+              Your ad runs for 1,000 impressions per block. Payment is collected on-chain via x402.
             </p>
 
             {/* Brand name */}
@@ -496,7 +450,9 @@ export function AdvertiserPortal() {
                   onChange={(e) => setLaunchForm((p) => ({ ...p, blockBid: e.target.value }))}
                   className="w-32 px-3 py-2 bg-teal-900 border border-ivory-faint text-ivory text-sm focus:border-bronze outline-none"
                 />
-                <span className="text-ivory-dim text-xs">= ${(parseFloat(launchForm.blockBid || "0") / 1000).toFixed(4)}/impression</span>
+                <span className="text-ivory-dim text-xs">
+                  = ${(blockBidNum / 1000).toFixed(4)}/impression
+                </span>
               </div>
               <p className="text-ivory-dim text-xs mt-2">
                 {topBidPerBlock !== null
@@ -508,9 +464,7 @@ export function AdvertiserPortal() {
             {/* Total */}
             <div className="flex items-center justify-between border-t border-ivory-faint pt-4">
               <span className="text-ivory-dim text-sm">Total payment</span>
-              <span className="text-bronze font-serif text-lg">
-                ${parseFloat(launchForm.blockBid || "0").toFixed(2)} USDC
-              </span>
+              <span className="text-bronze font-serif text-lg">${blockBidNum.toFixed(2)} USDC</span>
             </div>
 
             {launchError && <div className="text-red-400 text-xs">{launchError}</div>}
@@ -523,11 +477,7 @@ export function AdvertiserPortal() {
               >
                 {launching ? "Signing…" : "Sign & Pay →"}
               </button>
-              <button
-                onClick={() => setLaunchCampaignId(null)}
-                disabled={launching}
-                className="btn ghost text-xs py-2 px-4 disabled:opacity-50"
-              >
+              <button onClick={closeLaunch} disabled={launching} className="btn ghost text-xs py-2 px-4 disabled:opacity-50">
                 Cancel
               </button>
             </div>
