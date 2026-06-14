@@ -46,7 +46,7 @@ export async function payX402(
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("")) as `0x${string}`;
 
-  const validAfter = 0n;
+  const validAfter = BigInt(0);
   const validBefore = BigInt(
     Math.floor(Date.now() / 1000) + (req.maxTimeoutSeconds ?? 3600)
   );
