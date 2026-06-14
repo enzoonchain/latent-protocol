@@ -107,7 +107,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
+    # Explicit so the browser can read the 402 payment challenge headers.
+    expose_headers=["payment-required", "x-payment-required", "x-payment-response"],
 )
 
 

@@ -1,16 +1,46 @@
 """Campaign management endpoints (advertiser side)."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.auction import block_cost, blocks_affordable
 from server.database import get_db
 from server.models import AdCreate, BlockPurchase, CampaignCreate, CampaignFund
+from server.x402_payments import settle_payment_or_402
 
 router = APIRouter()
 
 MIN_CAMPAIGN_BUDGET = 1.0  # minimum campaign budget in USDC
+
+
+async def _record_payment(
+    db: AsyncSession,
+    campaign_id: str,
+    kind: str,
+    amount: float,
+    settlement: dict,
+) -> None:
+    """Audit a settled advertiser payment. No-op when x402 is disabled
+    (settlement is empty / not settled), so dev flows leave no rows."""
+    if not settlement.get("settled"):
+        return
+    await db.execute(
+        text(
+            """
+            INSERT INTO payments (campaign_id, kind, amount, network, payer, tx_hash, status)
+            VALUES (CAST(:cid AS uuid), :kind, :amount, :network, :payer, :tx_hash, 'settled')
+            """
+        ),
+        {
+            "cid": campaign_id,
+            "kind": kind,
+            "amount": amount,
+            "network": settlement.get("network", ""),
+            "payer": settlement.get("payer"),
+            "tx_hash": settlement.get("tx_hash"),
+        },
+    )
 
 
 @router.post("/create", status_code=status.HTTP_201_CREATED)
@@ -97,13 +127,20 @@ async def add_ad_to_campaign(
 
 @router.post("/{campaign_id}/fund")
 async def fund_campaign(
-    campaign_id: str, req: CampaignFund, db: AsyncSession = Depends(get_db)
+    campaign_id: str,
+    req: CampaignFund,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
 ):
-    """Top up a campaign budget (block purchase).
+    """Top up a campaign budget.
 
-    In production this is gated by an x402 payment; here we apply the budget
-    once funding is confirmed. Reactivates an exhausted campaign.
+    Gated by x402: when payments are enabled the budget is credited only after
+    the facilitator settles the payment on-chain. Reactivates an exhausted
+    campaign.
     """
+    settlement = await settle_payment_or_402(
+        request, req.amount, resource=f"/campaign/{campaign_id}/fund"
+    )
     row = (
         await db.execute(
             text(
@@ -122,26 +159,32 @@ async def fund_campaign(
     ).mappings().first()
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "campaign not found")
+    await _record_payment(db, campaign_id, "fund", req.amount, settlement)
     await db.commit()
     return {
         "campaign_id": campaign_id,
         "budget_remaining": float(row["budget_remaining"]),
         "status": row["status"],
+        "tx_hash": settlement.get("tx_hash"),
     }
 
 
 @router.post("/{campaign_id}/buy")
 async def buy_blocks(
-    campaign_id: str, req: BlockPurchase, db: AsyncSession = Depends(get_db)
+    campaign_id: str,
+    req: BlockPurchase,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
 ):
     """Buy impression blocks for a campaign.
 
-    In production this is gated by x402 (advertiser pays USDC per block).
+    Gated by x402 (advertiser pays USDC per block).
     The cost is: blocks × 1000 × bid_per_impression.
 
-    This endpoint expects the x402 payment to have been made separately
-    (via the middleware or client-side x402 flow). We apply the budget
-    once the payment is confirmed.
+    When payments are enabled the budget is only credited after the
+    facilitator settles the x402 payment on-chain — `settle_payment_or_402`
+    returns a signable 402 (or fails) otherwise, so blocks can never be
+    acquired for free.
     """
     # Get campaign + its ads' bid to calculate block cost
     c = (
@@ -162,6 +205,11 @@ async def buy_blocks(
     bid = float(c["min_bid"]) if c["min_bid"] else 0.005
     cost = block_cost(bid, req.blocks)
 
+    # Fail closed: verify + settle the payment on-chain before crediting budget.
+    settlement = await settle_payment_or_402(
+        request, cost, resource=f"/campaign/{campaign_id}/buy"
+    )
+
     row = (
         await db.execute(
             text(
@@ -178,6 +226,7 @@ async def buy_blocks(
             {"cost": cost, "id": campaign_id},
         )
     ).mappings().first()
+    await _record_payment(db, campaign_id, "buy", cost, settlement)
     await db.commit()
 
     return {
@@ -189,6 +238,7 @@ async def buy_blocks(
         "budget_remaining": float(row["budget_remaining"]),
         "total_budget": float(row["total_budget"]),
         "status": row["status"],
+        "tx_hash": settlement.get("tx_hash"),
     }
 
 

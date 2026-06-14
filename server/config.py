@@ -13,6 +13,10 @@ EVM_PRIVATE_KEY = os.getenv("EVM_PRIVATE_KEY", "")
 EVM_NETWORK = os.getenv("EVM_NETWORK", "eip155:84532")
 FACILITATOR_URL = os.getenv("FACILITATOR_URL", "https://x402.org/facilitator")
 USDC_ADDRESS = os.getenv("USDC_ADDRESS", "0x036CbD53842c5426634e7929541eC2318f3dCF7e")
+# USDC EIP-712 domain (varies per token contract; sent in the x402 challenge).
+# Base Sepolia test USDC: name "USDC"; Base mainnet USDC: name "USD Coin". Both v2.
+USDC_EIP712_NAME = os.getenv("USDC_EIP712_NAME", "USDC")
+USDC_EIP712_VERSION = os.getenv("USDC_EIP712_VERSION", "2")
 
 # Rate limiting / frequency
 MAX_IMPRESSIONS_PER_USER_PER_DAY = int(os.getenv("MAX_IMPRESSIONS_PER_USER_PER_DAY", "100"))
