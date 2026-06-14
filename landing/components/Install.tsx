@@ -13,50 +13,42 @@ type Platform = {
 
 const platforms: Platform[] = [
   {
-    id: "mcp",
-    label: "MCP",
-    tag: "Universal — Claude, OpenClaw, Cursor, Windsurf…",
+    id: "openclaw",
+    label: "OpenClaw",
+    tag: "OpenClaw plugin — thinking-state ads across 13+ channels (WhatsApp, Telegram, Slack, Discord…)",
     steps: [
       {
-        title: "1. Install the package",
-        code: "pip install 'latent-protocol[mcp]'",
+        title: "1. Install the plugin",
+        code: "openclaw plugins install clawhub:latent-protocol",
+        lang: "bash",
+        note: "Local dev: openclaw plugins install ./openclaw-plugin --link",
+      },
+      {
+        title: "2. Enable it",
+        code: "openclaw plugins enable latent-protocol",
         lang: "bash",
       },
       {
-        title: "2. Set up your earning wallet",
-        code: "latent-setup",
+        title: "3. Set your earning wallet",
+        code: 'openclaw config set plugins.latent-protocol.config.wallet "0xYOUR_WALLET"',
         lang: "bash",
-        note: "Generates a new wallet or imports your existing address. Saves to ~/.latent/config.json",
+        note: "Base (EVM) address. You earn USDC — no account, no OAuth.",
       },
       {
-        title: "3. Add to your MCP config",
-        code: JSON.stringify(
-          {
-            mcpServers: {
-              "latent-protocol": {
-                command: "latent-mcp",
-              },
-            },
-          },
-          null,
-          2
-        ),
-        lang: "json",
-        note: "Claude: ~/Library/Application Support/Claude/claude_desktop_config.json · OpenClaw: ~/.openclaw/mcp.json",
-      },
-      {
-        title: "4. Start earning",
-        note: "Ask your agent to call request_ad() or check_balance() — ads will flow automatically.",
+        title: "4. Restart the gateway",
+        code: "openclaw gateway restart",
+        lang: "bash",
+        note: "Ads inject into the thinking state (before_prompt_build) while your agent works — across every channel from one plugin. Response-footer fallback included.",
       },
     ],
   },
   {
     id: "hermes",
     label: "Hermes",
-    tag: "Hermes agent — push adapter, response footer",
+    tag: "Hermes agent — thinking-state injection + response footer",
     steps: [
       {
-        title: "1. Clone the plugin into Hermes skills",
+        title: "1. Clone the plugin into Hermes plugins",
         code: "git clone https://github.com/enzoonchain/agent-kickbacks \\\n  ~/.hermes/plugins/latent-protocol",
         lang: "bash",
       },
@@ -70,12 +62,39 @@ const platforms: Platform[] = [
         title: "3. Enable in Hermes config",
         code: JSON.stringify({ plugins: ["latent-protocol"] }, null, 2),
         lang: "json",
-        note: "Add to your hermes.config.json",
+        note: "Add to your hermes.config.json. The pre_llm_call thinking hook is registered automatically (forward-compatible), with the response footer as the live surface.",
       },
       {
         title: "4. Use /ads commands in chat",
-        code: "/ads setup    # configure wallet\n/ads balance  # check earnings\n/ads payout   # withdraw USDC\n/ads off      # disable anytime",
+        code: "/ads setup    # configure wallet\n/ads balance  # check earnings\n/ads click    # register a click (earn 50x)\n/ads payout   # withdraw USDC\n/ads off      # disable anytime",
         lang: "bash",
+      },
+    ],
+  },
+  {
+    id: "claude-code",
+    label: "Claude Code",
+    tag: "Claude Code — sponsored status line (terminal + IDE, any version)",
+    steps: [
+      {
+        title: "1. Install the package",
+        code: "pip install latent-protocol",
+        lang: "bash",
+      },
+      {
+        title: "2. Set up your wallet",
+        code: "latent-setup",
+        lang: "bash",
+      },
+      {
+        title: "3. Install the status line",
+        code: "latent-statusline --install",
+        lang: "bash",
+        note: "Writes the statusLine block into ~/.claude/settings.json (non-destructive). Restart Claude Code to apply.",
+      },
+      {
+        title: "4. Earn while it thinks",
+        note: "A sponsored status line renders in the persistent chrome and refreshes during thinking, with a clickable https CTA. Remove anytime with latent-statusline --uninstall.",
       },
     ],
   },
@@ -130,6 +149,43 @@ adapter.print_response(response, context=prompt)`,
       },
     ],
   },
+  {
+    id: "mcp",
+    label: "MCP",
+    tag: "Management only — balance, payout & status from any MCP agent (ad delivery uses the platform adapters above)",
+    steps: [
+      {
+        title: "1. Install the package",
+        code: "pip install 'latent-protocol[mcp]'",
+        lang: "bash",
+      },
+      {
+        title: "2. Set up your earning wallet",
+        code: "latent-setup",
+        lang: "bash",
+      },
+      {
+        title: "3. Add to your MCP config",
+        code: JSON.stringify(
+          {
+            mcpServers: {
+              "latent-protocol": {
+                command: "latent-mcp",
+              },
+            },
+          },
+          null,
+          2
+        ),
+        lang: "json",
+        note: "Claude: ~/Library/Application Support/Claude/claude_desktop_config.json · OpenClaw: ~/.openclaw/mcp.json",
+      },
+      {
+        title: "4. Manage your earnings",
+        note: "Use check_balance() and request_payout() from your agent. Ad delivery itself runs through the platform adapters above, where we control frequency and caps — MCP delivery tools are test-only.",
+      },
+    ],
+  },
 ];
 
 function CodeBlock({ code, lang }: { code: string; lang?: string }) {
@@ -158,21 +214,14 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }) {
 }
 
 export function Install() {
-  const [active, setActive] = useState("mcp");
+  const [active, setActive] = useState("openclaw");
   const [skillCopied, setSkillCopied] = useState(false);
-  const [pipCopied, setPipCopied] = useState(false);
   const platform = platforms.find((p) => p.id === active)!;
 
   const copySkill = () => {
     navigator.clipboard.writeText(`/skills add ${SKILL_URL}`);
     setSkillCopied(true);
     setTimeout(() => setSkillCopied(false), 1500);
-  };
-
-  const copyPip = () => {
-    navigator.clipboard.writeText("pip install latent-protocol");
-    setPipCopied(true);
-    setTimeout(() => setPipCopied(false), 1500);
   };
 
   return (
@@ -206,18 +255,18 @@ export function Install() {
               </div>
               <div>
                 <h3 className="text-ivory font-serif text-lg leading-snug">
-                  Claude Code Skill
+                  One-command skill
                 </h3>
                 <p className="text-ivory-soft text-sm mt-0.5 opacity-80">
-                  One command — auto-detects your platform, wires the adapter, sets up your wallet. Works in Claude Code, Cursor, Windsurf and any MCP-compatible agent.
+                  Auto-detects your platform, wires the adapter, sets up your wallet, runs a smoke test. Tuned for thinking-state platforms — OpenClaw, Hermes and Claude Code.
                 </p>
               </div>
             </div>
 
-            {/* Step 1 */}
+            {/* One command — the skill handles install itself */}
             <div className="space-y-3">
               <p className="text-xs text-ivory-soft tracking-widest uppercase opacity-60">
-                Step 1 — load the skill in your agent
+                Load the skill in your agent
               </p>
               <div className="relative rounded bg-[#0d0c0b] border border-[rgba(180,140,80,0.2)] overflow-x-auto">
                 <button
@@ -231,24 +280,11 @@ export function Install() {
                 </pre>
               </div>
 
-              {/* Step 2 */}
-              <p className="text-xs text-ivory-soft tracking-widest uppercase opacity-60 pt-1">
-                Step 2 — install the Python package
-              </p>
-              <div className="relative rounded bg-[#0d0c0b] border border-[rgba(180,140,80,0.2)] overflow-x-auto">
-                <button
-                  onClick={copyPip}
-                  className="absolute top-2 right-3 text-[10px] text-ivory-soft hover:text-bronze transition-colors"
-                >
-                  {pipCopied ? "copied ✓" : "copy"}
-                </button>
-                <pre className="p-4 pr-14 text-[0.82rem] leading-relaxed text-ivory-soft font-mono">
-                  <code>pip install latent-protocol</code>
-                </pre>
-              </div>
-
               <p className="text-[0.72rem] text-ivory-soft opacity-50 leading-relaxed">
-                The skill guides you through wallet setup, platform detection, and a smoke test — all interactively.
+                That&apos;s it. The skill installs the right way for your platform
+                (ClawHub for OpenClaw, pip for the Python adapters, the status-line
+                installer for Claude Code), then sets up your wallet and verifies it
+                — all interactively. No separate install step.
               </p>
             </div>
           </div>
