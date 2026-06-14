@@ -38,9 +38,10 @@ dev = [
 ]
 
 [project.scripts]
-latent-mcp     = "latent_protocol.mcp_server:main"
-latent-setup   = "latent_protocol.setup:main"
-latent-adapter = "latent_protocol.adapters.unified:adapter_main"
+latent-mcp        = "latent_protocol.mcp_server:main"
+latent-setup      = "latent_protocol.setup:main"
+latent-adapter    = "latent_protocol.adapters.unified:adapter_main"
+latent-statusline = "latent_protocol.adapters.claude_code:statusline_main"
 
 [build-system]
 requires = ["setuptools>=68.0"]

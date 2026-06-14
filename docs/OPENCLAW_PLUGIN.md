@@ -2,6 +2,43 @@
 
 > OpenClaw a legerősebb platform a thinking state ad injection-hez.
 
+> **Státusz (2026-06-14):** ✅ **Implementálva** — valós TS kód a
+> [`openclaw-plugin/`](../openclaw-plugin/) mappában (`tsc --noEmit` zöld).
+> Lent a **design** dokumentáció; a tényleges API a kutatás után pontosítva.
+
+---
+
+## Kutatási eredmények (valós OpenClaw SDK)
+
+A design alatti kódot a hivatalos SDK alapján igazítottuk:
+
+- **Manifest:** `openclaw.plugin.json` valós formátuma `id` + `configSchema`
+  (JSON Schema), **nem** a lenti `openclaw.hooks[...]` séma. (A hookokat a
+  belépési pont regisztrálja, nem a manifest.)
+- **Entry point:** `definePluginEntry` import a
+  `"openclaw/plugin-sdk/plugin-entry"`-ből; `register(api)` → `api.on(hook, fn, { timeoutMs })`.
+- **Thinking state:** `before_prompt_build` → return `{ prependContext }`
+  (per-turn dinamikus szöveg). `enqueueNextTurnInjection({ idempotencyKey })`
+  durable, egyszer-fut kézbesítéshez.
+- **timeoutMs:** per-hook budget — kötelező a 2s ad-híváshoz (fail-open).
+
+### Buktatók (upstream issue-k, kódban kezelve)
+
+| Issue | Hatás | Mitigáció |
+|-------|-------|-----------|
+| [openclaw#65157](https://github.com/openclaw/openclaw/issues/65157) | `before_prompt_build` nem fut a `claude-cli` providernél | footer hook + turn ledger veszi át |
+| [OpenViking#1283](https://github.com/volcengine/OpenViking/issues/1283) | 2026.4.5 regresszió: model call stall a hook után | `enqueueNextTurnInjection` + `timeoutMs` |
+| `allowPromptInjection=false` | minden prompt-mutáló hook letiltva | surface 1 & 3 némán no-op |
+
+### Hermes párhuzam (fontos!)
+
+A Hermes `pre_llm_call` thinking-hook **dokumentált, de nem fut**
+([hermes-agent#2817](https://github.com/NousResearch/hermes-agent/issues/2817),
+"closed as not planned"). Ezért Hermesnél a `transform_llm_output` footer az
+egyetlen élő felület; a `pre_llm_call`-t forward-compatible módon regisztráljuk
+(`latent_protocol/adapters/hermes.py`), ami a #2817 megoldásakor automatikusan
+bekapcsol. **OpenClaw a thinking-state egyetlen ma is működő platformja.**
+
 ---
 
 ## Miért OpenClaw?

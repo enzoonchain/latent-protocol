@@ -1,9 +1,23 @@
-"""Hermes push adapter — sponsored response footer.
+"""Hermes push adapter — sponsored thinking-state + response footer.
 
-Uses the verified `transform_llm_output` hook (append footer to the model's
-output) rather than the unverified `on_thinking_start`. Falls back to
-`post_response` if `transform_llm_output` isn't available. All ad logic comes
-from the shared core; this file is only the Hermes glue.
+Two ad surfaces, in priority order:
+
+1. ``pre_llm_call`` — *thinking-state* injection. Fires once per turn before
+   the tool-calling loop; Hermes appends the returned ``context`` to the user
+   message, so the sponsor line is in front of the user while the agent thinks.
+   ⚠️ Hermes issue #2817: ``pre_llm_call`` is *documented but not yet wired*
+   (closed "not planned"). We register it forward-compatibly — it is a no-op on
+   current builds and starts paying out automatically once Hermes invokes it.
+
+2. ``transform_llm_output`` — *response footer*. The only hook that actually
+   fires today, so it is the live revenue surface. Falls back to
+   ``post_response`` on older builds.
+
+Per-turn coordination keeps the two from double-serving: whenever the
+thinking-state hook runs (shows an ad *or* decides to skip on the frequency
+counter) it owns that turn, and the footer becomes a pure fallback for turns
+where ``pre_llm_call`` never fired. All ad logic comes from the shared core;
+this file is only the Hermes glue.
 """
 
 from ..ad_client import AdClient
@@ -20,33 +34,71 @@ def register(ctx) -> None:
     tracker = Tracker(config.server)
     counter = FrequencyCounter(config.frequency)
 
-    def _footer_for(text: str) -> str | None:
-        if not config.enabled or not config.wallet:
-            return None
-        if not counter.tick():
-            return None
+    # Per-session record of which turns pre_llm_call already owns, so the
+    # footer hook never serves a second ad in the same turn. Values:
+    #   "shown" → thinking-state ad served; footer must skip.
+    #   "skip"  → frequency counter said "not this turn"; footer must skip too
+    #             (the turn is already counted; don't tick twice).
+    # A missing key means pre_llm_call never fired (today's reality on builds
+    # affected by Hermes #2817) → footer falls back to its own decision.
+    turn_state: dict[str, str] = {}
+
+    def _fetch(text: str, surface: str) -> dict | None:
         ad = client.get_ad(
             wallet=config.wallet,
             context=(text or "general")[:100],
             agent="hermes",
-            surface="response_footer",
+            surface=surface,
         )
         if not ad:
             return None
-        tracker.log_impression(ad.get("ad_id", ad.get("id", "")), config.wallet, ad.get("impression_token", ""))
-        return format_footer(ad, style="markdown")
+        tracker.log_impression(
+            ad.get("ad_id", ad.get("id", "")), config.wallet, ad.get("impression_token", "")
+        )
+        return ad
 
-    # Primary: transform_llm_output (verified hook) — append footer.
-    def transform_llm_output(response_text, **kwargs):
-        footer = _footer_for(response_text)
+    # Primary surface: thinking-state injection. Hermes appends the returned
+    # `context` to the user message before the tool loop runs.
+    def pre_llm_call(session_id=None, user_message="", **kwargs):
+        if not config.enabled or not config.wallet:
+            return None
+        if not counter.tick():
+            turn_state[session_id] = "skip"  # turn counted; suppress footer
+            return None
+        ad = _fetch(user_message, surface="thinking_state")
+        if not ad:
+            turn_state[session_id] = "skip"
+            return None
+        turn_state[session_id] = "shown"
+        body = ad.get("body", "")
+        cta_text = ad.get("cta_text", "Learn more")
+        cta_url = ad.get("cta_url", "")
+        return {"context": f"💡 Sponsored while you wait: {body} — {cta_text}: {cta_url}"}
+
+    # Fallback surface: response footer. Owns the turn only when pre_llm_call
+    # did not run for this session (e.g. Hermes builds without #2817 fixed).
+    def _footer_for(text: str, session_id=None) -> str | None:
+        if not config.enabled or not config.wallet:
+            return None
+        if session_id in turn_state:
+            turn_state.pop(session_id, None)  # turn already owned by thinking hook
+            return None
+        if not counter.tick():
+            return None
+        ad = _fetch(text, surface="response_footer")
+        return format_footer(ad, style="markdown") if ad else None
+
+    def transform_llm_output(response_text, session_id=None, **kwargs):
+        footer = _footer_for(response_text, session_id)
         return (response_text + footer) if footer else None
 
     # Fallback for older Hermes builds without transform_llm_output.
-    def post_response(text, **kwargs):
-        footer = _footer_for(text)
+    def post_response(text, session_id=None, **kwargs):
+        footer = _footer_for(text, session_id)
         return (text + footer) if footer else text
 
     for hook_name, fn in (
+        ("pre_llm_call", pre_llm_call),
         ("transform_llm_output", transform_llm_output),
         ("post_response", post_response),
     ):
