@@ -89,6 +89,22 @@ def test_footer_skipped_when_thinking_throttled():
     client.get_ad.assert_not_called()
 
 
+def test_ads_click_registers_last_ad():
+    ctx, client, tracker = _register(frequency=1)
+    # Serve an ad first (thinking-state path records last_ad).
+    ctx.hooks["pre_llm_call"](session_id="s1", user_message="hi")
+    msg = ctx.commands["ads"]("click")
+    assert "registered" in msg.lower()
+    tracker.log_click.assert_called_once_with("ad-1", "0xDEADBEEF")
+
+
+def test_ads_click_without_recent_ad():
+    ctx, client, tracker = _register(frequency=1)
+    msg = ctx.commands["ads"]("click")
+    assert "no recent" in msg.lower()
+    tracker.log_click.assert_not_called()
+
+
 def test_footer_fallback_when_pre_llm_never_fires():
     # Simulate Hermes #2817: pre_llm_call is never invoked.
     ctx, client, tracker = _register(frequency=1)

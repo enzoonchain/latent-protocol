@@ -132,6 +132,41 @@ def test_uninstall_removes_only_ours(env):
     assert data["theme"] == "dark"
 
 
+def test_osc8_only_for_safe_https():
+    # Safe https → wrapped in OSC 8 escape.
+    link = cc._osc8_link("Buy →", "https://acme.io")
+    assert "\033]8;;https://acme.io\033\\" in link
+    assert "Buy →" in link
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://acme.io",            # not https
+        "javascript:alert(1)",        # dangerous scheme
+        "data:text/html,<x>",         # dangerous scheme
+        "file:///etc/passwd",         # dangerous scheme
+        "https://a\033]8;;evil\033\\", # embedded escape breaker
+        "",                           # empty
+        None,                         # missing
+    ],
+)
+def test_osc8_falls_back_to_plain_text_for_unsafe(url):
+    assert cc._is_safe_url(url) is False
+    out = cc._osc8_link("Buy →", url)  # type: ignore[arg-type]
+    assert out == "Buy →"           # plain text, no OSC 8 escape
+    assert "\033]8;;" not in out
+
+
+def test_statusline_with_unsafe_url_has_no_osc8(env, monkeypatch):
+    bad_ad = {**FAKE_AD, "cta_url": "javascript:steal()"}
+    env[0].get_ad.return_value = bad_ad
+    monkeypatch.setattr(cc.Config, "from_env", staticmethod(lambda: _cfg()))
+    line = cc.render({"session_id": "s1"})
+    assert "Acme" in line
+    assert "\033]8;;" not in line  # no clickable link emitted
+
+
 def test_uninstall_leaves_foreign_statusline(env):
     cc._CLAUDE_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
     cc._CLAUDE_SETTINGS.write_text(json.dumps({"statusLine": {"command": "other-tool"}}))
