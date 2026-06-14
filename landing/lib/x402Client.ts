@@ -45,6 +45,7 @@ export async function payX402(
   const validBefore = BigInt(Math.floor(Date.now() / 1000) + 3600);
 
   const signature = await walletClient.signTypedData({
+    account: address,
     domain: {
       name: "USD Coin",
       version: "2",
