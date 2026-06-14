@@ -1,35 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { fetchActiveBlocks, fetchPastBlocks, fetchLeaderboard, type LeaderboardEntry } from "@/lib/api";
-
-type Block = {
-  id: string;
-  campaign: string;
-  advertiser: string;
-  blocks: number;
-  impressions: number;
-  spent: number;
-  bid: number;
-  status: string;
-  startDate?: string;
-  endDate?: string;
-};
+import { fetchActiveBlocks, fetchPastBlocks, fetchLeaderboard, type Campaign, type LeaderboardEntry } from "@/lib/api";
 
 type Tab = "active" | "past" | "leaderboard";
 
 export function AdBlocks() {
   const [tab, setTab] = useState<Tab>("active");
-  const [activeBlocks, setActiveBlocks] = useState<Block[]>([]);
-  const [pastBlocks, setPastBlocks] = useState<Block[]>([]);
+  const [activeBlocks, setActiveBlocks] = useState<Campaign[]>([]);
+  const [pastBlocks, setPastBlocks] = useState<Campaign[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([fetchActiveBlocks(), fetchPastBlocks()])
       .then(([active, past]) => {
-        setActiveBlocks(active as Block[]);
-        setPastBlocks(past as Block[]);
+        setActiveBlocks(active as Campaign[]);
+        setPastBlocks(past as Campaign[]);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -41,8 +28,8 @@ export function AdBlocks() {
   }, []);
 
   const blocks = tab === "active" ? activeBlocks : pastBlocks;
-  const totalImpressions = activeBlocks.reduce((a, b) => a + b.impressions, 0);
-  const totalSpent = activeBlocks.reduce((a, b) => a + b.spent, 0);
+  const totalImpressions = activeBlocks.reduce((a, c) => a + c.impressions, 0);
+  const totalSpent = activeBlocks.reduce((a, c) => a + (c.totalBudget - c.budgetRemaining), 0);
 
   return (
     <section id="blocks" className="section bg-ink">
@@ -119,41 +106,37 @@ export function AdBlocks() {
               <thead>
                 <tr className="border-b border-ivory-faint text-ivory-dim text-xs uppercase tracking-wider">
                   <th className="px-4 py-3 text-left">Campaign</th>
-                  <th className="px-4 py-3 text-left">Advertiser</th>
                   <th className="px-4 py-3 text-right">Blocks</th>
                   <th className="px-4 py-3 text-right">Impressions</th>
-                  <th className="px-4 py-3 text-right">Bid</th>
+                  <th className="px-4 py-3 text-right">Clicks</th>
                   <th className="px-4 py-3 text-right">Spent</th>
                   <th className="px-4 py-3 text-center">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {blocks.map((b) => (
+                {blocks.map((c) => (
                   <tr
-                    key={b.id}
+                    key={c.id}
                     className="border-b border-ivory-faint last:border-0 hover:bg-bronze/5 transition-colors"
                   >
-                    <td className="px-4 py-3 font-medium">{b.campaign}</td>
-                    <td className="px-4 py-3 text-ivory-dim font-mono text-xs">
-                      {b.advertiser}
-                    </td>
-                    <td className="px-4 py-3 text-right">{b.blocks}</td>
+                    <td className="px-4 py-3 font-medium">{c.name}</td>
+                    <td className="px-4 py-3 text-right">{c.blocksRemaining}</td>
                     <td className="px-4 py-3 text-right">
-                      {b.impressions.toLocaleString()}
+                      {c.impressions.toLocaleString()}
                     </td>
-                    <td className="px-4 py-3 text-right">${b.bid}</td>
+                    <td className="px-4 py-3 text-right">{c.clicks}</td>
                     <td className="px-4 py-3 text-right text-bronze">
-                      ${b.spent.toFixed(2)}
+                      ${(c.totalBudget - c.budgetRemaining).toFixed(2)}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span
                         className={`inline-block px-2 py-0.5 text-xs rounded ${
-                          b.status === "active"
+                          c.status === "active"
                             ? "bg-green-900/50 text-green-400 border border-green-800"
                             : "bg-ivory-faint text-ivory-dim"
                         }`}
                       >
-                        {b.status}
+                        {c.status}
                       </span>
                     </td>
                   </tr>
