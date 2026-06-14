@@ -10,7 +10,7 @@ from server.models import AdCreate, BlockPurchase, CampaignCreate, CampaignFund
 
 router = APIRouter()
 
-MIN_CAMPAIGN_BUDGET = 10.0  # Q7
+MIN_CAMPAIGN_BUDGET = 1.0  # minimum campaign budget in USDC
 
 
 @router.post("/create", status_code=status.HTTP_201_CREATED)
@@ -147,7 +147,7 @@ async def buy_blocks(
     c = (
         await db.execute(
             text(
-                "SELECT id, status, COALESCE(MIN(a.bid_per_impression), 0.005) AS min_bid "
+                "SELECT c.id, c.status, COALESCE(MIN(a.bid_per_impression), 0.005) AS min_bid "
                 "FROM campaigns c "
                 "LEFT JOIN ads a ON a.campaign_id = c.id "
                 "WHERE c.id = CAST(:id AS uuid) "

@@ -32,6 +32,8 @@ export function AdvertiserPortal() {
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newCampaign, setNewCampaign] = useState({ name: "", budget: "" });
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
   // Ad creation state
@@ -59,30 +61,57 @@ export function AdvertiserPortal() {
   const totalImpressions = active.reduce((a, c) => a + c.impressions, 0);
   const totalClicks = active.reduce((a, c) => a + c.clicks, 0);
 
+  const MIN_BUDGET = 1;
+
   const handleCreate = async () => {
-    if (!address || !newCampaign.name || !newCampaign.budget) return;
-    const result = await createCampaign({
-      advertiser_wallet: address,
-      name: newCampaign.name,
-      total_budget: parseFloat(newCampaign.budget),
-    });
-    setCampaigns((prev) => [
-      ...prev,
-      {
-        id: result.campaign_id,
-        name: newCampaign.name,
-        totalBudget: parseFloat(newCampaign.budget),
-        budgetRemaining: parseFloat(newCampaign.budget),
-        status: "active",
-        impressions: 0,
-        clicks: 0,
-        ctr: 0,
-        blocksRemaining: 0,
-        ads: [],
-      },
-    ]);
-    setNewCampaign({ name: "", budget: "" });
-    setShowCreate(false);
+    if (!address) return;
+    setCreateError(null);
+
+    const name = newCampaign.name.trim();
+    const budget = parseFloat(newCampaign.budget);
+
+    if (!name) {
+      setCreateError("Campaign name is required.");
+      return;
+    }
+    if (!newCampaign.budget || Number.isNaN(budget)) {
+      setCreateError("Enter a budget amount.");
+      return;
+    }
+    if (budget < MIN_BUDGET) {
+      setCreateError(`Minimum campaign budget is $${MIN_BUDGET.toFixed(2)} USDC.`);
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const result = await createCampaign({
+        advertiser_wallet: address,
+        name,
+        total_budget: budget,
+      });
+      setCampaigns((prev) => [
+        ...prev,
+        {
+          id: result.campaign_id,
+          name,
+          totalBudget: budget,
+          budgetRemaining: budget,
+          status: "active",
+          impressions: 0,
+          clicks: 0,
+          ctr: 0,
+          blocksRemaining: 0,
+          ads: [],
+        },
+      ]);
+      setNewCampaign({ name: "", budget: "" });
+      setShowCreate(false);
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : "Failed to create campaign.");
+    } finally {
+      setCreating(false);
+    }
   };
 
   const openAddAd = (campaignId: string) => {
@@ -249,17 +278,30 @@ export function AdvertiserPortal() {
                     setNewCampaign({ ...newCampaign, budget: e.target.value })
                   }
                   placeholder="10.00"
-                  min="10"
+                  min="1"
                   className="w-full mt-1 px-4 py-2 bg-teal-900 border border-ivory-faint text-ivory text-sm focus:border-bronze outline-none"
                 />
               </div>
             </div>
+            <p className="text-ivory-dim text-xs mt-3">
+              Minimum budget is $1.00 USDC.
+            </p>
+            {createError && (
+              <p className="text-red-400 text-xs mt-2">{createError}</p>
+            )}
             <div className="flex gap-3 mt-4">
-              <button onClick={handleCreate} className="btn text-xs py-2 px-4">
-                Create Campaign
+              <button
+                onClick={handleCreate}
+                disabled={creating}
+                className="btn text-xs py-2 px-4 disabled:opacity-50"
+              >
+                {creating ? "Creating…" : "Create Campaign"}
               </button>
               <button
-                onClick={() => setShowCreate(false)}
+                onClick={() => {
+                  setShowCreate(false);
+                  setCreateError(null);
+                }}
                 className="btn ghost text-xs py-2 px-4"
               >
                 Cancel
