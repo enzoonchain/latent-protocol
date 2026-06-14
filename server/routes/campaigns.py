@@ -370,24 +370,40 @@ async def get_campaign(campaign_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/")
-async def list_campaigns(wallet: str = "", db: AsyncSession = Depends(get_db)):
-    """List campaigns for an advertiser wallet."""
-    if not wallet:
-        return {"campaigns": [], "wallet": wallet}
+async def list_campaigns(wallet: str = "", status: str = "", db: AsyncSession = Depends(get_db)):
+    """List campaigns. Optional wallet and status filters.
+    
+    - No wallet: returns ALL campaigns (for live marketplace)
+    - With wallet: returns campaigns for that wallet
+    - With status: filters by status (active, paused, exhausted)
+    """
+    conditions = []
+    params = {}
+
+    if wallet:
+        conditions.append("c.advertiser_wallet = :w")
+        params["w"] = wallet
+    
+    if status:
+        conditions.append("c.status = :status")
+        params["status"] = status
+
+    where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+
     rows = (
         await db.execute(
             text(
-                """
+                f"""
                 SELECT c.id, c.name, c.total_budget, c.budget_remaining, c.status,
                        COALESCE(MIN(a.bid_per_impression), 0.005) AS min_bid
                 FROM campaigns c
                 LEFT JOIN ads a ON a.campaign_id = c.id
-                WHERE c.advertiser_wallet = :w
+                {where_clause}
                 GROUP BY c.id
                 ORDER BY MAX(c.created_at) DESC
                 """
             ),
-            {"w": wallet},
+            params,
         )
     ).mappings().all()
     return {

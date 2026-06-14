@@ -251,8 +251,8 @@ export async function fetchPayouts(wallet: string): Promise<Payout[]> {
 
 export async function fetchActiveBlocks() {
   try {
-    const data = await api<{ campaigns: unknown[] }>("/campaign/");
-    return data.campaigns.map(mapCampaign).filter((c) => c.status === "active");
+    const data = await api<{ campaigns: unknown[] }>("/campaign/?status=active");
+    return data.campaigns.map(mapCampaign);
   } catch {
     return [];
   }
@@ -260,8 +260,8 @@ export async function fetchActiveBlocks() {
 
 export async function fetchPastBlocks() {
   try {
-    const data = await api<{ campaigns: unknown[] }>("/campaign/");
-    return data.campaigns.map(mapCampaign).filter((c) => c.status !== "active");
+    const data = await api<{ campaigns: unknown[] }>("/campaign/?status=exhausted");
+    return data.campaigns.map(mapCampaign);
   } catch {
     return [];
   }
