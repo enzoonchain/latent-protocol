@@ -1,6 +1,7 @@
 """Ad serving endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.config import USER_SHARE
@@ -107,6 +108,33 @@ async def track_click(req: ClickRequest, db: AsyncSession = Depends(get_db)):
     """Track an ad click."""
     await log_click(db, ad_id=req.ad_id, user_wallet=req.user_wallet)
     return {"status": "tracked"}
+
+
+@router.get("/click")
+async def click_redirect(
+    ad: str, w: str = "", db: AsyncSession = Depends(get_db)
+):
+    """Track a click and 302-redirect to the advertiser's URL.
+
+    This makes the CTA link itself attributable in any channel where it's
+    clickable (chat, terminal, IDE) — the displayed link points here, we log
+    the click, then forward the user on. Open-redirect safe: the target comes
+    from the ad's own ``cta_url`` in the DB, never from a query parameter.
+    """
+    from sqlalchemy import text
+
+    row = (
+        await db.execute(
+            text("SELECT cta_url FROM ads WHERE id = CAST(:id AS uuid)"), {"id": ad}
+        )
+    ).fetchone()
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown ad")
+
+    await log_click(db, ad_id=ad, user_wallet=w)
+    return RedirectResponse(
+        f"{row[0]}?ref=latent-protocol&ad={ad}", status_code=status.HTTP_302_FOUND
+    )
 
 
 @router.get("/health")

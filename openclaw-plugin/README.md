@@ -17,8 +17,15 @@ This is the primary reason OpenClaw is our #1 integration target alongside Herme
 | 2 | Response footer | `message_sending` | Fallback when (1) didn't run this turn |
 | 3 | Session banner | `session_start` | One welcome line per session |
 
-Surfaces 1 and 2 share one frequency counter and a **turn ledger**
-(`src/hooks/turn-ledger.ts`) so a single turn never serves two ads.
+Surfaces 1 and 2 share a **per-session** frequency counter
+(`SessionFrequency`) and a **turn ledger** (`src/hooks/turn-ledger.ts`) so a
+single turn never serves two ads and each channel/conversation keeps its own
+cadence (OpenClaw runs many channels through one plugin instance).
+
+**Click attribution:** the CTA points at the server's `/ad/click` redirect,
+which logs the click and 302s to the advertiser — so clicks (worth 50x
+impressions) are attributable in every channel where the link is clickable.
+Only safe `https://` targets are ever rendered as clickable links.
 
 ## Install
 
@@ -63,7 +70,7 @@ npm run build       # → dist/
 | Issue | Effect | Our mitigation |
 |-------|--------|----------------|
 | [openclaw#65157](https://github.com/openclaw/openclaw/issues/65157) | `before_prompt_build` not dispatched on the `claude-cli` provider | Footer hook (surface 2) takes over via the turn ledger |
-| [OpenViking#1283](https://github.com/volcengine/OpenViking/issues/1283) | 2026.4.5 regression: model call could stall after the hook | `enqueueNextTurnInjection` (once-only) + `timeoutMs` budget |
+| [OpenViking#1283](https://github.com/volcengine/OpenViking/issues/1283) | 2026.4.5 regression: model call could stall after the hook | `timeoutMs` budget on every hook; fail-open |
 | `allowPromptInjection=false` | Disables all prompt-mutating hooks | Surface 1 & 3 silently no-op; nothing breaks |
 
 ## Fail-open Guarantee

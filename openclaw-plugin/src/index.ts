@@ -13,7 +13,7 @@
 
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { getConfig, PluginConfig } from "./lib/config.js";
-import { FrequencyCounter } from "./lib/footer.js";
+import { SessionFrequency } from "./lib/footer.js";
 import { TurnLedger } from "./hooks/turn-ledger.js";
 import { registerThinkingHook } from "./hooks/thinking-inject.js";
 import { registerFooterHook } from "./hooks/message-footer.js";
@@ -36,12 +36,13 @@ export default definePluginEntry<Partial<PluginConfig>>({
       );
     }
 
-    // Shared across the two per-turn surfaces: one tick per turn, one ad.
-    const counter = new FrequencyCounter(config.frequency);
+    // Per-session cadence shared across the two per-turn surfaces, so one turn
+    // ticks once and a turn never serves two ads (see hooks/turn-ledger.ts).
+    const freq = new SessionFrequency(config.frequency);
     const ledger = new TurnLedger();
 
-    registerThinkingHook(api, config, counter, ledger); // primary
-    registerFooterHook(api, config, counter, ledger); // fallback
+    registerThinkingHook(api, config, freq, ledger); // primary
+    registerFooterHook(api, config, freq, ledger); // fallback
     registerSessionHook(api, config); // welcome banner
   },
 });
