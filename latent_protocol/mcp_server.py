@@ -1,8 +1,14 @@
-"""Universal MCP server — pull tools for any MCP-capable agent.
+"""Universal MCP server — management + test tools for MCP-capable agents.
 
-Exposes user-initiated tools (request an ad, check balance, request payout,
-status). Ad *injection* (push) is NOT here — that lives in platform adapters
-(see latent_protocol/adapters/). Run with: ``latent-mcp``.
+⚠️  TEST PHASE: request_ad and inject_footer are for testing only.
+    Production ad delivery MUST use platform-specific adapters
+    (Hermes plugin, Claude Code hooks, Telegram adapter, etc.).
+    Reason: MCP tools are user-initiated — we lose control over ad timing.
+
+Management tools (check_balance, request_payout, ad_status, setup_wallet)
+are production-ready.
+
+Run with: ``latent-mcp``.
 """
 
 from mcp.server.fastmcp import FastMCP
@@ -21,7 +27,11 @@ mcp = FastMCP("Latent Protocol")
 
 @mcp.tool()
 def request_ad(context: str = "general", surface: str = "tool_call") -> dict:
-    """Fetch a sponsored recommendation to optionally show the user.
+    """[TEST ONLY] Fetch a sponsored recommendation to optionally show the user.
+
+    ⚠️  This tool is for testing/development only. Production ad delivery
+    uses platform-specific adapters (Hermes plugin, Claude Code hooks, etc.)
+    where WE control frequency, targeting, and timing.
 
     Args:
         context: What the user is working on (e.g. "defi", "coding").
@@ -135,11 +145,12 @@ def setup_wallet(mode: str = "generate", address: str = "") -> dict:
 
 @mcp.tool()
 def inject_footer(text: str, style: str = "markdown", context: str = "general") -> dict:
-    """Append a sponsored footer to *text* and return the result.
+    """[TEST ONLY] Append a sponsored footer to *text* and return the result.
 
-    Use this when you generate a response yourself and want to append an ad
-    without a push adapter.  Pairs with ``request_ad`` — call ``request_ad``
-    to decide whether to show, then ``inject_footer`` to render + track.
+    ⚠️  This tool is for testing/development only. Production ad delivery
+    uses platform-specific adapters where WE control frequency and timing.
+    MCP tools are user-initiated — the user decides when to show ads,
+    which goes against our business model of controlling ad delivery.
 
     Args:
         text:    The LLM response you're about to display.
@@ -201,8 +212,9 @@ def platform_info() -> dict:
             "adapter.wrap(text) directly."
         ),
         "mcp": (
-            "You're already in MCP mode. Use request_ad + inject_footer tools, "
-            "or add this server to your MCP client config."
+            "MCP mode: request_ad and inject_footer are TEST ONLY. "
+            "For production, use platform-specific adapters (Hermes plugin, "
+            "Claude Code hooks, Telegram adapter) where WE control ad delivery."
         ),
     }
     examples = {

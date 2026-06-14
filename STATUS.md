@@ -15,7 +15,8 @@
 | **Wallet Connect** | ✅ Complete |
 | **Safety Mechanisms** | ✅ Complete |
 | **API Endpoints** | ✅ All Tested |
-| **MCP Server** | ✅ Fixed (ad_id field) |
+| **MCP Server** | ⚠️ Test only (request_ad, inject_footer) |
+| **MCP Management** | ✅ Production (check_balance, payout, status, setup) |
 | **x402 Payments** | 🔴 Needs live test |
 | **Documentation** | 🔴 Not started |
 
@@ -239,6 +240,53 @@ See `.env.example` for full list. Key variables:
 | test_payout_engine.py | 4 | USDC transfer |
 | test_safety.py | 15 | Safety mechanisms |
 | test_security.py | 5 | HMAC tokens |
+
+---
+
+## Platform Integration Strategy
+
+### Core Principle: WE Control Ad Delivery
+
+| Tool Type | Who Controls Timing? | Production Ready? |
+|-----------|---------------------|-------------------|
+| **Platform adapters** (Hermes, Telegram, CLI) | ✅ Us (frequency counter) | ✅ Yes |
+| **Platform hooks** (Claude Code, Codex) | ✅ Us (hook config) | ✅ Yes |
+| **MCP tools** (request_ad, inject_footer) | ❌ User/agent | ⚠️ Test only |
+| **MCP management** (balance, payout, status) | ✅ Us | ✅ Yes |
+
+### Why MCP Ad Delivery is Test Only
+
+MCP tools are **user-initiated** — the user/agent decides when to call them.
+This means:
+- User can spam `inject_footer` to farm impressions
+- User controls ad timing, not us
+- We lose control over frequency, targeting, and caps
+
+**Production ad delivery MUST use platform-specific adapters** where we control
+the frequency counter, session caps, and daily limits.
+
+### BankrBot Integration (Lessons Learned)
+
+| Aspect | Finding |
+|--------|---------|
+| **Skill format** | `bankr-skill/agent-kickbacks/SKILL.md` — full API docs, revenue split |
+| **Demo script** | `bankr-skill/agent-kickbacks/scripts/demo.py` — request, track, earnings |
+| **MCP path** | `aeon mcp add --name latent-protocol -- command latent-mcp` |
+| **Key lesson** | Don't submit PRs directly — prepare locally, wait for user decision |
+| **x402 shared** | Both Latent and BankrBot use x402 payments on Base |
+
+### Platform Support Matrix
+
+| Platform | Integration | Ad Delivery | Thinking State | Status |
+|----------|------------|-------------|----------------|--------|
+| **Hermes** | Plugin | ✅ Automatic | ✅ `pre_llm_call` | Ready |
+| **Claude Code** | Hook | ✅ `MessageDisplay` | ❌ No | Ready |
+| **Codex / MiMo** | Skill + Hook | ✅ Session start | ❌ No | Ready |
+| **Telegram** | Adapter | ✅ `wrap_response` | N/A | Ready |
+| **CLI** | Decorator | ✅ `@inject` | N/A | Ready |
+| **BankrBot** | Skill | ⏳ Pending | ❌ No | Planned |
+| **Aeon** | MCP only | ❌ Manual only | ❌ No | Limited |
+| **MCP (any)** | Tool server | ⚠️ Test only | ❌ No | Test phase |
 
 ---
 
