@@ -415,29 +415,31 @@ async def list_campaigns(wallet: str = "", status: str = "", db: AsyncSession = 
     if rows:
         campaign_ids = [str(r["id"]) for r in rows]
         if campaign_ids:
-            ads_rows = (
-                await db.execute(
-                    text(
-                        """
-                        SELECT campaign_id, id, title, body, bid_per_impression
-                        FROM ads
-                        WHERE campaign_id IN :ids
-                          AND status = 'active'
-                        """
-                    ),
-                    {"ids": tuple(campaign_ids)},
-                )
-            ).mappings().all()
-            for ad in ads_rows:
-                cid = str(ad["campaign_id"])
-                if cid not in campaign_ads:
-                    campaign_ads[cid] = []
-                campaign_ads[cid].append({
-                    "id": str(ad["id"]),
-                    "title": ad["title"],
-                    "body": ad["body"],
-                    "bid": float(ad["bid_per_impression"]),
-                })
+            # Use individual queries to avoid asyncpg tuple parameter issues
+            for cid in campaign_ids:
+                ads_rows = (
+                    await db.execute(
+                        text(
+                            """
+                            SELECT id, title, body, bid_per_impression
+                            FROM ads
+                            WHERE campaign_id = CAST(:cid AS uuid)
+                              AND status = 'active'
+                            """
+                        ),
+                        {"cid": cid},
+                    )
+                ).mappings().all()
+                if ads_rows:
+                    campaign_ads[cid] = [
+                        {
+                            "id": str(ad["id"]),
+                            "title": ad["title"],
+                            "body": ad["body"],
+                            "bid": float(ad["bid_per_impression"]),
+                        }
+                        for ad in ads_rows
+                    ]
 
     return {
         "wallet": wallet,
