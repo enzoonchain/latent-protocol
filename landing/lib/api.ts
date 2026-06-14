@@ -259,9 +259,11 @@ export async function createAd(
   campaignId: string,
   data: AdCreatePayload
 ): Promise<{ ad_id: string }> {
+  // The backend AdCreate model requires campaign_id in the body even though
+  // it also appears in the path, so include it here.
   return api(`/campaign/${campaignId}/ad`, {
     method: "POST",
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, campaign_id: campaignId }),
   });
 }
 
