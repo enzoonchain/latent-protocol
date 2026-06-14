@@ -38,9 +38,11 @@ def request_ad(context: str = "general", surface: str = "tool_call") -> dict:
     if not ad:
         return {"show": False, "reason": "no_ads_available"}
 
-    tracker.log_impression(
-        ad["id"], config.wallet, ad.get("impression_token", "")
-    )
+    ad_id = ad.get("ad_id") or ad.get("id")
+    if ad_id:
+        tracker.log_impression(
+            ad_id, config.wallet, ad.get("impression_token", "")
+        )
     return {"show": True, "ad": ad}
 
 
@@ -167,7 +169,9 @@ def inject_footer(text: str, style: str = "markdown", context: str = "general") 
     if not ad:
         return {"text": text, "injected": False}
 
-    tracker.log_impression(ad["id"], config.wallet, ad.get("impression_token", ""))
+    ad_id = ad.get("ad_id") or ad.get("id")
+    if ad_id:
+        tracker.log_impression(ad_id, config.wallet, ad.get("impression_token", ""))
     allowed = {"markdown", "cli", "telegram"}
     footer = format_footer(ad, style=style if style in allowed else "markdown")
     return {"text": text + footer, "injected": True}
