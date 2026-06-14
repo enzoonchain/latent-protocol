@@ -395,9 +395,12 @@ async def list_campaigns(wallet: str = "", status: str = "", db: AsyncSession = 
             text(
                 f"""
                 SELECT c.id, c.name, c.total_budget, c.budget_remaining, c.status,
-                       COALESCE(MIN(a.bid_per_impression), 0.005) AS min_bid
+                       COALESCE(MIN(a.bid_per_impression), 0.005) AS min_bid,
+                       COALESCE(SUM(CASE WHEN i.id IS NOT NULL THEN 1 ELSE 0 END), 0) AS impressions,
+                       COALESCE(SUM(CASE WHEN i.clicked THEN 1 ELSE 0 END), 0) AS clicks
                 FROM campaigns c
                 LEFT JOIN ads a ON a.campaign_id = c.id
+                LEFT JOIN impressions i ON i.ad_id = a.id
                 {where_clause}
                 GROUP BY c.id
                 ORDER BY MAX(c.created_at) DESC
@@ -406,6 +409,36 @@ async def list_campaigns(wallet: str = "", status: str = "", db: AsyncSession = 
             params,
         )
     ).mappings().all()
+
+    # Fetch ads for each campaign
+    campaign_ads = {}
+    if rows:
+        campaign_ids = [str(r["id"]) for r in rows]
+        if campaign_ids:
+            ads_rows = (
+                await db.execute(
+                    text(
+                        """
+                        SELECT campaign_id, id, title, body, bid_per_impression
+                        FROM ads
+                        WHERE campaign_id = ANY(:ids::uuid[])
+                          AND status = 'active'
+                        """
+                    ),
+                    {"ids": campaign_ids},
+                )
+            ).mappings().all()
+            for ad in ads_rows:
+                cid = str(ad["campaign_id"])
+                if cid not in campaign_ads:
+                    campaign_ads[cid] = []
+                campaign_ads[cid].append({
+                    "id": str(ad["id"]),
+                    "title": ad["title"],
+                    "body": ad["body"],
+                    "bid": float(ad["bid_per_impression"]),
+                })
+
     return {
         "wallet": wallet,
         "campaigns": [
@@ -417,6 +450,10 @@ async def list_campaigns(wallet: str = "", status: str = "", db: AsyncSession = 
                 "status": r["status"],
                 "min_bid": float(r["min_bid"]),
                 "block_cost_usdc": round(float(r["min_bid"]) * 1000, 6),
+                "impressions": int(r["impressions"]),
+                "clicks": int(r["clicks"]),
+                "ctr": round(int(r["clicks"]) / int(r["impressions"]), 4) if int(r["impressions"]) > 0 else 0.0,
+                "ads": campaign_ads.get(str(r["id"]), []),
             }
             for r in rows
         ],
