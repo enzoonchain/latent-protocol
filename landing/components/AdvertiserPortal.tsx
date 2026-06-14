@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useWalletClient } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import {
   fetchCampaigns,
@@ -12,6 +12,7 @@ import {
 
 export function AdvertiserPortal() {
   const { address, isConnected } = useAccount();
+  const { data: walletClient } = useWalletClient();
   const { openConnectModal } = useConnectModal();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(false);
@@ -19,6 +20,7 @@ export function AdvertiserPortal() {
   const [showCreate, setShowCreate] = useState(false);
   const [newCampaign, setNewCampaign] = useState({ name: "", budget: "" });
   const [buying, setBuying] = useState<string | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isConnected || !address) return;
@@ -64,12 +66,15 @@ export function AdvertiserPortal() {
 
   const handleBuyBlocks = async (campaignId: string, blocks: number) => {
     setBuying(campaignId);
+    setPayError(null);
     try {
-      await buyBlocks(campaignId, blocks);
+      await buyBlocks(campaignId, blocks, walletClient ?? undefined, address);
       if (address) {
         const updated = await fetchCampaigns(address);
         setCampaigns(updated);
       }
+    } catch (e) {
+      setPayError(e instanceof Error ? e.message : "Payment failed");
     } finally {
       setBuying(null);
     }
@@ -203,8 +208,15 @@ export function AdvertiserPortal() {
           <div className="text-center py-12 text-ivory-dim">Loading...</div>
         )}
 
+        {/* Empty state */}
+        {!loading && campaigns.length === 0 && (
+          <div className="text-center py-12 text-ivory-dim">
+            No campaigns yet. Create your first campaign above.
+          </div>
+        )}
+
         {/* Campaign list */}
-        {!loading && (
+        {!loading && campaigns.length > 0 && (
           <div className="space-y-4">
             {campaigns.map((c) => (
               <div
@@ -280,20 +292,25 @@ export function AdvertiserPortal() {
                       ))}
                     </div>
 
-                    <div className="flex gap-3 mt-4">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleBuyBlocks(c.id, 1);
-                        }}
-                        disabled={buying === c.id}
-                        className="btn text-xs py-2 px-4"
-                      >
-                        {buying === c.id ? "Buying..." : "Buy 1 Block"}
-                      </button>
-                      <button className="btn ghost text-xs py-2 px-4">
-                        Add Ad
-                      </button>
+                    <div className="flex flex-col gap-2 mt-4">
+                      <div className="flex gap-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleBuyBlocks(c.id, 1);
+                          }}
+                          disabled={buying === c.id}
+                          className="btn text-xs py-2 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {buying === c.id ? "Sign payment →" : "Buy 1 Block"}
+                        </button>
+                        <button className="btn ghost text-xs py-2 px-4">
+                          Add Ad
+                        </button>
+                      </div>
+                      {payError && selectedCampaign === c.id && (
+                        <div className="text-red-400 text-xs mt-1">{payError}</div>
+                      )}
                     </div>
                   </div>
                 )}
