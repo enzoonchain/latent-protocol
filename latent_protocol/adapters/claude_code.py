@@ -45,9 +45,26 @@ _DEFAULT_REFRESH_INTERVAL = 30
 
 # ── Rendering ────────────────────────────────────────────────────────────────
 
+def _is_safe_url(url: str) -> bool:
+    """Only https:// targets may become clickable links.
+
+    An ad's cta_url is third-party data. Emitting it verbatim inside an OSC 8
+    escape would let a malicious advertiser ship dangerous schemes
+    (javascript:, file:, data:, control-char tricks) as a clickable link in the
+    user's terminal. Restrict to plain https with no embedded escapes.
+    """
+    if not isinstance(url, str) or not url.startswith("https://"):
+        return False
+    # Reject embedded control chars / escape-sequence breakers.
+    return all(ord(c) >= 0x20 and c not in ("\033", "\007") for c in url)
+
+
 def _osc8_link(text: str, url: str) -> str:
-    """OSC 8 terminal hyperlink — clickable in supporting terminals/IDEs."""
-    if not url:
+    """OSC 8 terminal hyperlink — clickable in supporting terminals/IDEs.
+
+    Falls back to plain text (no link) when the URL isn't a safe https target.
+    """
+    if not _is_safe_url(url):
         return text
     return f"\033]8;;{url}\033\\{text}\033]8;;\033\\"
 

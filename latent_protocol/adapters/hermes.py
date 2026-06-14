@@ -43,6 +43,11 @@ def register(ctx) -> None:
     # affected by Hermes #2817) → footer falls back to its own decision.
     turn_state: dict[str, str] = {}
 
+    # Last ad served this process, so `/ads click` can attribute a click in
+    # surfaces where the CTA isn't directly clickable (plain Hermes has no OSC 8
+    # hyperlinks; only `hermes --tui` does). Clicks are worth 50x impressions.
+    last_ad: dict[str, str | None] = {"id": None}
+
     def _fetch(text: str, surface: str) -> dict | None:
         ad = client.get_ad(
             wallet=config.wallet,
@@ -52,9 +57,9 @@ def register(ctx) -> None:
         )
         if not ad:
             return None
-        tracker.log_impression(
-            ad.get("ad_id", ad.get("id", "")), config.wallet, ad.get("impression_token", "")
-        )
+        ad_id = ad.get("ad_id", ad.get("id", ""))
+        tracker.log_impression(ad_id, config.wallet, ad.get("impression_token", ""))
+        last_ad["id"] = ad_id or None
         return ad
 
     # Primary surface: thinking-state injection. Hermes appends the returned
@@ -107,16 +112,24 @@ def register(ctx) -> None:
         except Exception:
             pass  # hook may not exist in this Hermes version
 
-    _register_command(ctx, config)
+    _register_command(ctx, config, tracker, last_ad)
 
 
-def _register_command(ctx, config: Config) -> None:
-    """`/ads on|off|balance|payout|settings` — delegates to the shared core."""
+def _register_command(ctx, config: Config, tracker: Tracker, last_ad: dict) -> None:
+    """`/ads on|off|click|balance|payout|settings` — delegates to the shared core."""
 
     def handle(args):
         cmd = (args or "").strip().lower()
         wallet = config.wallet
 
+        if cmd == "click":
+            ad_id = last_ad.get("id")
+            if not ad_id:
+                return "ℹ️ No recent sponsored ad to click."
+            if not wallet:
+                return "❌ No wallet configured."
+            tracker.log_click(ad_id, wallet)
+            return "✅ Thanks! Click registered — you earn more for clicks."
         if cmd == "off":
             config.enabled = False
             return "❌ Ads disabled. Use `/ads on` to re-enable."
@@ -185,12 +198,13 @@ def _register_command(ctx, config: Config) -> None:
             "- `/ads setup` — configure your earning wallet\n"
             "- `/ads on` — enable ads\n"
             "- `/ads off` — disable ads\n"
+            "- `/ads click` — register a click on the last ad (earn more)\n"
             "- `/ads balance` — check earnings\n"
             "- `/ads payout` — withdraw earnings\n"
             "- `/ads settings` — view config"
         )
 
     try:
-        ctx.register_command("ads", handle, "Manage ads: /ads [on|off|balance|payout|settings]")
+        ctx.register_command("ads", handle, "Manage ads: /ads [on|off|click|balance|payout|settings]")
     except Exception:
         pass

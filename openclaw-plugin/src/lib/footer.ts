@@ -1,44 +1,81 @@
-/** Pure ad-rendering + per-process frequency throttling. No I/O. */
+/** Pure ad-rendering + URL safety + per-session frequency throttling. No I/O. */
 
-import { Ad } from "./ad-client.js";
+import { Ad, adId } from "./ad-client.js";
+
+/**
+ * Only https:// targets may become clickable links. An ad's URL is third-party
+ * data; emitting a `javascript:`/`data:`/`file:` scheme or an escape-breaking
+ * control char as a clickable link is unsafe (some chat renderers execute it).
+ */
+export function isSafeUrl(url: string): boolean {
+  if (typeof url !== "string" || !url.startsWith("https://")) return false;
+  // Reject control chars (incl. ESC 0x1b / BEL 0x07, all < 0x20) and DEL 0x7f.
+  return [...url].every((c) => {
+    const code = c.charCodeAt(0);
+    return code >= 0x20 && code !== 0x7f;
+  });
+}
+
+/**
+ * Build the click-tracking redirect for an ad. The displayed CTA points here;
+ * the server logs the click and 302s to the advertiser. Makes clicks
+ * attributable in every channel where the link is clickable (clicks earn 50x).
+ */
+export function clickUrl(server: string, ad: Ad, wallet: string): string {
+  const id = encodeURIComponent(adId(ad));
+  const w = encodeURIComponent(wallet);
+  return `${server}/ad/click?ad=${id}&w=${w}`;
+}
 
 /** Single-line sponsor string for thinking-state `prependContext`. */
-export function thinkingLine(ad: Ad): string {
+export function thinkingLine(ad: Ad, href: string): string {
   const body = ad.body ?? ad.title ?? "";
   const cta = ad.cta_text ?? "Learn more";
-  const url = ad.cta_url ?? "";
-  return `💡 Sponsored while you wait: ${body} — ${cta}: ${url}`;
+  // Only surface the URL if it's a safe https target.
+  const tail = isSafeUrl(href) ? ` — ${cta}: ${href}` : ` — ${cta}`;
+  return `💡 Sponsored while you wait: ${body}${tail}`;
 }
 
 /** Markdown footer appended to an outgoing message (fallback surface). */
-export function formatFooter(ad: Ad): string {
+export function formatFooter(ad: Ad, href: string): string {
   const body = ad.body ?? ad.title ?? "";
   const cta = ad.cta_text ?? "Learn more";
-  const url = ad.cta_url ?? "";
   const earn = ad.earn_amount ?? 0;
+  // Render a clickable markdown link only for safe https; else plain text.
+  const ctaLine = isSafeUrl(href) ? `[${cta} →](${href})` : `${cta} →`;
   return (
     `\n\n---\n` +
     `💰 **Sponsored:** ${body}  \n` +
-    `[${cta} →](${url})  \n` +
+    `${ctaLine}  \n` +
     `_+$${earn} USDC earned_`
   );
 }
 
-/** Show an ad once every `every` ticks (per process). */
-export class FrequencyCounter {
-  private count = 0;
-  constructor(private readonly every: number = 5) {
+/**
+ * Per-session frequency throttle: show an ad once every `every` turns, tracked
+ * independently per session id. OpenClaw runs many channels/sessions through
+ * one plugin instance, so a single shared counter would mix users together —
+ * this keeps each conversation on its own cadence. Bounded to avoid unbounded
+ * growth on a long-lived gateway.
+ */
+export class SessionFrequency {
+  private counts = new Map<string, number>();
+
+  constructor(
+    private readonly every: number = 5,
+    private readonly maxSessions = 2000,
+  ) {
     this.every = Math.max(Math.trunc(every) || 1, 1);
   }
 
-  /** Record one event; return true when an ad should be shown now. */
-  tick(): boolean {
-    this.count += 1;
-    return this.count % this.every === 0;
-  }
-
-  /** Current tick count — handy for building per-turn idempotency keys. */
-  get current(): number {
-    return this.count;
+  /** Record one turn for `sessionId`; return true when an ad should show now. */
+  tick(sessionId: string): boolean {
+    const next = (this.counts.get(sessionId) ?? 0) + 1;
+    if (!this.counts.has(sessionId) && this.counts.size >= this.maxSessions) {
+      const oldest = this.counts.keys().next().value; // Map keeps insertion order
+      if (oldest !== undefined) this.counts.delete(oldest);
+    }
+    this.counts.set(sessionId, next);
+    return next % this.every === 0;
   }
 }

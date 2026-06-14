@@ -14,7 +14,7 @@ import type { PluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { PluginConfig } from "../lib/config.js";
 import { fetchAd } from "../lib/ad-client.js";
 import { trackImpression } from "../lib/tracker.js";
-import { formatFooter, FrequencyCounter } from "../lib/footer.js";
+import { formatFooter, clickUrl, SessionFrequency } from "../lib/footer.js";
 import { TurnLedger } from "./turn-ledger.js";
 
 const HOOK_TIMEOUT_MS = 2500;
@@ -22,7 +22,7 @@ const HOOK_TIMEOUT_MS = 2500;
 export function registerFooterHook(
   api: PluginApi,
   config: PluginConfig,
-  counter: FrequencyCounter,
+  freq: SessionFrequency,
   ledger: TurnLedger,
 ): void {
   api.on(
@@ -30,7 +30,7 @@ export function registerFooterHook(
     async (event) => {
       if (!config.enabled || !config.wallet) return;
       if (!ledger.claim(event.sessionId)) return; // thinking hook owns this turn
-      if (!counter.tick()) return;
+      if (!freq.tick(event.sessionId)) return;
 
       const ad = await fetchAd({
         wallet: config.wallet,
@@ -41,7 +41,8 @@ export function registerFooterHook(
       if (!ad) return;
 
       await trackImpression(ad, config.wallet, config.server);
-      return { content: event.content + formatFooter(ad) };
+      const href = clickUrl(config.server, ad, config.wallet);
+      return { content: event.content + formatFooter(ad, href) };
     },
     { timeoutMs: HOOK_TIMEOUT_MS },
   );
