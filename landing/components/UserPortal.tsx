@@ -95,19 +95,19 @@ export function UserPortal() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
           <div className="border border-ivory-faint p-4">
             <div className="text-2xl font-serif text-bronze">
-              ${earnings?.balance.toFixed(2) ?? "0.00"}
+              ${(earnings?.balance ?? 0).toFixed(2)}
             </div>
             <div className="text-ivory-dim text-xs mt-1">Balance</div>
           </div>
           <div className="border border-ivory-faint p-4">
             <div className="text-2xl font-serif text-bronze">
-              ${earnings?.totalEarned.toFixed(2) ?? "0.00"}
+              ${(earnings?.totalEarned ?? 0).toFixed(2)}
             </div>
             <div className="text-ivory-dim text-xs mt-1">Total earned</div>
           </div>
           <div className="border border-ivory-faint p-4">
             <div className="text-2xl font-serif text-bronze">
-              {earnings?.totalImpressions.toLocaleString() ?? "0"}
+              {(earnings?.totalImpressions ?? 0).toLocaleString()}
             </div>
             <div className="text-ivory-dim text-xs mt-1">Impressions</div>
           </div>
@@ -129,7 +129,7 @@ export function UserPortal() {
           </div>
           <button
             onClick={handlePayout}
-            disabled={(earnings?.balance ?? 0) < 5 || payoutLoading}
+            disabled={earnings === null || (earnings?.balance ?? 0) < 5 || payoutLoading}
             className="btn text-xs py-2 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {payoutLoading ? "Processing..." : "Request Payout"}
@@ -162,94 +162,106 @@ export function UserPortal() {
 
             {/* Earnings table */}
             {tab === "earnings" && (
-              <div className="border border-ivory-faint overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-ivory-faint text-ivory-dim text-xs uppercase tracking-wider">
-                      <th className="px-4 py-3 text-left">Date</th>
-                      <th className="px-4 py-3 text-left">Type</th>
-                      <th className="px-4 py-3 text-right">Amount</th>
-                      <th className="px-4 py-3 text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.map((e) => (
-                      <tr
-                        key={e.id}
-                        className="border-b border-ivory-faint last:border-0"
-                      >
-                        <td className="px-4 py-3 text-ivory-dim">{e.date}</td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-block px-2 py-0.5 text-xs rounded ${
-                              e.kind === "click"
-                                ? "bg-bronze/20 text-bronze"
-                                : "bg-ivory-faint text-ivory-dim"
-                            }`}
-                          >
-                            {e.kind}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-bronze">
-                          +${e.amount.toFixed(4)}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span
-                            className={`text-xs ${
-                              e.paid ? "text-green-400" : "text-ivory-dim"
-                            }`}
-                          >
-                            {e.paid ? "paid" : "pending"}
-                          </span>
-                        </td>
+              history.length === 0 ? (
+                <div className="text-center py-12 text-ivory-dim border border-ivory-faint">
+                  No earning events yet. Ad impressions and clicks will appear here.
+                </div>
+              ) : (
+                <div className="border border-ivory-faint overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-ivory-faint text-ivory-dim text-xs uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left">Date</th>
+                        <th className="px-4 py-3 text-left">Type</th>
+                        <th className="px-4 py-3 text-right">Amount</th>
+                        <th className="px-4 py-3 text-center">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {history.map((e) => (
+                        <tr
+                          key={e.id}
+                          className="border-b border-ivory-faint last:border-0"
+                        >
+                          <td className="px-4 py-3 text-ivory-dim">{e.date}</td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-block px-2 py-0.5 text-xs rounded ${
+                                e.kind === "click"
+                                  ? "bg-bronze/20 text-bronze"
+                                  : "bg-ivory-faint text-ivory-dim"
+                              }`}
+                            >
+                              {e.kind}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-bronze">
+                            +${e.amount.toFixed(4)}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span
+                              className={`text-xs ${
+                                e.paid ? "text-green-400" : "text-ivory-dim"
+                              }`}
+                            >
+                              {e.paid ? "paid" : "pending"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
             )}
 
             {/* Payouts table */}
             {tab === "payouts" && (
-              <div className="border border-ivory-faint overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-ivory-faint text-ivory-dim text-xs uppercase tracking-wider">
-                      <th className="px-4 py-3 text-left">Date</th>
-                      <th className="px-4 py-3 text-right">Amount</th>
-                      <th className="px-4 py-3 text-left">Tx Hash</th>
-                      <th className="px-4 py-3 text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {payouts.map((p) => (
-                      <tr
-                        key={p.id}
-                        className="border-b border-ivory-faint last:border-0"
-                      >
-                        <td className="px-4 py-3 text-ivory-dim">{p.date}</td>
-                        <td className="px-4 py-3 text-right text-bronze">
-                          ${p.amount.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-ivory-dim">
-                          {p.txHash}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span
-                            className={`inline-block px-2 py-0.5 text-xs rounded ${
-                              p.status === "sent"
-                                ? "bg-green-900/50 text-green-400 border border-green-800"
-                                : "bg-ivory-faint text-ivory-dim"
-                            }`}
-                          >
-                            {p.status}
-                          </span>
-                        </td>
+              payouts.length === 0 ? (
+                <div className="text-center py-12 text-ivory-dim border border-ivory-faint">
+                  No payouts yet. Request your first payout when your balance reaches $5.00.
+                </div>
+              ) : (
+                <div className="border border-ivory-faint overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-ivory-faint text-ivory-dim text-xs uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left">Date</th>
+                        <th className="px-4 py-3 text-right">Amount</th>
+                        <th className="px-4 py-3 text-left">Tx Hash</th>
+                        <th className="px-4 py-3 text-center">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {payouts.map((p) => (
+                        <tr
+                          key={p.id}
+                          className="border-b border-ivory-faint last:border-0"
+                        >
+                          <td className="px-4 py-3 text-ivory-dim">{p.date}</td>
+                          <td className="px-4 py-3 text-right text-bronze">
+                            ${p.amount.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-ivory-dim">
+                            {p.txHash}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span
+                              className={`inline-block px-2 py-0.5 text-xs rounded ${
+                                p.status === "sent"
+                                  ? "bg-green-900/50 text-green-400 border border-green-800"
+                                  : "bg-ivory-faint text-ivory-dim"
+                              }`}
+                            >
+                              {p.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
             )}
           </>
         )}
