@@ -145,6 +145,23 @@ export async function createCampaign(data: {
   });
 }
 
+export async function launchCampaign(
+  wallet: `0x${string}`,
+  name: string,
+  adData: AdCreatePayload,
+  bidPerImpression: number,
+  walletClient?: WalletClient
+): Promise<{ campaign_id: string; cost_usdc: number }> {
+  const { campaign_id } = await createCampaign({
+    advertiser_wallet: wallet,
+    name,
+    total_budget: 0,
+  });
+  const result = await buyBlocks(campaign_id, 1, walletClient, wallet, bidPerImpression);
+  await createAd(campaign_id, { ...adData, bid_per_impression: bidPerImpression });
+  return { campaign_id, cost_usdc: result.cost_usdc };
+}
+
 export async function buyBlocks(
   campaignId: string,
   blocks: number,

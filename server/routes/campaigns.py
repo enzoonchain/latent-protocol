@@ -11,7 +11,7 @@ from server.x402_payments import settle_payment_or_402
 
 router = APIRouter()
 
-MIN_CAMPAIGN_BUDGET = 1.0  # minimum campaign budget in USDC
+MIN_CAMPAIGN_BUDGET = 0.0  # budget starts at 0; grows with each block purchase
 
 
 async def _record_payment(
@@ -46,12 +46,6 @@ async def _record_payment(
 @router.post("/create", status_code=status.HTTP_201_CREATED)
 async def create_campaign(req: CampaignCreate, db: AsyncSession = Depends(get_db)):
     """Create a campaign (and register the advertiser if new)."""
-    if req.total_budget < MIN_CAMPAIGN_BUDGET:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            f"Minimum campaign budget is ${MIN_CAMPAIGN_BUDGET:.2f} USDC",
-        )
-
     await db.execute(
         text(
             "INSERT INTO advertisers (wallet_address) VALUES (:w) "
