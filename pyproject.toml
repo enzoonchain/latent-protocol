@@ -38,8 +38,9 @@ dev = [
 ]
 
 [project.scripts]
-agent-kickbacks-mcp = "agent_kickbacks.mcp_server:main"
-agent-kickbacks-setup = "agent_kickbacks.setup:main"
+agent-kickbacks-mcp     = "agent_kickbacks.mcp_server:main"
+agent-kickbacks-setup   = "agent_kickbacks.setup:main"
+agent-kickbacks-adapter = "agent_kickbacks.adapters.unified:adapter_main"
 
 [build-system]
 requires = ["setuptools>=68.0"]
