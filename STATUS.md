@@ -265,6 +265,25 @@ This means:
 **Production ad delivery MUST use platform-specific adapters** where we control
 the frequency counter, session caps, and daily limits.
 
+### Claude Code via `statusLine` (kickbacks.ai learnings)
+
+A versenytárs [kickbacks.ai](https://github.com/andrewmccalip/kickbacks.ai) bizonyította,
+hogy a Claude Code loading/thinking state monetizálható. A "status-bar line" felületük
+valójában a hivatalos Claude Code **`statusLine`** setting: parancsot futtat, stdin-en
+megkapja a session JSON-t, stdout = a megjelenített szöveg. Bármely verzión, terminál +
+IDE. Mi ezt a `latent-statusline` console-scripttel valósítjuk meg
+(`latent_protocol/adapters/claude_code.py`):
+
+- `latent-statusline --install` → beírja a `~/.claude/settings.json` `statusLine` blokkot
+- Refresh-enként új process → **disk cache rotáció** (`ADS_STATUSLINE_ROTATE`, def. 30s),
+  így 1 impression / rotáció, NEM minden refresh-nél (anti-spam)
+- ANSI szín + OSC 8 kattintható CTA link
+- Fail-open: ad-szerver hiba → üres status line, az agent érintetlen
+
+A spinner-tips (`spinnerTipsOverride`) statikus JSON; az ő dinamikus "spinner verb"-jük
+a settings.json session-önkénti újraírásával megy — ez nálunk másodlagos. A panel-overlay
+(VS Code/Codex shimmer) külön VS Code extensiont igényel — későbbi fázis.
+
 ### BankrBot Integration (Lessons Learned)
 
 | Aspect | Finding |
@@ -281,7 +300,7 @@ the frequency counter, session caps, and daily limits.
 |----------|------------|-------------|----------------|--------|
 | **OpenClaw** | Plugin (`api.on(...)`) | ✅ `before_prompt_build` | ✅ **Best (live!)** | ✅ Implementálva (`openclaw-plugin/`) |
 | **Hermes** | Plugin | ✅ Automatic (footer) | ⚠️ `pre_llm_call` no-op (#2817) | ✅ Ready (thinking forward-compat) |
-| **Claude Code** | Hook | ✅ `MessageDisplay` | ❌ No | ✅ Ready |
+| **Claude Code** | `statusLine` + Hook | ✅ `statusLine` (live, dynamic) | ✅ statusLine = thinking-adjacent | ✅ Implementálva (`latent-statusline`) |
 | **Codex / MiMo** | Skill + Hook | ✅ Session start | ❌ No | ✅ Ready |
 | **Telegram** | Adapter | ✅ `wrap_response` | N/A | ✅ Ready |
 | **CLI** | Decorator | ✅ `@inject` | N/A | ✅ Ready |

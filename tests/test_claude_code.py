@@ -1,0 +1,140 @@
+"""Tests for the Claude Code statusLine adapter (rotation + impression hygiene)."""
+
+import json
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from latent_protocol.adapters import claude_code as cc
+from latent_protocol.config import Config
+
+
+FAKE_AD = {
+    "ad_id": "ad-1",
+    "body": "Try Acme!",
+    "cta_text": "Learn more",
+    "cta_url": "https://acme.io",
+    "earn_amount": 0.0025,
+    "impression_token": "tok-abc",
+}
+
+
+def _cfg(**kw):
+    defaults = dict(
+        enabled=True,
+        wallet="0xDEADBEEF",
+        server="http://localhost:8000",
+        frequency=5,
+        min_payout=5.0,
+        categories=["all"],
+    )
+    defaults.update(kw)
+    return Config(**defaults)
+
+
+@pytest.fixture
+def env(tmp_path, monkeypatch):
+    """Isolate cache + settings to tmp and stub network/config."""
+    monkeypatch.setattr(cc, "_CONFIG_DIR", tmp_path)
+    monkeypatch.setattr(cc, "_CACHE_FILE", tmp_path / "statusline_cache.json")
+    monkeypatch.setattr(cc, "_CLAUDE_SETTINGS", tmp_path / "claude" / "settings.json")
+    monkeypatch.setenv("ADS_STATUSLINE_ROTATE", "30")
+    client = MagicMock()
+    client.get_ad.return_value = FAKE_AD
+    tracker = MagicMock()
+    monkeypatch.setattr(cc, "AdClient", lambda *a, **k: client)
+    monkeypatch.setattr(cc, "Tracker", lambda *a, **k: tracker)
+    return client, tracker
+
+
+# ── render ───────────────────────────────────────────────────────────────────
+
+def test_disabled_returns_empty(env, monkeypatch):
+    monkeypatch.setattr(cc.Config, "from_env", staticmethod(lambda: _cfg(enabled=False)))
+    assert cc.render({"session_id": "s1"}) == ""
+    env[0].get_ad.assert_not_called()
+
+
+def test_no_wallet_returns_empty(env, monkeypatch):
+    monkeypatch.setattr(cc.Config, "from_env", staticmethod(lambda: _cfg(wallet="")))
+    assert cc.render({"session_id": "s1"}) == ""
+
+
+def test_fetches_and_logs_impression(env, monkeypatch):
+    client, tracker = env
+    monkeypatch.setattr(cc.Config, "from_env", staticmethod(lambda: _cfg()))
+    line = cc.render({"session_id": "s1", "prompt": "defi"})
+    assert "Acme" in line
+    assert "💰 Sponsored" in line
+    assert "https://acme.io" in line  # OSC 8 link target
+    client.get_ad.assert_called_once()
+    assert client.get_ad.call_args.kwargs["surface"] == "status_line"
+    tracker.log_impression.assert_called_once_with("ad-1", "0xDEADBEEF", "tok-abc")
+
+
+def test_reuses_cache_within_rotation_window(env, monkeypatch):
+    client, tracker = env
+    monkeypatch.setattr(cc.Config, "from_env", staticmethod(lambda: _cfg()))
+    times = iter([1000.0, 1005.0, 1009.0])  # all within 30s window
+    monkeypatch.setattr(cc.time, "time", lambda: next(times))
+    cc.render({"session_id": "s1"})
+    cc.render({"session_id": "s1"})
+    cc.render({"session_id": "s1"})
+    # Only the first refresh fetched + billed; the rest reused the cache.
+    assert client.get_ad.call_count == 1
+    assert tracker.log_impression.call_count == 1
+
+
+def test_refetches_after_rotation_window(env, monkeypatch):
+    client, tracker = env
+    monkeypatch.setattr(cc.Config, "from_env", staticmethod(lambda: _cfg()))
+    times = iter([1000.0, 1040.0])  # second call is >30s later
+    monkeypatch.setattr(cc.time, "time", lambda: next(times))
+    cc.render({"session_id": "s1"})
+    cc.render({"session_id": "s1"})
+    assert client.get_ad.call_count == 2
+    assert tracker.log_impression.call_count == 2
+
+
+def test_no_ad_returns_empty(env, monkeypatch):
+    client, _ = env
+    client.get_ad.return_value = None
+    monkeypatch.setattr(cc.Config, "from_env", staticmethod(lambda: _cfg()))
+    assert cc.render({"session_id": "s1"}) == ""
+
+
+# ── install / uninstall ──────────────────────────────────────────────────────
+
+def test_install_writes_settings(env):
+    cc.install(refresh_interval=15)
+    data = json.loads(cc._CLAUDE_SETTINGS.read_text())
+    assert data["statusLine"]["command"] == "latent-statusline"
+    assert data["statusLine"]["refreshInterval"] == 15
+
+
+def test_install_is_non_destructive(env):
+    cc._CLAUDE_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+    cc._CLAUDE_SETTINGS.write_text(json.dumps({"theme": "dark"}))
+    cc.install()
+    data = json.loads(cc._CLAUDE_SETTINGS.read_text())
+    assert data["theme"] == "dark"  # preserved
+    assert data["statusLine"]["command"] == "latent-statusline"
+
+
+def test_uninstall_removes_only_ours(env):
+    cc._CLAUDE_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+    cc._CLAUDE_SETTINGS.write_text(
+        json.dumps({"theme": "dark", "statusLine": {"command": "latent-statusline"}})
+    )
+    cc.uninstall()
+    data = json.loads(cc._CLAUDE_SETTINGS.read_text())
+    assert "statusLine" not in data
+    assert data["theme"] == "dark"
+
+
+def test_uninstall_leaves_foreign_statusline(env):
+    cc._CLAUDE_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+    cc._CLAUDE_SETTINGS.write_text(json.dumps({"statusLine": {"command": "other-tool"}}))
+    cc.uninstall()
+    data = json.loads(cc._CLAUDE_SETTINGS.read_text())
+    assert data["statusLine"]["command"] == "other-tool"  # untouched
