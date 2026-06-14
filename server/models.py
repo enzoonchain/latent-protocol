@@ -52,7 +52,8 @@ class CampaignFund(BaseModel):
 
 
 class BlockPurchase(BaseModel):
-    blocks: int = Field(gt=0, le=1000)  # number of 1000-impression blocks to buy
+    blocks: int = Field(gt=0, le=1000)
+    bid_per_impression: Optional[float] = Field(None, gt=0)  # overrides the DB-computed bid
 
 
 class AdCreate(BaseModel):

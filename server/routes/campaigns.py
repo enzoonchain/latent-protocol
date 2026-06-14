@@ -202,7 +202,7 @@ async def buy_blocks(
     if not c:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "campaign not found")
 
-    bid = float(c["min_bid"]) if c["min_bid"] else 0.005
+    bid = req.bid_per_impression or (float(c["min_bid"]) if c["min_bid"] else 0.005)
     cost = block_cost(bid, req.blocks)
 
     # Fail closed: verify + settle the payment on-chain before crediting budget.
@@ -303,9 +303,15 @@ async def list_campaigns(wallet: str = "", db: AsyncSession = Depends(get_db)):
     rows = (
         await db.execute(
             text(
-                "SELECT id, name, total_budget, budget_remaining, status, created_at "
-                "FROM campaigns WHERE advertiser_wallet = :w "
-                "ORDER BY created_at DESC"
+                """
+                SELECT c.id, c.name, c.total_budget, c.budget_remaining, c.status,
+                       COALESCE(MIN(a.bid_per_impression), 0.005) AS min_bid
+                FROM campaigns c
+                LEFT JOIN ads a ON a.campaign_id = c.id
+                WHERE c.advertiser_wallet = :w
+                GROUP BY c.id
+                ORDER BY MAX(c.created_at) DESC
+                """
             ),
             {"w": wallet},
         )
@@ -319,6 +325,8 @@ async def list_campaigns(wallet: str = "", db: AsyncSession = Depends(get_db)):
                 "total_budget": float(r["total_budget"]),
                 "budget_remaining": float(r["budget_remaining"]),
                 "status": r["status"],
+                "min_bid": float(r["min_bid"]),
+                "block_cost_usdc": round(float(r["min_bid"]) * 1000, 6),
             }
             for r in rows
         ],
