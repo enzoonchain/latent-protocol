@@ -149,9 +149,10 @@ export async function buyBlocks(
   campaignId: string,
   blocks: number,
   walletClient?: WalletClient,
-  address?: `0x${string}`
+  address?: `0x${string}`,
+  bidPerImpression?: number
 ): Promise<{ cost_usdc: number; impressions_added: number }> {
-  const body = JSON.stringify({ blocks });
+  const body = JSON.stringify({ blocks, bid_per_impression: bidPerImpression });
   const headers: Record<string, string> = { "Content-Type": "application/json" };
 
   const res = await fetch(`${API_BASE}/campaign/${campaignId}/buy`, {

@@ -202,7 +202,7 @@ async def buy_blocks(
     if not c:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "campaign not found")
 
-    bid = float(c["min_bid"]) if c["min_bid"] else 0.005
+    bid = req.bid_per_impression or (float(c["min_bid"]) if c["min_bid"] else 0.005)
     cost = block_cost(bid, req.blocks)
 
     # Fail closed: verify + settle the payment on-chain before crediting budget.
