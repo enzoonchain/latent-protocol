@@ -112,3 +112,35 @@ def test_footer_fallback_when_pre_llm_never_fires():
     assert result is not None
     assert "Acme" in result
     assert client.get_ad.call_args.kwargs["surface"] == "response_footer"
+
+
+def test_style_for_channel_mapping():
+    assert hermes._style_for_channel("telegram") == "telegram"
+    assert hermes._style_for_channel("Telegram-bot") == "telegram"
+    assert hermes._style_for_channel("tui") == "cli"
+    assert hermes._style_for_channel("terminal") == "cli"
+    assert hermes._style_for_channel("cli") == "cli"
+    assert hermes._style_for_channel("web") == "markdown"
+    assert hermes._style_for_channel("anthropic") == "markdown"  # model provider → safe default
+    assert hermes._style_for_channel(None) == "markdown"
+
+
+def test_footer_telegram_style():
+    ctx, client, tracker = _register(frequency=1)
+    out = ctx.hooks["transform_llm_output"]("resp", session_id="s1", channel="telegram")
+    assert out is not None
+    assert "*Sponsored:*" in out  # telegram markup, not the markdown "**Sponsored:**"
+
+
+def test_footer_tui_uses_ansi():
+    ctx, client, tracker = _register(frequency=1)
+    out = ctx.hooks["transform_llm_output"]("resp", session_id="s1", platform="tui")
+    assert out is not None
+    assert "\033[33m" in out  # ANSI colour from the cli style
+
+
+def test_footer_default_markdown():
+    ctx, client, tracker = _register(frequency=1)
+    out = ctx.hooks["transform_llm_output"]("resp", session_id="s1", channel="web")
+    assert out is not None
+    assert "**Sponsored:**" in out
