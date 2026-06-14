@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+const SKILL_URL = "https://latentprotocol.io/latent-protocol-skill.md";
+
 type Platform = {
   id: string;
   label: string;
@@ -24,7 +26,7 @@ const platforms: Platform[] = [
         title: "2. Set up your earning wallet",
         code: "latent-setup",
         lang: "bash",
-        note: "Generates a new wallet or imports your existing address. Saves to ~/.latent-protocol/config.json",
+        note: "Generates a new wallet or imports your existing address. Saves to ~/.latent/config.json",
       },
       {
         title: "3. Add to your MCP config",
@@ -55,7 +57,7 @@ const platforms: Platform[] = [
     steps: [
       {
         title: "1. Clone the plugin into Hermes skills",
-        code: "git clone https://github.com/enzoonchain/latent-protocol \\\n  ~/.hermes/plugins/latent-protocol",
+        code: "git clone https://github.com/enzoonchain/agent-kickbacks \\\n  ~/.hermes/plugins/latent-protocol",
         lang: "bash",
       },
       {
@@ -66,13 +68,7 @@ const platforms: Platform[] = [
       },
       {
         title: "3. Enable in Hermes config",
-        code: JSON.stringify(
-          {
-            plugins: ["latent-protocol"],
-          },
-          null,
-          2
-        ),
+        code: JSON.stringify({ plugins: ["latent-protocol"] }, null, 2),
         lang: "json",
         note: "Add to your hermes.config.json",
       },
@@ -88,16 +84,8 @@ const platforms: Platform[] = [
     label: "Telegram Bot",
     tag: "Standalone Telegram bots — python-telegram-bot, aiogram",
     steps: [
-      {
-        title: "1. Install",
-        code: "pip install latent-protocol",
-        lang: "bash",
-      },
-      {
-        title: "2. Set up wallet",
-        code: "latent-setup",
-        lang: "bash",
-      },
+      { title: "1. Install", code: "pip install latent-protocol", lang: "bash" },
+      { title: "2. Set up wallet", code: "latent-setup", lang: "bash" },
       {
         title: "3. Wrap your handler",
         code: `from latent_protocol.adapters.telegram import TelegramAdAdapter
@@ -120,16 +108,8 @@ async def handle_message(update, context):
     label: "CLI / Terminal",
     tag: "Any Python CLI agent — Click, Typer, plain scripts",
     steps: [
-      {
-        title: "1. Install",
-        code: "pip install latent-protocol",
-        lang: "bash",
-      },
-      {
-        title: "2. Set up wallet",
-        code: "latent-setup",
-        lang: "bash",
-      },
+      { title: "1. Install", code: "pip install latent-protocol", lang: "bash" },
+      { title: "2. Set up wallet", code: "latent-setup", lang: "bash" },
       {
         title: "3a. Decorator (zero boilerplate)",
         code: `from latent_protocol.adapters.cli import CliAdAdapter
@@ -154,6 +134,7 @@ adapter.print_response(response, context=prompt)`,
 
 function CodeBlock({ code, lang }: { code: string; lang?: string }) {
   const [copied, setCopied] = useState(false);
+  void lang;
 
   const copy = () => {
     navigator.clipboard.writeText(code);
@@ -178,7 +159,21 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }) {
 
 export function Install() {
   const [active, setActive] = useState("mcp");
+  const [skillCopied, setSkillCopied] = useState(false);
+  const [pipCopied, setPipCopied] = useState(false);
   const platform = platforms.find((p) => p.id === active)!;
+
+  const copySkill = () => {
+    navigator.clipboard.writeText(`/skills add ${SKILL_URL}`);
+    setSkillCopied(true);
+    setTimeout(() => setSkillCopied(false), 1500);
+  };
+
+  const copyPip = () => {
+    navigator.clipboard.writeText("pip install latent-protocol");
+    setPipCopied(true);
+    setTimeout(() => setPipCopied(false), 1500);
+  };
 
   return (
     <section id="install" className="section">
@@ -193,6 +188,77 @@ export function Install() {
               platform of choice
             </span>
           </h2>
+        </div>
+
+        {/* ── Skill install — hero card ── */}
+        <div className="max-w-2xl mx-auto mb-14">
+          <div className="relative rounded-xl border border-bronze/40 bg-gradient-to-br from-[rgba(180,140,80,0.08)] to-transparent p-7">
+            {/* Badge */}
+            <div className="absolute -top-3.5 left-6">
+              <span className="bg-bronze text-ink text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full">
+                ✦ Recommended
+              </span>
+            </div>
+
+            <div className="flex items-start gap-4 mb-5 mt-1">
+              <div className="w-10 h-10 rounded-lg bg-bronze/10 border border-bronze/30 flex items-center justify-center shrink-0 text-xl">
+                🧠
+              </div>
+              <div>
+                <h3 className="text-ivory font-serif text-lg leading-snug">
+                  Claude Code Skill
+                </h3>
+                <p className="text-ivory-soft text-sm mt-0.5 opacity-80">
+                  One command — auto-detects your platform, wires the adapter, sets up your wallet. Works in Claude Code, Cursor, Windsurf and any MCP-compatible agent.
+                </p>
+              </div>
+            </div>
+
+            {/* Step 1 */}
+            <div className="space-y-3">
+              <p className="text-xs text-ivory-soft tracking-widest uppercase opacity-60">
+                Step 1 — load the skill in your agent
+              </p>
+              <div className="relative rounded bg-[#0d0c0b] border border-[rgba(180,140,80,0.2)] overflow-x-auto">
+                <button
+                  onClick={copySkill}
+                  className="absolute top-2 right-3 text-[10px] text-ivory-soft hover:text-bronze transition-colors"
+                >
+                  {skillCopied ? "copied ✓" : "copy"}
+                </button>
+                <pre className="p-4 pr-14 text-[0.82rem] leading-relaxed text-bronze font-mono">
+                  <code>/skills add {SKILL_URL}</code>
+                </pre>
+              </div>
+
+              {/* Step 2 */}
+              <p className="text-xs text-ivory-soft tracking-widest uppercase opacity-60 pt-1">
+                Step 2 — install the Python package
+              </p>
+              <div className="relative rounded bg-[#0d0c0b] border border-[rgba(180,140,80,0.2)] overflow-x-auto">
+                <button
+                  onClick={copyPip}
+                  className="absolute top-2 right-3 text-[10px] text-ivory-soft hover:text-bronze transition-colors"
+                >
+                  {pipCopied ? "copied ✓" : "copy"}
+                </button>
+                <pre className="p-4 pr-14 text-[0.82rem] leading-relaxed text-ivory-soft font-mono">
+                  <code>pip install latent-protocol</code>
+                </pre>
+              </div>
+
+              <p className="text-[0.72rem] text-ivory-soft opacity-50 leading-relaxed">
+                The skill guides you through wallet setup, platform detection, and a smoke test — all interactively.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-4 mb-10 max-w-2xl mx-auto">
+          <span className="h-px flex-1 bg-gradient-to-r from-transparent to-[rgba(180,140,80,0.2)]" />
+          <span className="text-ivory-soft text-xs tracking-widest uppercase opacity-50">or set up manually</span>
+          <span className="h-px flex-1 bg-gradient-to-l from-transparent to-[rgba(180,140,80,0.2)]" />
         </div>
 
         {/* Platform tabs */}
@@ -212,7 +278,6 @@ export function Install() {
           ))}
         </div>
 
-        {/* Platform tag */}
         <p className="text-center text-ivory-soft text-sm mb-8 opacity-70">
           {platform.tag}
         </p>
@@ -235,14 +300,14 @@ export function Install() {
         {/* CTA row */}
         <div className="flex gap-4 justify-center mt-12 flex-wrap">
           <a
-            href="https://github.com/enzoonchain/latent-protocol"
+            href="https://github.com/enzoonchain/agent-kickbacks"
             className="btn"
             target="_blank"
             rel="noopener noreferrer"
           >
             View on GitHub <span className="arrow">→</span>
           </a>
-          <a href="#advertise" className="btn ghost">
+          <a href="#advertiser" className="btn ghost">
             Advertise on Latent
           </a>
         </div>
