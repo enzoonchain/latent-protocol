@@ -15,7 +15,7 @@ export interface PluginConfig {
   minPayout: number;
 }
 
-const DEFAULT_SERVER = "https://agent-kickbacks-production.up.railway.app";
+const DEFAULT_SERVER = "https://api.latentprotocol.xyz";
 
 function envBool(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined) return fallback;

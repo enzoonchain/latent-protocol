@@ -87,7 +87,7 @@ latent-protocol/
       "ads.wallet": { "type": "string", "required": true },
       "ads.enabled": { "type": "boolean", "default": true },
       "ads.frequency": { "type": "number", "default": 5 },
-      "ads.server": { "type": "string", "default": "https://agent-kickbacks-production.up.railway.app" }
+      "ads.server": { "type": "string", "default": "https://api.latentprotocol.xyz" }
     }
   }
 }
@@ -229,7 +229,7 @@ openclaw gateway restart
           wallet: "0x...",        // Required: Base wallet address
           enabled: true,
           frequency: 5,           // Show ad every N messages
-          server: "https://agent-kickbacks-production.up.railway.app",
+          server: "https://api.latentprotocol.xyz",
           categories: ["all"],
           minPayout: 5.0,
         },

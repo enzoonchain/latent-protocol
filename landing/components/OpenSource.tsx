@@ -50,7 +50,7 @@ export function OpenSource() {
                 <span className="text-ivory-soft">export ADS_WALLET=0x...</span>
               </div>
               <div>
-                <span className="text-ivory-soft">export ADS_SERVER=https://agent-kickbacks-production.up.railway.app</span>
+                <span className="text-ivory-soft">export ADS_SERVER=https://api.latentprotocol.xyz</span>
               </div>
             </div>
           </div>

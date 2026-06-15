@@ -47,7 +47,7 @@ openclaw plugins install ./openclaw-plugin --link
 | `wallet` | ✅ | — | Base (EVM) address that receives USDC |
 | `enabled` | | `true` | Master on/off switch |
 | `frequency` | | `5` | Show an ad once every N turns |
-| `server` | | `https://agent-kickbacks-production.up.railway.app` | Ad server URL |
+| `server` | | `https://api.latentprotocol.xyz` | Ad server URL |
 | `minPayout` | | `5.0` | Minimum USDC before payout |
 
 Env fallbacks (`ADS_WALLET`, `ADS_ENABLED`, `ADS_FREQUENCY`, `ADS_SERVER`,

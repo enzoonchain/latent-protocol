@@ -34,7 +34,7 @@ class Config:
         return cls(
             enabled=enabled,
             wallet=_get("wallet", "ADS_WALLET", ""),
-            server=_get("server", "ADS_SERVER", "https://agent-kickbacks-production.up.railway.app"),
+            server=_get("server", "ADS_SERVER", "https://api.latentprotocol.xyz"),
             frequency=int(_get("frequency", "ADS_FREQUENCY", "5")),
             min_payout=float(_get("min_payout", "ADS_MIN_PAYOUT", "5.0")),
             categories=categories,

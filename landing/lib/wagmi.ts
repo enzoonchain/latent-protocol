@@ -13,4 +13,4 @@ export const config = getDefaultConfig({
 
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://agent-kickbacks-production.up.railway.app";
+  "https://api.latentprotocol.xyz";

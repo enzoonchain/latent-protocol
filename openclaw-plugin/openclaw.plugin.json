@@ -24,7 +24,7 @@
       "server": {
         "type": "string",
         "description": "Latent Protocol ad server base URL.",
-        "default": "https://agent-kickbacks-production.up.railway.app"
+        "default": "https://api.latentprotocol.xyz"
       },
       "minPayout": {
         "type": "number",

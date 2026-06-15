@@ -26,7 +26,7 @@
 
 | Service | URL | Status |
 |---------|-----|--------|
-| **Ad Server** | https://agent-kickbacks-production.up.railway.app | ✅ Running |
+| **Ad Server** | https://api.latentprotocol.xyz | ✅ Running |
 | **Postgres** | Internal Railway | ✅ Running |
 
 ---
