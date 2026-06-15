@@ -1,4 +1,4 @@
--- Agent Kickbacks — test seed data
+-- Latent Protocol — test seed data
 -- Apply after schema.sql:  psql "$DATABASE_URL" -f scripts/seed.sql
 
 -- Test advertiser

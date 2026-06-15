@@ -1,9 +1,9 @@
 #!/bin/bash
-# Agent Kickbacks — Setup Script
+# Latent Protocol — Setup Script
 
 set -e
 
-echo "🟦 Agent Kickbacks Setup"
+echo "🟦 Latent Protocol Setup"
 echo "========================"
 
 # Check Python

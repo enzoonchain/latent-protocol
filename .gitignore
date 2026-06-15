@@ -44,6 +44,14 @@ coverage.xml
 # pytest
 .pytest_cache/
 
+# Environment files
+landing/.env.local
+landing/.env*.local
+
+# Vercel deployment metadata
+.vercel/
+landing/.vercel/
+
 # Claude Code — ignore session data but track skills
 .claude/commands/
 .claude/todos/
