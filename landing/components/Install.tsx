@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const SKILL_URL = "https://agent-kickbacks.vercel.app/latent-protocol-skill.md";
+const SKILL_URL = "https://latentprotocol.xyz/latent-protocol-skill.md";
 
 type Platform = {
   id: string;

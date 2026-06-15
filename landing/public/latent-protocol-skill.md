@@ -165,7 +165,7 @@ restart. If `wallet` is `"not set"`, fix it before proceeding.
 | `ADS_SERVER` | `https://api.latentprotocol.xyz` | Ad server URL |
 | `ADS_MIN_PAYOUT` | `5.0` | USDC minimum payout threshold |
 | `ADS_STATUSLINE_ROTATE` | `30` | Claude Code: seconds before the status-line ad rotates |
-| `AGENT_KICKBACKS_PLATFORM` | auto | Override detection: `hermes` / `telegram` / `cli` / `mcp` |
+| `LATENT_PLATFORM` | auto | Override detection: `hermes` / `telegram` / `cli` / `mcp` |
 
 ---
 
