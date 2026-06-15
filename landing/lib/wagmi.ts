@@ -12,5 +12,5 @@ export const config = getDefaultConfig({
 });
 
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.latentprotocol.xyz";
+  (process.env.NEXT_PUBLIC_API_URL ||
+  "https://api.latentprotocol.xyz").trim();
