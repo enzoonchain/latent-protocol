@@ -6,7 +6,7 @@ WORKDIR /app
 COPY . .
 
 # Install dependencies
-RUN pip install --no-cache-dir ".[x402]"
+RUN pip install --no-cache-dir ".[x402,server]"
 
 EXPOSE 8000
 

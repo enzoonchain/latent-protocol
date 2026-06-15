@@ -25,6 +25,14 @@ x402 = [
 mcp = [
     "mcp>=1.0.0",
 ]
+# Server-side dependencies (FastAPI ad server on Railway)
+server = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg>=0.29.0",
+    "psycopg[binary]>=3.1.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
