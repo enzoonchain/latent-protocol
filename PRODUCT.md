@@ -6,7 +6,7 @@
 
 ## 1. Vision
 
-Kickbacks.ai turns AI agent wait states into ad inventory — users earn money while their agent thinks. We rebuild this concept for the crypto-native agent ecosystem:
+Latent Protocol turns AI agent wait states into ad inventory — users earn money while their agent thinks. Built for the crypto-native agent ecosystem:
 
 - **No Google auth** → wallet signature
 - **No Stripe/fiat** → x402 + USDC on Base
@@ -18,70 +18,17 @@ Kickbacks.ai turns AI agent wait states into ad inventory — users earn money w
 
 ---
 
-## 2. Original Kickbacks.ai — Analysis
+## 2. What We Build
 
-### What It Does
-A VS Code extension that replaces AI coding tool spinners (Claude Code, Codex) with sponsored ads. Developers see ads while waiting for AI responses and earn 50% of ad revenue.
+### Design Decisions
 
-### Architecture (from source analysis)
-
-| Component | Purpose |
-|-----------|---------|
-| `extension.ts` | Entry point, lifecycle, kill-switch |
-| `activation/webviewInjection.ts` | Core ad injection into VS Code webviews (~20KB) |
-| `loopback.ts` | Local HTTP bridge (webview ↔ extension) |
-| `activation/adRotation.ts` | Ad queue rotation + timer |
-| `activation/statusBarAd.ts` | VS Code status bar ad display |
-| `adapters/claude-code/` | Claude Code spinner patching |
-| `adapters/codex/` | Codex thinking-shimmer patching |
-| `adapters/claude-cli/` | Claude Code CLI statusline |
-| `auth/client.ts` | Google OAuth flow |
-| `auth/vault.ts` | Encrypted credential storage |
-| `metrics/client.ts` | Impression/view/click telemetry |
-| `portfolio/client.ts` | Ad inventory fetching |
-| `killswitch/client.ts` | Server-controlled off-switch |
-| `update/client.ts` | Self-update with Ed25519 verification |
-| `viewTracking/viewSession.ts` | Viewability measurement |
-
-### Ad Surfaces (4 injection points)
-
-| Surface | Target | Method |
-|---------|--------|--------|
-| Spinner overlay | Claude Code VS Code panel | Patches `webview/index.js` verb array |
-| Thinking-shimmer | Codex VS Code panel | Patches `thinking-shimmer-*.js` via export hook |
-| Status bar line | Claude Code terminal CLI | Patches `~/.claude/settings.json` statusLine |
-| Spinner verb | Claude Code terminal CLI ≥2.1.143 | Patches `~/.claude/settings.json` spinnerVerbs |
-
-### Revenue Model
-
-- **Auction:** English-ascending, advertisers buy blocks of 1,000 × 5-second impressions
-- **Impression billing:** 3-tier system: `impression_rendered` → `view_tick` (5s heartbeat) → `view_threshold_met` (15s cumulative)
-- **Click billing:** 50× impression value, anti-misclick gate (15s threshold)
-- **Split:** 50% developer / 50% platform
-- **Earning caps:** Hourly + daily, tiered by account verification
-
-### Key Patterns We Borrow
-
-1. **Ad rotation with TTL** — ads expire, force refresh every N seconds
-2. **View tracking** — `IntersectionObserver` for web, time-based for CLI
-3. **Kill switch** — server can disable serving instantly
-4. **Self-healing** — re-apply patches if overwritten
-5. **Boot canary** — crash detection prevents infinite loops
-6. **Demo mode** — signed-out users see ads but don't earn (advertiser still pays)
-
----
-
-## 3. What We Build — Crypto-Native Version
-
-### Core Differences from Kickbacks
-
-| Kickbacks | Latent Protocol |
-|-----------|----------------|
+| Traditional Approach | Latent Protocol |
+|----------------------|----------------|
 | Google OAuth | Wallet signature (EIP-712) |
 | Stripe/fiat | x402 + USDC on Base |
 | VS Code extension | MCP server + platform adapters (Hermes, OpenClaw, Claude Code, Aeon) |
 | Private backend | Open source, self-hostable |
-| 1 surface (VS Code) | 4+ surfaces (WebUI, Telegram, CLI, Discord) |
+| 1 surface | 4+ surfaces (WebUI, Telegram, CLI, Discord) |
 | Centralized ad server | Distributed marketplace |
 | 50/50 split | 50% user / 30% operator / 20% protocol |
 | Server-authoritative earnings | On-chain + off-chain hybrid |
@@ -619,7 +566,7 @@ window._thinkingTick = function() {
 
 ```
 ┌─────────────────────────────────────────────────┐
-│  BLOCK BIDDING (Kickbacks-style)                │
+│  BLOCK BIDDING                                  │
 ├─────────────────────────────────────────────────┤
 │                                                  │
 │  Advertiser buys a "block":                      │

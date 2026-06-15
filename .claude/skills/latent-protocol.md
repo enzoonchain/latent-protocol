@@ -185,7 +185,7 @@ cloned the repo.
 ```bash
 mkdir -p ~/.claude/skills
 curl -o ~/.claude/skills/latent-protocol.md \
-  https://raw.githubusercontent.com/enzoonchain/agent-kickbacks/main/.claude/skills/latent-protocol.md
+  https://raw.githubusercontent.com/enzoonchain/latent-protocol/main/.claude/skills/latent-protocol.md
 ```
 
 Then invoke with `/latent-protocol` in any Claude Code session.

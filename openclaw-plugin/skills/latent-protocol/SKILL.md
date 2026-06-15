@@ -6,7 +6,7 @@ metadata:
     "openclaw": {
       "emoji": "💰",
       "requires": { "config": ["wallet"] },
-      "homepage": "https://github.com/enzoonchain/agent-kickbacks"
+      "homepage": "https://github.com/enzoonchain/latent-protocol"
     }
   }
 ---

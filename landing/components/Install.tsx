@@ -336,7 +336,7 @@ export function Install() {
         {/* CTA row */}
         <div className="flex gap-4 justify-center mt-12 flex-wrap">
           <a
-            href="https://github.com/enzoonchain/agent-kickbacks"
+            href="https://github.com/enzoonchain/latent-protocol"
             className="btn"
             target="_blank"
             rel="noopener noreferrer"
