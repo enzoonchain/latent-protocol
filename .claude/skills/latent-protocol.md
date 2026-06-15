@@ -1,191 +1,144 @@
-# Skill: latent-protocol
+---
+name: latent-protocol
+description: "Monetize AI agent idle time with sponsored ads. Earn USDC on Base while your agent thinks. Use when: setting up ad monetization for an AI agent, installing latent-protocol, configuring earning wallets, integrating sponsored content into Hermes/Telegram/Claude Code/CLI agents, checking ad earnings balance, or requesting USDC payouts."
+---
 
-Complete onboarding for the Latent Protocol ad SDK. When invoked, this skill
-detects your platform, installs the right way for that platform, wires the
-integration, sets up an earning wallet, and verifies it — all in one shot.
+# Latent Protocol
 
-Install is **per-platform** (not a generic step): OpenClaw uses ClawHub, the
-Python adapters use pip, Claude Code uses the status-line installer.
+Earn USDC on Base while your agent thinks. Sponsored ads appear during idle time — you get paid, user sees relevant content.
 
-## Steps Claude must execute when this skill is invoked
+## Step 1 — Detect platform
 
-### Step 1 — Detect platform
-
-Pick the first match, in this order (thinking-state platforms first):
-
-1. **openclaw** — `~/.openclaw/` exists, an `openclaw` CLI is on PATH, or the
-   project has `openclaw.json` / `openclaw.plugin.json`.
-2. **hermes** — code contains `ctx.register_hook` / imports `hermes`, or
-   `~/.hermes/` exists.
-3. **telegram** — `python-telegram-bot` / `aiogram` / `telebot` in requirements.
-4. **cli** — a Python CLI agent (`click` / `typer`, or prints to stdout).
-5. **mcp** — an MCP config (`mcp.json`, `claude_desktop_config.json`) and no
-   other match. Management only (balance/payout); ad delivery uses an adapter.
-
-If the user instead wants to **monetize their own Claude Code sessions** (rather
-than integrate into an agent project), use **claude-code** (status line).
-
-For the Python platforms you can confirm with:
+Run:
 ```bash
 python -c "from latent_protocol.adapters.unified import detect_platform; print(detect_platform())"
 ```
-(`detect_platform()` knows hermes/telegram/cli/mcp; openclaw and claude-code are
-inferred from the rules above.)
 
----
-
-### Step 2 — Install + wire (per platform)
-
-#### openclaw
-
-Thinking-state ads across every OpenClaw channel (WhatsApp, Telegram, Slack,
-Discord…). No pip needed — it's a plugin:
-
+If not installed, install first:
 ```bash
-openclaw plugins install clawhub:latent-protocol   # local dev: install ./openclaw-plugin --link
-openclaw plugins enable latent-protocol
-openclaw config set plugins.latent-protocol.config.wallet "0xYOUR_WALLET"
-openclaw gateway restart
+pip install "latent-protocol[mcp]"
+```
+Then re-run the detection command.
+
+If detection returns `mcp`, check for existing MCP config before proceeding:
+```bash
+cat ~/.claude/mcp.json 2>/dev/null || cat claude_desktop_config.json 2>/dev/null || echo "no_mcp_config"
 ```
 
-Ads inject into the thinking state (`before_prompt_build`); a response-footer
-fallback covers providers that don't dispatch it. Then skip to Step 4 (wallet is
-set via the config above).
+If `no_mcp_config` and no Claude Code / Codex / MiMo present, fall back to `cli` mode.
 
-#### hermes
+## Step 2 — Install
 
-```bash
-pip install latent-protocol
-```
-Find the file with `def register(ctx):` and insert at the **top** of the body:
+Based on detected platform:
+
+| Platform | Command |
+|----------|---------|
+| hermes, telegram, cli | `pip install latent-protocol` |
+| mcp | `pip install "latent-protocol[mcp]"` |
+| openclaw | `openclaw plugins install clawhub:latent-protocol` |
+| claude-code | `pip install latent-protocol && latent-statusline --install` |
+
+## Step 3 — Wire integration
+
+### hermes
+
+Find the file containing `def register(ctx):` and insert at the top of its body:
 ```python
 from latent_protocol.adapters.unified import UnifiedAdapter
 UnifiedAdapter().register(ctx)
 ```
-This registers the `pre_llm_call` thinking hook (forward-compatible), the
-`transform_llm_output` footer (the live surface), and the `/ads` command
-(`/ads balance`, `/ads click`, `/ads payout`, …). No other changes needed.
 
-#### claude-code
+### telegram
 
-Monetize your own Claude Code sessions via the official status line (terminal
-**and** IDE, any version):
-```bash
-pip install latent-protocol
-latent-setup
-latent-statusline --install      # writes statusLine into ~/.claude/settings.json
-```
-Restart Claude Code. A sponsored status line renders during thinking with a
-clickable https CTA. Remove anytime with `latent-statusline --uninstall`.
-Wallet is handled by `latent-setup` above — skip to Step 5.
-
-#### telegram
-
-```bash
-pip install latent-protocol
-```
-Wrap the outgoing text in your message handler:
+In the message handler, wrap the response:
 ```python
 from latent_protocol.adapters.unified import UnifiedAdapter
-_ad_adapter = UnifiedAdapter()   # one instance per process
+_ad = UnifiedAdapter()
 
-response = your_llm_call(user_message)
+response = your_llm(message.text)
 await message.reply_text(
-    _ad_adapter.wrap_response(response, context=user_message, user_id=str(update.effective_user.id)),
+    _ad.wrap_response(response, context=message.text, user_id=str(update.effective_user.id)),
     parse_mode="Markdown",
 )
 ```
 
-#### cli
+### claude-code / mcp
 
-```bash
-pip install latent-protocol
+Add to MCP config (`~/.claude/mcp.json` or `claude_desktop_config.json`):
+```json
+{"mcpServers":{"latent-protocol":{"command":"latent-mcp"}}}
 ```
+
+### cli
+
 ```python
 from latent_protocol.adapters.unified import UnifiedAdapter
-_ad_adapter = UnifiedAdapter()
+_ad = UnifiedAdapter()
 
-@_ad_adapter.inject              # appends ANSI banner automatically
+@_ad.inject
 def ask(prompt: str) -> str:
     return call_llm(prompt)
 ```
-Or manually: `print(_ad_adapter.wrap(call_llm(prompt), context=prompt))`.
 
-#### mcp (management only)
+### universal (any platform)
 
+```python
+from latent_protocol.adapters.unified import UnifiedAdapter
+_ad = UnifiedAdapter()
+output = _ad.wrap(llm_response, context="general")
+```
+
+## Step 4 — Setup wallet
+
+Check if wallet exists:
 ```bash
-pip install "latent-protocol[mcp]"
+cat ~/.latent-protocol/config.json 2>/dev/null || echo "no_wallet"
 ```
-Add the server to your MCP client config (`~/.claude/mcp.json` or
-`claude_desktop_config.json`):
-```json
-{ "mcpServers": { "latent-protocol": { "command": "latent-mcp" } } }
-```
-Use `check_balance` / `request_payout` from your agent. Ad delivery itself
-should use one of the platform adapters above (MCP delivery tools are test-only).
 
----
-
-### Step 3 — (covered above for openclaw/claude-code)
-
----
-
-### Step 4 — Set up the earning wallet
-
+If `no_wallet`, run:
 ```bash
 latent-setup
 ```
-Creates `~/.latent-protocol/config.json` with a new wallet. If unavailable
-pre-install, set `export ADS_WALLET=0xYourExistingWalletAddress`.
 
-**Important:** If a new wallet is generated, save the private key immediately —
-import it into MetaMask or any EVM wallet to access your USDC earnings.
+**Important:** If a new wallet is generated, the private key is shown ONCE. Save it immediately — import into MetaMask or any EVM wallet to access USDC earnings.
 
----
+If wallet already exists, skip this step.
 
-### Step 5 — Verify
+## Step 5 — Verify
 
-Python adapters (hermes/telegram/cli/mcp):
+Run:
 ```bash
-latent-adapter        # prints platform, wallet, frequency, server as JSON
+latent-adapter
 ```
-OpenClaw: confirm the plugin is enabled (`openclaw plugins list`).
-Claude Code: confirm `statusLine` is present in `~/.claude/settings.json` and
-restart. If `wallet` is `"not set"`, fix it before proceeding.
 
----
+Check the JSON output:
+- `wallet` must NOT be `"not set"`
+- `enabled` must be `true`
+- `server` must be `https://api.latentprotocol.xyz`
 
-## Environment variables (optional override)
+Then verify API connectivity:
+```bash
+curl -s https://api.latentprotocol.xyz/health
+```
+
+Expected: `{"status":"ok",...}`
+
+If all checks pass, report:
+> Latent Protocol active. Earning USDC from ads on Base.
+
+If any check fails, report the specific failure and suggest fixes.
+
+## Revenue
+
+Every impression earns **50% of CPM** (~$0.0025). Clicks earn 50x. Payouts in USDC on Base. Minimum $5. No signup — just a wallet.
+
+## Config
 
 | Variable | Default | Purpose |
-|----------|---------|----------|
-| `ADS_WALLET` | — | EVM address for earnings (Base) |
-| `ADS_ENABLED` | `true` | Master on/off switch |
+|----------|---------|---------|
+| `ADS_WALLET` | — | EVM address for earnings |
+| `ADS_ENABLED` | `true` | Master on/off |
 | `ADS_FREQUENCY` | `5` | Show ad every N responses |
 | `ADS_SERVER` | `https://api.latentprotocol.xyz` | Ad server URL |
-| `ADS_MIN_PAYOUT` | `5.0` | USDC minimum payout threshold |
-| `ADS_STATUSLINE_ROTATE` | `30` | Claude Code: seconds before the status-line ad rotates |
-| `LATENT_PLATFORM` | auto | Override detection: `hermes` / `telegram` / `cli` / `mcp` |
-
----
-
-## Revenue split
-
-Every impression earns the operator **50% of CPM** (~$0.0025/impression); clicks
-earn 50x. Payouts settle in USDC on Base. Minimum $5. No sign-up — just a wallet.
-
----
-
-## Install this skill
-
-**From repo (project-level):** already included in `.claude/skills/` if you
-cloned the repo.
-
-**From URL (any project):**
-```bash
-mkdir -p ~/.claude/skills
-curl -o ~/.claude/skills/latent-protocol.md \
-  https://raw.githubusercontent.com/enzoonchain/latent-protocol/main/.claude/skills/latent-protocol.md
-```
-
-Then invoke with `/latent-protocol` in any Claude Code session.
+| `ADS_MIN_PAYOUT` | `5.0` | USDC minimum payout |
+| `LATENT_PLATFORM` | auto | Override: hermes/telegram/cli/mcp |
