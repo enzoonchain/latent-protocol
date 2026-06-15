@@ -252,6 +252,172 @@ def test_mcp_server():
         fail("MCP server entry point", str(e))
 
 
+# ── Test 13: Impression token roundtrip ──────────────────────────────────────
+
+def test_impression_token():
+    try:
+        from server.security import make_impression_token, verify_impression_token
+        ad_id = "test-ad-001"
+        wallet = "0xTESTWALLET"
+
+        token = make_impression_token(ad_id, wallet)
+        assert "." in token, "token missing dot separator"
+
+        valid = verify_impression_token(token, ad_id, wallet)
+        assert valid is True, "valid token rejected"
+
+        wrong_wallet = verify_impression_token(token, ad_id, "0xWRONG")
+        assert wrong_wallet is False, "wrong wallet accepted"
+
+        wrong_ad = verify_impression_token(token, "other-ad", wallet)
+        assert wrong_ad is False, "wrong ad_id accepted"
+
+        ok("Impression token", "sign + verify + reject forgery")
+    except Exception as e:
+        fail("Impression token", str(e))
+
+
+# ── Test 14: Full ad flow (mock server) ──────────────────────────────────────
+
+def test_full_ad_flow():
+    try:
+        from latent_protocol.adapters.unified import UnifiedAdapter
+        from latent_protocol.config import Config
+        from latent_protocol.footer import FrequencyCounter
+
+        cfg = Config(enabled=True, wallet="0xDEADBEEF", server="https://api.latentprotocol.xyz",
+                      frequency=1, min_payout=5.0, categories=["all"])
+        adapter = UnifiedAdapter(config=cfg)
+
+        # Mock the HTTP client
+        mock_ad = {
+            "ad_id": "flow-test-001",
+            "title": "Flow Test",
+            "body": "Full flow works",
+            "cta_text": "Click",
+            "cta_url": "https://example.com",
+            "earn_amount": 0.0025,
+            "impression_token": "1234567890.abc123",
+        }
+        adapter._client = MagicMock()
+        adapter._client.get_ad.return_value = mock_ad
+        adapter._tracker = MagicMock()
+
+        # 1. wrap() should return text + footer
+        output = adapter.wrap("Hello", context="test")
+        assert "Hello" in output, "original text missing"
+        assert "Full flow works" in output, "ad body missing"
+
+        # 2. Impression should be tracked
+        adapter._tracker.log_impression.assert_called_once()
+        call_args = adapter._tracker.log_impression.call_args
+        assert call_args[0][0] == "flow-test-001", "wrong ad_id tracked"
+        assert call_args[0][1] == "0xDEADBEEF", "wrong wallet tracked"
+        assert call_args[0][2] == "1234567890.abc123", "wrong token tracked"
+
+        # 3. Frequency counter should advance
+        assert adapter._counter.count == 1, "counter not advanced"
+
+        ok("Full ad flow", "fetch → display → track impression")
+    except Exception as e:
+        fail("Full ad flow", str(e))
+
+
+# ── Test 15: Frequency gating ───────────────────────────────────────────────
+
+def test_frequency_gating():
+    try:
+        from latent_protocol.adapters.unified import UnifiedAdapter
+        from latent_protocol.config import Config
+
+        cfg = Config(enabled=True, wallet="0xDEADBEEF", server="https://api.latentprotocol.xyz",
+                      frequency=3, min_payout=5.0, categories=["all"])
+        adapter = UnifiedAdapter(config=cfg)
+        adapter._client = MagicMock()
+        adapter._client.get_ad.return_value = {"ad_id": "x", "body": "Ad", "cta_text": "Go",
+                                                 "cta_url": "https://x.com", "earn_amount": 0.001,
+                                                 "impression_token": "tok"}
+        adapter._tracker = MagicMock()
+
+        results = [adapter.wrap(f"msg{i}") for i in range(6)]
+
+        # frequency=3: ad on calls 3 and 6
+        with_ad = [r for r in results if "Ad" in r]
+        assert len(with_ad) == 2, f"expected 2 ads, got {len(with_ad)}"
+
+        # tracker called exactly 2 times
+        assert adapter._tracker.log_impression.call_count == 2, "tracker called wrong count"
+
+        ok("Frequency gating", f"2 ads in 6 calls (freq=3)")
+    except Exception as e:
+        fail("Frequency gating", str(e))
+
+
+# ── Test 16: Disabled adapter ────────────────────────────────────────────────
+
+def test_disabled_adapter():
+    try:
+        from latent_protocol.adapters.unified import UnifiedAdapter
+        from latent_protocol.config import Config
+
+        cfg = Config(enabled=False, wallet="0xDEADBEEF", server="https://api.latentprotocol.xyz",
+                      frequency=1, min_payout=5.0, categories=["all"])
+        adapter = UnifiedAdapter(config=cfg)
+        adapter._client = MagicMock()
+        adapter._tracker = MagicMock()
+
+        output = adapter.wrap("Hello", context="test")
+        assert output == "Hello", "disabled adapter should not append footer"
+        adapter._client.get_ad.assert_not_called()
+        adapter._tracker.log_impression.assert_not_called()
+
+        ok("Disabled adapter", "no ads when enabled=false")
+    except Exception as e:
+        fail("Disabled adapter", str(e))
+
+
+# ── Test 17: No wallet = no ads ─────────────────────────────────────────────
+
+def test_no_wallet():
+    try:
+        from latent_protocol.adapters.unified import UnifiedAdapter
+        from latent_protocol.config import Config
+
+        cfg = Config(enabled=True, wallet="", server="https://api.latentprotocol.xyz",
+                      frequency=1, min_payout=5.0, categories=["all"])
+        adapter = UnifiedAdapter(config=cfg)
+        adapter._client = MagicMock()
+        adapter._tracker = MagicMock()
+
+        output = adapter.wrap("Hello", context="test")
+        assert output == "Hello", "no-wallet adapter should not append footer"
+        adapter._client.get_ad.assert_not_called()
+
+        ok("No wallet = no ads", "skips when wallet empty")
+    except Exception as e:
+        fail("No wallet = no ads", str(e))
+
+
+# ── Test 18: Click tracking ─────────────────────────────────────────────────
+
+def test_click_tracking():
+    try:
+        from latent_protocol.adapters.unified import UnifiedAdapter
+        from latent_protocol.config import Config
+
+        cfg = Config(enabled=True, wallet="0xDEADBEEF", server="https://api.latentprotocol.xyz",
+                      frequency=1, min_payout=5.0, categories=["all"])
+        adapter = UnifiedAdapter(config=cfg)
+        adapter._tracker = MagicMock()
+
+        adapter.track_click("ad-123")
+        adapter._tracker.log_click.assert_called_once_with("ad-123", "0xDEADBEEF")
+
+        ok("Click tracking", "delegates to tracker.log_click")
+    except Exception as e:
+        fail("Click tracking", str(e))
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -272,6 +438,12 @@ def main():
         test_api_health,
         test_wallet_config,
         test_mcp_server,
+        test_impression_token,
+        test_full_ad_flow,
+        test_frequency_gating,
+        test_disabled_adapter,
+        test_no_wallet,
+        test_click_tracking,
     ]
 
     for test in tests:
