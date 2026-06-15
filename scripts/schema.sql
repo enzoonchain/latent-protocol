@@ -1,4 +1,4 @@
--- Agent Kickbacks — Postgres schema (Railway)
+-- Latent Protocol — Postgres schema (Railway)
 -- Apply with: psql "$DATABASE_URL" -f scripts/schema.sql
 -- Auth is wallet-based; there is no per-row auth layer here (the FastAPI
 -- server is the only writer and enforces access control), so no RLS.

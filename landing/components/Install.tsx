@@ -49,7 +49,7 @@ const platforms: Platform[] = [
     steps: [
       {
         title: "1. Clone the plugin into Hermes plugins",
-        code: "git clone https://github.com/enzoonchain/agent-kickbacks \\\n  ~/.hermes/plugins/latent-protocol",
+        code: "git clone https://github.com/enzoonchain/latent-protocol \\\n  ~/.hermes/plugins/latent-protocol",
         lang: "bash",
       },
       {

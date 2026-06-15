@@ -23,7 +23,7 @@ aiogram middleware example
     from aiogram import BaseMiddleware
     from latent_protocol.adapters.telegram import TelegramAdAdapter
 
-    class AgentKickbacksMiddleware(BaseMiddleware):
+    class LatentProtocolMiddleware(BaseMiddleware):
         def __init__(self):
             self.adapter = TelegramAdAdapter()
 
