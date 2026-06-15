@@ -15,5 +15,5 @@ config:
   ads.frequency: 5
   ads.categories:
     - all
-  ads.server: "https://ads.latentprotocol.io"
+  ads.server: "https://api.latentprotocol.xyz"
   ads.min_payout: 5.0

@@ -98,9 +98,9 @@ latent-protocol/
 
 ## Docs
 
-- [Product Implementation](PRODUCT.md) — full product spec
-- [Implementation Plan](docs/IMPLEMENTATION.md) — build roadmap + tasks
+- [Product](PRODUCT.md) — product spec and architecture
 - [Plugin Guide](docs/PLUGIN.md) — plugin installation + configuration
+- [OpenClaw Plugin](docs/OPENCLAW_PLUGIN.md) — OpenClaw-specific setup
 - [Advertiser Guide](docs/ADVERTISER.md) — how to create campaigns
 
 ## License
