@@ -232,5 +232,11 @@ def install_payment_middleware(app: "FastAPI") -> bool:
     # Campaign funding is gated via settle_payment_or_402() in the route handlers
     routes = {}
 
+    # Skip middleware entirely when no routes are gated — an empty-routes
+    # PaymentMiddlewareASGI can intercept OPTIONS preflights before CORS and
+    # return 400, blocking all browser API calls.
+    if not routes:
+        return True
+
     app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
     return True
