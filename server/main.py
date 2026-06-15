@@ -100,6 +100,7 @@ except Exception as exc:
 # ── CORS — added LAST so it is the outermost middleware ──
 _raw_origins = os.getenv("CORS_ORIGINS", "*")
 allow_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+print(f"[latent-protocol] CORS origins: {allow_origins}")
 
 app.add_middleware(
     CORSMiddleware,
