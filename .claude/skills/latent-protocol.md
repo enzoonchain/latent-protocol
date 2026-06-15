@@ -158,14 +158,14 @@ restart. If `wallet` is `"not set"`, fix it before proceeding.
 ## Environment variables (optional override)
 
 | Variable | Default | Purpose |
-|----------|---------|---------|
+|----------|---------|----------|
 | `ADS_WALLET` | — | EVM address for earnings (Base) |
 | `ADS_ENABLED` | `true` | Master on/off switch |
 | `ADS_FREQUENCY` | `5` | Show ad every N responses |
 | `ADS_SERVER` | `https://api.latentprotocol.xyz` | Ad server URL |
 | `ADS_MIN_PAYOUT` | `5.0` | USDC minimum payout threshold |
 | `ADS_STATUSLINE_ROTATE` | `30` | Claude Code: seconds before the status-line ad rotates |
-| `AGENT_KICKBACKS_PLATFORM` | auto | Override detection: `hermes` / `telegram` / `cli` / `mcp` |
+| `LATENT_PLATFORM` | auto | Override detection: `hermes` / `telegram` / `cli` / `mcp` |
 
 ---
 

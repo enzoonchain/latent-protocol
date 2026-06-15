@@ -36,29 +36,29 @@ def _adapter(platform="cli", **cfg_kwargs):
 
 class TestDetectPlatform:
     def test_explicit_env_var(self, monkeypatch):
-        monkeypatch.setenv("AGENT_KICKBACKS_PLATFORM", "telegram")
+        monkeypatch.setenv("LATENT_PLATFORM", "telegram")
         assert detect_platform() == "telegram"
 
     def test_hermes_env_var(self, monkeypatch):
-        monkeypatch.delenv("AGENT_KICKBACKS_PLATFORM", raising=False)
+        monkeypatch.delenv("LATENT_PLATFORM", raising=False)
         monkeypatch.setenv("HERMES_PLUGIN", "1")
         assert detect_platform() == "hermes"
 
     def test_telegram_env_var(self, monkeypatch):
-        monkeypatch.delenv("AGENT_KICKBACKS_PLATFORM", raising=False)
+        monkeypatch.delenv("LATENT_PLATFORM", raising=False)
         monkeypatch.delenv("HERMES_PLUGIN", raising=False)
         monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:abc")
         assert detect_platform() == "telegram"
 
     def test_claude_code_env_var(self, monkeypatch):
-        monkeypatch.delenv("AGENT_KICKBACKS_PLATFORM", raising=False)
+        monkeypatch.delenv("LATENT_PLATFORM", raising=False)
         monkeypatch.delenv("HERMES_PLUGIN", raising=False)
         monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
         monkeypatch.setenv("CLAUDE_CODE", "1")
         assert detect_platform() == "mcp"
 
     def test_invalid_explicit_falls_through(self, monkeypatch):
-        monkeypatch.setenv("AGENT_KICKBACKS_PLATFORM", "unknown_platform")
+        monkeypatch.setenv("LATENT_PLATFORM", "unknown_platform")
         # Should not crash; falls through to auto-detect
         result = detect_platform()
         assert result in ("hermes", "telegram", "cli", "mcp")

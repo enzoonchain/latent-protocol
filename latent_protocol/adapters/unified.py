@@ -6,7 +6,7 @@ you need platform-specific features.
 
 Platform detection order
 ------------------------
-1. ``AGENT_KICKBACKS_PLATFORM`` env var — explicit override.
+1. ``LATENT_PLATFORM`` env var — explicit override.
 2. ``HERMES_PLUGIN`` / ``HERMES_CTX`` env var present → hermes.
 3. ``TELEGRAM_BOT_TOKEN`` env var present → telegram.
 4. ``CLAUDE_CODE`` / ``MCP_SERVER`` env var present → mcp.
@@ -58,7 +58,7 @@ STYLE_MAP: dict[str, str] = {
 
 def detect_platform() -> Platform:
     """Infer the current agent platform from the environment."""
-    explicit = os.getenv("AGENT_KICKBACKS_PLATFORM", "").lower()
+    explicit = os.getenv("LATENT_PLATFORM", "").lower()
     if explicit in ("hermes", "telegram", "cli", "mcp"):
         return explicit  # type: ignore[return-value]
 
@@ -155,7 +155,7 @@ class UnifiedAdapter:
         if self.platform != "hermes":
             raise RuntimeError(
                 f"register() requires platform='hermes', got '{self.platform}'. "
-                "Set AGENT_KICKBACKS_PLATFORM=hermes or pass platform='hermes'."
+                "Set LATENT_PLATFORM=hermes or pass platform='hermes'."
             )
         from .hermes import register as _hermes_register
         _hermes_register(ctx)
@@ -231,8 +231,8 @@ def adapter_main() -> None:
     adapter = UnifiedAdapter()
     info = adapter.status()
     info["detection_method"] = (
-        "env:AGENT_KICKBACKS_PLATFORM"
-        if os.getenv("AGENT_KICKBACKS_PLATFORM")
+        "env:LATENT_PLATFORM"
+        if os.getenv("LATENT_PLATFORM")
         else "auto"
     )
     setup_hints = {
