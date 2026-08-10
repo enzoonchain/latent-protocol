@@ -13,7 +13,11 @@ import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { detectAgents, findHermesWebuiStatic } from "../detect.js";
 import { loadConfig, resolveServer, resolveWallet, saveConfig } from "../config.js";
-import { patchWebuiIndex, unpatchWebuiIndex } from "./hermes-webui-patch.js";
+import {
+  ensureWebuiCspConnectExtra,
+  patchWebuiIndex,
+  unpatchWebuiIndex,
+} from "./hermes-webui-patch.js";
 
 const PLUGIN_NAME = "agent-ads";
 const GIT_PIP =
@@ -297,14 +301,30 @@ function patchHermesWebui(): string {
       } catch {
         // ignore
       }
+      const csp = ensureWebuiCspConnectExtra({
+        staticDir: dir,
+        server,
+        hermesHome: detectAgents().paths.hermesHome,
+      });
+      const cspLines =
+        csp.updated.length > 0
+          ? csp.updated.map((p) => `   CSP allowlist updated: ${p}`).join("\n")
+          : `   ⚠️  Could not write HERMES_WEBUI_CSP_CONNECT_EXTRA=${csp.origin}`;
+      const cspErr =
+        csp.errors.length > 0
+          ? "\n" + csp.errors.map((e) => `   • ${e}`).join("\n")
+          : "";
       return (
         `✅ Hermes WebUI patched (node → ${dir})\n` +
         `   Patched: ${res.indexPath}\n` +
+        `${cspLines}${cspErr}\n` +
+        `   (HERMES_WEBUI_CSP_CONNECT_EXTRA must include ${csp.origin})\n` +
         "   REQUIRED next steps:\n" +
         "   1) Restart WebUI:  cd ~/hermes-webui && ./ctl.sh restart\n" +
-        "      (or kill the old process — index.html is cached in-memory)\n" +
+        "      (index.html + CSP env are loaded at process start)\n" +
         "   2) Hard-refresh Tailscale tab: Ctrl+Shift+R\n" +
-        "   3) DevTools console should show: [latent-protocol] WebUI ads active"
+        "   3) DevTools console should show: [latent-protocol] WebUI ads active\n" +
+        "   4) If CSP still blocks: confirm env is loaded, then restart again"
       );
     }
     errors.push(`${dir}: ${res.error}`);

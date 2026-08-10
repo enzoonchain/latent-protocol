@@ -6,10 +6,95 @@
  * (emoji, em-dash, ellipsis) have caused SyntaxError in Hermes WebUI shells.
  * Use \\u escapes when a glyph is needed at runtime.
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { homedir } from "node:os";
 
 export const WEBUI_MARKER = "<!-- latent-protocol-webui-patch -->";
+export const CSP_CONNECT_EXTRA_KEY = "HERMES_WEBUI_CSP_CONNECT_EXTRA";
+
+/** Origin only (no path) for CSP connect-src allowlisting. */
+export function apiOrigin(server: string): string {
+  try {
+    return new URL(server).origin;
+  } catch {
+    return server.replace(/\/+$/, "");
+  }
+}
+
+/**
+ * Upsert HERMES_WEBUI_CSP_CONNECT_EXTRA so the browser may fetch the Latent API.
+ * Hermes WebUI enforces connect-src; without this, ad requests are blocked.
+ */
+export function upsertCspConnectExtra(
+  envPath: string,
+  origin: string,
+): { ok: true; path: string; created: boolean } | { ok: false; error: string } {
+  if (!/^https?:\/\/[^/\s]+$/i.test(origin) && !/^wss?:\/\/[^/\s]+$/i.test(origin)) {
+    return { ok: false, error: `invalid CSP origin: ${origin}` };
+  }
+  try {
+    mkdirSync(dirname(envPath), { recursive: true });
+    const existed = existsSync(envPath);
+    const raw = existed ? readFileSync(envPath, "utf8") : "";
+    const lines = raw.length ? raw.split(/\r?\n/) : [];
+    let found = false;
+    const next = lines.map((line) => {
+      const m = line.match(
+        /^(export\s+)?HERMES_WEBUI_CSP_CONNECT_EXTRA\s*=\s*(.*)$/,
+      );
+      if (!m) return line;
+      found = true;
+      const exportPrefix = m[1] ? "export " : "";
+      let val = (m[2] ?? "").trim();
+      if (
+        (val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))
+      ) {
+        val = val.slice(1, -1);
+      }
+      const parts = val.split(/\s+/).filter(Boolean);
+      if (!parts.includes(origin)) parts.push(origin);
+      return `${exportPrefix}${CSP_CONNECT_EXTRA_KEY}=${parts.join(" ")}`;
+    });
+    if (!found) {
+      if (next.length && next[next.length - 1] !== "") next.push("");
+      next.push("# Latent Protocol: allow WebUI browser fetches to the ad API");
+      next.push(`${CSP_CONNECT_EXTRA_KEY}=${origin}`);
+    }
+    let out = next.join("\n");
+    if (!out.endsWith("\n")) out += "\n";
+    writeFileSync(envPath, out, { encoding: "utf8", mode: 0o600 });
+    return { ok: true, path: envPath, created: !existed };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `cannot update ${envPath}: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+/** Write CSP allowlist into hermes-webui/.env and ~/.hermes/.env when present. */
+export function ensureWebuiCspConnectExtra(opts: {
+  staticDir: string;
+  server: string;
+  hermesHome?: string;
+}): { origin: string; updated: string[]; errors: string[] } {
+  const origin = apiOrigin(opts.server);
+  const hermesHome = opts.hermesHome ?? join(homedir(), ".hermes");
+  const candidates = [join(dirname(opts.staticDir), ".env")];
+  if (existsSync(hermesHome) || existsSync(join(hermesHome, ".env"))) {
+    candidates.push(join(hermesHome, ".env"));
+  }
+  const updated: string[] = [];
+  const errors: string[] = [];
+  for (const path of candidates) {
+    const res = upsertCspConnectExtra(path, origin);
+    if (res.ok) updated.push(res.path);
+    else errors.push(res.error);
+  }
+  return { origin, updated, errors };
+}
 
 /** Assert helper for tests: injected runtime source must stay ASCII. */
 export function assertAsciiInjectSource(src: string): void {
@@ -46,7 +131,7 @@ const AD_JS = [
   "    server: SERVER,",
   "    wallet: WALLET ? (WALLET.slice(0, 6) + '...') : '',",
   "    frequency: FREQ,",
-  "    version: 3",
+  "    version: 4",
   "  };",
   "",
   "  if (!WALLET) {",
@@ -56,6 +141,7 @@ const AD_JS = [
   "",
   "  console.info('[latent-protocol] WebUI ads active', window.__LATENT_WEBUI__);",
   "",
+  "  var _fetchWarned = false;",
   "  function _post(path, body) {",
   "    return fetch(SERVER + path, {",
   "      method: 'POST',",
@@ -66,7 +152,17 @@ const AD_JS = [
   "      if (!r || r.status === 204) return null;",
   "      if (!r.ok) return null;",
   "      return r.json().catch(function () { return null; });",
-  "    }).catch(function () { return null; });",
+  "    }).catch(function () {",
+  "      if (!_fetchWarned) {",
+  "        _fetchWarned = true;",
+  "        console.warn(",
+  "          '[latent-protocol] ad fetch failed (often CSP). Set '",
+  "          + 'HERMES_WEBUI_CSP_CONNECT_EXTRA=' + SERVER",
+  "          + ' in hermes-webui/.env and restart WebUI.'",
+  "        );",
+  "      }",
+  "      return null;",
+  "    });",
   "  }",
   "",
   "  function _fetchAd(ctx) {",
@@ -225,12 +321,14 @@ const AD_JS = [
   "    var ctx = _ctx();",
   "    _fetchAd(ctx).then(function (ad) {",
   "      _busy = false;",
+  "      // Always consume the turn key so CSP/empty responses do not retry-spam.",
+  "      _lastKey = key;",
   "      if (!ad) {",
   "        console.info('[latent-protocol] no ad for turn', reason, ctx.slice(0, 40));",
   "        return;",
   "      }",
   "      var h = _latestSettledHost() || host;",
-  "      if (_attachFooter(ad, h)) _lastKey = _turnKey(h) || key;",
+  "      _attachFooter(ad, h);",
   "    });",
   "  }",
   "",

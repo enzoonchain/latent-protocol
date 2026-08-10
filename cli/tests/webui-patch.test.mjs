@@ -7,8 +7,10 @@ import { join } from "node:path";
 import { strict as assert } from "node:assert";
 import {
   assertAsciiInjectSource,
+  ensureWebuiCspConnectExtra,
   patchWebuiIndex,
   unpatchWebuiIndex,
+  upsertCspConnectExtra,
   WEBUI_MARKER,
 } from "../dist/surfaces/hermes-webui-patch.js";
 
@@ -34,7 +36,9 @@ try {
   assert.ok(html.includes("latent-ad-footer"));
   assert.ok(html.includes("__LATENT_WEBUI__"));
   assert.ok(html.includes("webui_footer"));
-  assert.ok(html.includes("version: 3"));
+  assert.ok(html.includes("version: 4"));
+  assert.ok(html.includes("_lastKey = key"));
+  assert.ok(html.includes("HERMES_WEBUI_CSP_CONNECT_EXTRA"));
   assert.ok(html.includes("</body>"));
 
   // String.replace must not corrupt "$'" sequences in the inject JS
@@ -59,6 +63,37 @@ try {
   const html2 = readFileSync(join(staticDir, "index.html"), "utf8");
   assert.equal(html2.split(WEBUI_MARKER).length - 1, 1);
   assert.ok(html2.includes("api.example.test"));
+
+  // CSP .env upsert: create + merge
+  const envPath = join(root, ".env");
+  const c1 = upsertCspConnectExtra(envPath, "https://api.latentprotocol.xyz");
+  assert.equal(c1.ok, true);
+  assert.ok(
+    readFileSync(envPath, "utf8").includes(
+      "HERMES_WEBUI_CSP_CONNECT_EXTRA=https://api.latentprotocol.xyz",
+    ),
+  );
+  writeFileSync(
+    envPath,
+    "FOO=bar\nHERMES_WEBUI_CSP_CONNECT_EXTRA=https://other.example\n",
+  );
+  const c2 = upsertCspConnectExtra(envPath, "https://api.latentprotocol.xyz");
+  assert.equal(c2.ok, true);
+  const env2 = readFileSync(envPath, "utf8");
+  assert.ok(env2.includes("https://other.example"));
+  assert.ok(env2.includes("https://api.latentprotocol.xyz"));
+  assert.ok(env2.includes("FOO=bar"));
+
+  const hermesHome = join(root, "hermes-home");
+  mkdirSync(hermesHome);
+  const ensured = ensureWebuiCspConnectExtra({
+    staticDir,
+    server: "https://api.latentprotocol.xyz/v1/",
+    hermesHome,
+  });
+  assert.equal(ensured.origin, "https://api.latentprotocol.xyz");
+  assert.ok(ensured.updated.includes(join(root, ".env")));
+  assert.ok(ensured.updated.includes(join(hermesHome, ".env")));
 
   const u = unpatchWebuiIndex(staticDir);
   assert.equal(u.ok, true);
