@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS ads (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- ── Impressions ──
+-- ── Impressions (billable confirmed displays only) ──
 CREATE TABLE IF NOT EXISTS impressions (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     ad_id        UUID NOT NULL REFERENCES ads(id) ON DELETE CASCADE,
@@ -50,6 +50,24 @@ CREATE TABLE IF NOT EXISTS impressions (
     surface      TEXT NOT NULL DEFAULT 'any',
     context      TEXT NOT NULL DEFAULT '',
     clicked      BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── Ad events (debug / audit log — every request, fill, bill, click) ──
+-- Not used for billing. Safe to insert aggressively for operator debugging.
+CREATE TABLE IF NOT EXISTS ad_events (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_wallet  TEXT NOT NULL DEFAULT '',
+    event_type   TEXT NOT NULL,  -- request_filled | request_no_fill | impression_billed | ...
+    reason       TEXT NOT NULL DEFAULT '',
+    ad_id        UUID REFERENCES ads(id) ON DELETE SET NULL,
+    agent        TEXT NOT NULL DEFAULT '',
+    surface      TEXT NOT NULL DEFAULT '',
+    context      TEXT NOT NULL DEFAULT '',
+    tags         TEXT[] NOT NULL DEFAULT '{}',
+    ip           TEXT NOT NULL DEFAULT '',
+    earned       NUMERIC(18, 6) NOT NULL DEFAULT 0,
+    meta         JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -91,6 +109,9 @@ CREATE TABLE IF NOT EXISTS payments (
 CREATE INDEX IF NOT EXISTS idx_impressions_user_wallet ON impressions (user_wallet);
 CREATE INDEX IF NOT EXISTS idx_impressions_ad_id       ON impressions (ad_id);
 CREATE INDEX IF NOT EXISTS idx_impressions_created_at  ON impressions (created_at);
+CREATE INDEX IF NOT EXISTS idx_ad_events_user_wallet   ON ad_events (user_wallet);
+CREATE INDEX IF NOT EXISTS idx_ad_events_created_at    ON ad_events (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ad_events_type          ON ad_events (event_type);
 CREATE INDEX IF NOT EXISTS idx_earnings_wallet         ON earnings (wallet_address);
 CREATE INDEX IF NOT EXISTS idx_earnings_unpaid         ON earnings (wallet_address) WHERE paid_out = FALSE;
 CREATE INDEX IF NOT EXISTS idx_ads_status              ON ads (status);

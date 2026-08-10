@@ -38,6 +38,12 @@ async def lifespan(app: FastAPI):
                     # use the raw driver connection which accepts raw SQL scripts.
                     raw = await conn.get_raw_connection()
                     await raw.driver_connection.execute(sql)
+                # Additive migrations for rolling deploys (IF NOT EXISTS).
+                migrate = Path(__file__).parent.parent / "scripts" / "migrate_ad_events.sql"
+                if migrate.exists():
+                    async with engine.begin() as conn:
+                        raw = await conn.get_raw_connection()
+                        await raw.driver_connection.execute(migrate.read_text())
                 print("[latent-protocol] Schema applied successfully")
             else:
                 print(f"[latent-protocol] Schema file not found at {schema_path}")

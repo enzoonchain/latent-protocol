@@ -8,7 +8,7 @@ const NAV_LINKS = [
   ["#how", "How it works"],
   ["#blocks", "Live Ads"],
   ["#advertiser", "Advertise"],
-  ["#user", "Earnings"],
+  ["#user", "Dashboard"],
 ] as const;
 
 export function Nav() {

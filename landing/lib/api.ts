@@ -42,6 +42,25 @@ export type Payout = {
   date: string;
 };
 
+export type AdHistoryEvent = {
+  id: string;
+  adId: string;
+  eventType: string;
+  reason: string;
+  title: string;
+  body: string;
+  ctaText: string;
+  ctaUrl: string;
+  imageUrl: string | null;
+  agent: string;
+  surface: string;
+  context: string;
+  clicked: boolean;
+  earned: number;
+  ip: string;
+  date: string;
+};
+
 // ── API client ──
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -215,6 +234,33 @@ export async function fetchEarningsHistory(wallet: string): Promise<EarningEvent
   try {
     const data = await api<{ history: unknown[] }>(`/earnings/${wallet}/history`);
     return data.history.map(mapEarningEvent);
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchAdsHistory(wallet: string): Promise<AdHistoryEvent[]> {
+  try {
+    const data = await api<{ ads: unknown[] }>(`/earnings/${wallet}/ads?limit=200`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return data.ads.map((r: any) => ({
+      id: r.id ?? "",
+      adId: r.ad_id ?? r.adId ?? "",
+      eventType: r.event_type ?? r.eventType ?? "unknown",
+      reason: r.reason ?? "",
+      title: r.title ?? "",
+      body: r.body ?? "",
+      ctaText: r.cta_text ?? r.ctaText ?? "",
+      ctaUrl: r.cta_url ?? r.ctaUrl ?? "",
+      imageUrl: r.image_url ?? r.imageUrl ?? null,
+      agent: r.agent ?? "",
+      surface: r.surface ?? "",
+      context: r.context ?? "",
+      clicked: Boolean(r.clicked),
+      earned: Number(r.earned ?? 0),
+      ip: r.ip ?? "",
+      date: (r.created_at ?? r.date ?? "").replace("T", " ").slice(0, 16),
+    }));
   } catch {
     return [];
   }

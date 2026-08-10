@@ -6,10 +6,12 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import {
   fetchEarnings,
   fetchEarningsHistory,
+  fetchAdsHistory,
   requestPayout,
   fetchPayouts,
   type Earnings,
   type EarningEvent,
+  type AdHistoryEvent,
   type Payout,
 } from "@/lib/api";
 
@@ -18,10 +20,11 @@ export function UserPortal() {
   const { openConnectModal } = useConnectModal();
   const [earnings, setEarnings] = useState<Earnings | null>(null);
   const [history, setHistory] = useState<EarningEvent[]>([]);
+  const [adsHistory, setAdsHistory] = useState<AdHistoryEvent[]>([]);
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [loading, setLoading] = useState(false);
   const [payoutLoading, setPayoutLoading] = useState(false);
-  const [tab, setTab] = useState<"earnings" | "payouts">("earnings");
+  const [tab, setTab] = useState<"ads" | "earnings" | "payouts">("ads");
 
   useEffect(() => {
     if (!isConnected || !address) return;
@@ -29,11 +32,13 @@ export function UserPortal() {
     Promise.all([
       fetchEarnings(address),
       fetchEarningsHistory(address),
+      fetchAdsHistory(address),
       fetchPayouts(address),
     ])
-      .then(([e, h, p]) => {
+      .then(([e, h, ads, p]) => {
         setEarnings(e);
         setHistory(h);
+        setAdsHistory(ads);
         setPayouts(p);
       })
       .finally(() => setLoading(false));
@@ -64,8 +69,8 @@ export function UserPortal() {
             Track your earnings
           </h2>
           <p className="lead mt-4 mx-auto">
-            Connect your wallet to see how much you&apos;ve earned from ad
-            impressions and request USDC payouts on Base.
+            Connect your wallet to review ads you were shown, track earnings,
+            and request USDC payouts on Base.
           </p>
           <div className="mt-10">
             <button onClick={openConnectModal} className="btn">
@@ -145,20 +150,114 @@ export function UserPortal() {
         {!loading && (
           <>
             <div className="flex gap-1 border-b border-ivory-faint mb-6">
-              {(["earnings", "payouts"] as const).map((t) => (
+              {(
+                [
+                  ["ads", "Ads History"],
+                  ["earnings", "Earning History"],
+                  ["payouts", "Payout History"],
+                ] as const
+              ).map(([key, label]) => (
                 <button
-                  key={t}
-                  onClick={() => setTab(t)}
+                  key={key}
+                  onClick={() => setTab(key)}
                   className={`px-6 py-3 text-sm uppercase tracking-wider transition-colors ${
-                    tab === t
+                    tab === key
                       ? "text-bronze border-b-2 border-bronze"
                       : "text-ivory-dim hover:text-ivory"
                   }`}
                 >
-                  {t === "earnings" ? "Earning History" : "Payout History"}
+                  {label}
                 </button>
               ))}
             </div>
+
+            {/* Ads history — full debug stream (request / fill / bill / click) */}
+            {tab === "ads" && (
+              adsHistory.length === 0 ? (
+                <div className="text-center py-12 text-ivory-dim border border-ivory-faint">
+                  No ad events yet. Every request, no-fill, fill, bill, and click
+                  is logged here for debugging.
+                </div>
+              ) : (
+                <div className="border border-ivory-faint overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-ivory-faint text-ivory-dim text-xs uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left">Date</th>
+                        <th className="px-4 py-3 text-left">Event</th>
+                        <th className="px-4 py-3 text-left">Ad</th>
+                        <th className="px-4 py-3 text-left">Agent / Surface</th>
+                        <th className="px-4 py-3 text-left">Context</th>
+                        <th className="px-4 py-3 text-right">Earned</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adsHistory.map((row) => (
+                        <tr
+                          key={row.id}
+                          className="border-b border-ivory-faint last:border-0"
+                        >
+                          <td className="px-4 py-3 text-ivory-dim whitespace-nowrap">
+                            {row.date}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span
+                              className={`inline-block px-2 py-0.5 text-xs rounded ${
+                                row.eventType.includes("filled") ||
+                                row.eventType.includes("billed") ||
+                                row.eventType.includes("credited")
+                                  ? "bg-bronze/20 text-bronze"
+                                  : row.eventType.includes("no_fill") ||
+                                      row.eventType.includes("skipped") ||
+                                      row.eventType.includes("blocked") ||
+                                      row.eventType.includes("rate")
+                                    ? "bg-ivory-faint text-ivory-dim"
+                                    : "bg-ivory-faint text-ivory"
+                              }`}
+                            >
+                              {row.eventType}
+                            </span>
+                            {row.reason ? (
+                              <div className="text-xs text-ivory-dim mt-1">
+                                {row.reason}
+                              </div>
+                            ) : null}
+                          </td>
+                          <td className="px-4 py-3">
+                            {row.title ? (
+                              <>
+                                <div className="font-medium text-ivory">
+                                  {row.title}
+                                </div>
+                                <div className="text-ivory-dim text-xs mt-0.5 line-clamp-2 max-w-xs">
+                                  {row.body}
+                                </div>
+                              </>
+                            ) : (
+                              <span className="text-ivory-dim text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-ivory-dim whitespace-nowrap">
+                            <div>{row.agent || "—"}</div>
+                            <div className="text-xs">{row.surface || "—"}</div>
+                          </td>
+                          <td className="px-4 py-3 text-ivory-dim max-w-[12rem]">
+                            <span className="line-clamp-2 text-xs">
+                              {row.context || "—"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-bronze whitespace-nowrap">
+                            {row.earned > 0
+                              ? `+$${row.earned.toFixed(4)}`
+                              : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
 
             {/* Earnings table */}
             {tab === "earnings" && (

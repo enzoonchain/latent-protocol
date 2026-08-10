@@ -31,11 +31,17 @@ class ImpressionRequest(BaseModel):
     ad_id: str
     user_wallet: str
     token: str = ""  # signed impression token from the /ad/request response
+    agent: str = "plugin"
+    surface: str = "direct"
+    context: str = ""
 
 
 class ClickRequest(BaseModel):
     ad_id: str
     user_wallet: str
+    agent: str = ""
+    surface: str = ""
+    context: str = ""
 
 
 # ── Campaign Requests ──

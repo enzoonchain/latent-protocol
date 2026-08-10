@@ -2,7 +2,15 @@
 
 Earnings are server-authoritative: the client may only *report* events, the
 server decides what is billable and how much the user earns.
+
+`log_ad_event` is a non-billable audit trail for admin debugging (every
+request / fill / no-fill / bill / click outcome).
 """
+
+from __future__ import annotations
+
+import json
+from typing import Any, Optional
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +21,59 @@ from server.config import (
     IMPRESSION_REPLAY_WINDOW_SECONDS,
     USER_SHARE,
 )
+
+
+async def log_ad_event(
+    db: AsyncSession,
+    *,
+    event_type: str,
+    user_wallet: str = "",
+    reason: str = "",
+    ad_id: Optional[str] = None,
+    agent: str = "",
+    surface: str = "",
+    context: str = "",
+    tags: Optional[list[str]] = None,
+    ip: str = "",
+    earned: float = 0.0,
+    meta: Optional[dict[str, Any]] = None,
+) -> None:
+    """Best-effort audit log. Never raises — must not break ad serving."""
+    try:
+        await db.execute(
+            text(
+                """
+                INSERT INTO ad_events
+                    (user_wallet, event_type, reason, ad_id, agent, surface,
+                     context, tags, ip, earned, meta)
+                VALUES
+                    (:wallet, :event_type, :reason,
+                     CAST(:ad_id AS uuid), :agent, :surface, :context,
+                     CAST(:tags AS text[]), :ip, :earned,
+                     CAST(:meta AS jsonb))
+                """
+            ),
+            {
+                "wallet": user_wallet or "",
+                "event_type": event_type,
+                "reason": reason or "",
+                "ad_id": ad_id,
+                "agent": agent or "",
+                "surface": surface or "",
+                "context": (context or "")[:500],
+                "tags": tags or [],
+                "ip": ip or "",
+                "earned": float(earned or 0),
+                "meta": json.dumps(meta or {}),
+            },
+        )
+        await db.commit()
+    except Exception as exc:  # noqa: BLE001 — audit must never break serving
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        print(f"[latent-protocol] ad_event log failed ({event_type}): {exc}")
 
 
 def user_earning_for_impression(bid: float) -> float:
