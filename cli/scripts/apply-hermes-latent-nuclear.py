@@ -179,6 +179,7 @@ def handle_latent_proxy(handler, parsed):
 
 def patch_auth(auth: Path) -> bool:
     if not auth.exists():
+        print("auth.py missing — skip (nuclear wrap still covers POST)")
         return False
     src = strip_block(auth.read_text(), AUTH_BEGIN, AUTH_END)
     early = f"""    {AUTH_BEGIN}
@@ -194,7 +195,22 @@ def patch_auth(auth: Path) -> bool:
     if not m:
         m = re.search(r"def check_auth\([^)]*\):\r?\n", src)
     if not m:
-        return False
+        # Dirty-fork fallback: wrap whatever check_auth exists.
+        if "def check_auth(" not in src:
+            print("auth.py: no check_auth() found")
+            return False
+        src2 = re.sub(r"def check_auth\(", "def _latent_check_auth_orig(", src, count=1)
+        wrapper = f"""
+{AUTH_BEGIN}
+def check_auth(handler, parsed):
+    _lp = getattr(parsed, "path", "") or ""
+    if ("/api/latent/" in _lp) or ("/__latent__/" in _lp):
+        return True
+    return _latent_check_auth_orig(handler, parsed)
+{AUTH_END}
+"""
+        auth.write_text(src2.rstrip() + "\n" + wrapper + "\n")
+        return True
     at = m.end()
     auth.write_text(src[:at] + early + "\n" + src[at:])
     return True
