@@ -12,6 +12,7 @@ import { homedir } from "node:os";
 
 export const WEBUI_MARKER = "<!-- latent-protocol-webui-patch -->";
 export const CSP_CONNECT_EXTRA_KEY = "HERMES_WEBUI_CSP_CONNECT_EXTRA";
+export const CSP_SOURCE_MARKER = "# latent-protocol-csp-connect";
 
 /** Origin only (no path) for CSP connect-src allowlisting. */
 export function apiOrigin(server: string): string {
@@ -96,6 +97,101 @@ export function ensureWebuiCspConnectExtra(opts: {
   return { origin, updated, errors };
 }
 
+function stripCspSourcePatch(src: string): string {
+  return src.replace(
+    new RegExp(
+      String.raw`\n${CSP_SOURCE_MARKER}\n_CSP_CONNECT_BASE = _CSP_CONNECT_BASE \+ "[^"]*"\n`,
+      "g",
+    ),
+    "\n",
+  );
+}
+
+/**
+ * Patch Hermes WebUI Python CSP builder so connect-src always includes the
+ * Latent API origin. More reliable than .env alone (env often not loaded by
+ * the running process / older builds ignore HERMES_WEBUI_CSP_CONNECT_EXTRA).
+ */
+export function patchWebuiCspSource(opts: {
+  staticDir: string;
+  server: string;
+}):
+  | { ok: true; path: string; origin: string }
+  | { ok: false; error: string } {
+  const origin = apiOrigin(opts.server);
+  if (!/^https?:\/\/[^/\s]+$/i.test(origin)) {
+    return { ok: false, error: `invalid CSP origin: ${origin}` };
+  }
+  const webuiRoot = dirname(opts.staticDir);
+  const candidates = [
+    join(webuiRoot, "api", "helpers.py"),
+    join(webuiRoot, "helpers.py"),
+    join(webuiRoot, "server.py"),
+  ];
+
+  for (const path of candidates) {
+    if (!existsSync(path)) continue;
+    let src: string;
+    try {
+      src = readFileSync(path, "utf8");
+    } catch (err) {
+      return {
+        ok: false,
+        error: `cannot read ${path}: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+
+    src = stripCspSourcePatch(src);
+
+    if (src.includes("_CSP_CONNECT_BASE")) {
+      const m = src.match(/_CSP_CONNECT_BASE\s*=\s*\([\s\S]*?\)/);
+      if (m && m.index !== undefined) {
+        const insert =
+          `\n${CSP_SOURCE_MARKER}\n` +
+          `_CSP_CONNECT_BASE = _CSP_CONNECT_BASE + " ${origin}"\n`;
+        const end = m.index + m[0].length;
+        const next = src.slice(0, end) + insert + src.slice(end);
+        try {
+          writeFileSync(path, next, "utf8");
+        } catch (err) {
+          return {
+            ok: false,
+            error: `cannot write ${path}: ${err instanceof Error ? err.message : String(err)}`,
+          };
+        }
+        return { ok: true, path, origin };
+      }
+    }
+
+    // Older builds: inline connect-src string containing cdn.jsdelivr.net
+    if (src.includes("connect-src") && src.includes("cdn.jsdelivr.net")) {
+      if (src.includes(` ${origin}`) || src.includes(`"${origin}`)) {
+        return { ok: true, path, origin };
+      }
+      const next = src.replace(
+        /(connect-src[^"'\n]*https:\/\/cdn\.jsdelivr\.net)/g,
+        `$1 ${origin}`,
+      );
+      if (next !== src) {
+        try {
+          writeFileSync(path, next, "utf8");
+        } catch (err) {
+          return {
+            ok: false,
+            error: `cannot write ${path}: ${err instanceof Error ? err.message : String(err)}`,
+          };
+        }
+        return { ok: true, path, origin };
+      }
+    }
+  }
+
+  return {
+    ok: false,
+    error: `no CSP connect-src source found under ${webuiRoot} (tried api/helpers.py, helpers.py, server.py)`,
+  };
+}
+
 /** Assert helper for tests: injected runtime source must stay ASCII. */
 export function assertAsciiInjectSource(src: string): void {
   for (let i = 0; i < src.length; i++) {
@@ -156,9 +252,9 @@ const AD_JS = [
   "      if (!_fetchWarned) {",
   "        _fetchWarned = true;",
   "        console.warn(",
-  "          '[latent-protocol] ad fetch failed (often CSP). Set '",
-  "          + 'HERMES_WEBUI_CSP_CONNECT_EXTRA=' + SERVER",
-  "          + ' in hermes-webui/.env and restart WebUI.'",
+  "          '[latent-protocol] ad fetch failed (CSP). Re-run init, confirm '",
+  "          + SERVER + ' is in api/helpers.py _CSP_CONNECT_BASE, then run '",
+  "          + 'ctl.sh restart (env-only fixes often do not load).'",
   "        );",
   "      }",
   "      return null;",

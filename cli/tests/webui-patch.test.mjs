@@ -7,7 +7,9 @@ import { join } from "node:path";
 import { strict as assert } from "node:assert";
 import {
   assertAsciiInjectSource,
+  CSP_SOURCE_MARKER,
   ensureWebuiCspConnectExtra,
+  patchWebuiCspSource,
   patchWebuiIndex,
   unpatchWebuiIndex,
   upsertCspConnectExtra,
@@ -38,7 +40,8 @@ try {
   assert.ok(html.includes("webui_footer"));
   assert.ok(html.includes("version: 4"));
   assert.ok(html.includes("_lastKey = key"));
-  assert.ok(html.includes("HERMES_WEBUI_CSP_CONNECT_EXTRA"));
+  assert.ok(html.includes("ad fetch failed (CSP)"));
+  assert.ok(html.includes("_CSP_CONNECT_BASE"));
   assert.ok(html.includes("</body>"));
 
   // String.replace must not corrupt "$'" sequences in the inject JS
@@ -94,6 +97,45 @@ try {
   assert.equal(ensured.origin, "https://api.latentprotocol.xyz");
   assert.ok(ensured.updated.includes(join(root, ".env")));
   assert.ok(ensured.updated.includes(join(hermesHome, ".env")));
+
+  // CSP source patch (helpers.py) — reliable path when .env is not loaded
+  const apiDir = join(root, "api");
+  mkdirSync(apiDir);
+  writeFileSync(
+    join(apiDir, "helpers.py"),
+    [
+      "_CSP_CONNECT_BASE = (",
+      "    \"'self' http://127.0.0.1:* http://localhost:* http://ipc.localhost \"",
+      '    "https://127.0.0.1:* https://localhost:* "',
+      '    "ws://127.0.0.1:* ws://localhost:*"',
+      ")",
+      "",
+      "def _csp_connect_src(extra_connect_src: str = \"\") -> str:",
+      '    return f"{_CSP_CONNECT_BASE} https://cdn.jsdelivr.net{extra_connect_src}"',
+      "",
+    ].join("\n"),
+  );
+  const src1 = patchWebuiCspSource({
+    staticDir,
+    server: "https://api.latentprotocol.xyz",
+  });
+  assert.equal(src1.ok, true);
+  if (src1.ok) assert.equal(src1.path, join(apiDir, "helpers.py"));
+  let helpers = readFileSync(join(apiDir, "helpers.py"), "utf8");
+  assert.ok(helpers.includes(CSP_SOURCE_MARKER));
+  assert.ok(helpers.includes('https://api.latentprotocol.xyz'));
+  // idempotent re-patch should not duplicate origin lines unboundedly
+  const src2 = patchWebuiCspSource({
+    staticDir,
+    server: "https://api.latentprotocol.xyz",
+  });
+  assert.equal(src2.ok, true);
+  helpers = readFileSync(join(apiDir, "helpers.py"), "utf8");
+  assert.equal(
+    helpers.split("https://api.latentprotocol.xyz").length - 1,
+    1,
+    "origin should appear once after re-patch",
+  );
 
   const u = unpatchWebuiIndex(staticDir);
   assert.equal(u.ok, true);

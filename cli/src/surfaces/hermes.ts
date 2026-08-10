@@ -15,6 +15,7 @@ import { detectAgents, findHermesWebuiStatic } from "../detect.js";
 import { loadConfig, resolveServer, resolveWallet, saveConfig } from "../config.js";
 import {
   ensureWebuiCspConnectExtra,
+  patchWebuiCspSource,
   patchWebuiIndex,
   unpatchWebuiIndex,
 } from "./hermes-webui-patch.js";
@@ -301,30 +302,30 @@ function patchHermesWebui(): string {
       } catch {
         // ignore
       }
-      const csp = ensureWebuiCspConnectExtra({
+      const cspEnv = ensureWebuiCspConnectExtra({
         staticDir: dir,
         server,
         hermesHome: detectAgents().paths.hermesHome,
       });
-      const cspLines =
-        csp.updated.length > 0
-          ? csp.updated.map((p) => `   CSP allowlist updated: ${p}`).join("\n")
-          : `   ⚠️  Could not write HERMES_WEBUI_CSP_CONNECT_EXTRA=${csp.origin}`;
-      const cspErr =
-        csp.errors.length > 0
-          ? "\n" + csp.errors.map((e) => `   • ${e}`).join("\n")
-          : "";
+      const cspSrc = patchWebuiCspSource({ staticDir: dir, server });
+      const cspEnvLines =
+        cspEnv.updated.length > 0
+          ? cspEnv.updated.map((p) => `   CSP .env updated: ${p}`).join("\n")
+          : `   ⚠️  Could not write HERMES_WEBUI_CSP_CONNECT_EXTRA=${cspEnv.origin}`;
+      const cspSrcLine = cspSrc.ok
+        ? `   CSP source patched: ${cspSrc.path} (+ ${cspSrc.origin})`
+        : `   ⚠️  CSP source patch failed: ${cspSrc.error}`;
       return (
         `✅ Hermes WebUI patched (node → ${dir})\n` +
         `   Patched: ${res.indexPath}\n` +
-        `${cspLines}${cspErr}\n` +
-        `   (HERMES_WEBUI_CSP_CONNECT_EXTRA must include ${csp.origin})\n` +
+        `${cspSrcLine}\n` +
+        `${cspEnvLines}\n` +
         "   REQUIRED next steps:\n" +
         "   1) Restart WebUI:  cd ~/hermes-webui && ./ctl.sh restart\n" +
-        "      (index.html + CSP env are loaded at process start)\n" +
+        "      (CSP headers are built at process start from api/helpers.py)\n" +
         "   2) Hard-refresh Tailscale tab: Ctrl+Shift+R\n" +
         "   3) DevTools console should show: [latent-protocol] WebUI ads active\n" +
-        "   4) If CSP still blocks: confirm env is loaded, then restart again"
+        `   4) Confirm CSP includes ${cspEnv.origin} (Response headers → content-security-policy)`
       );
     }
     errors.push(`${dir}: ${res.error}`);
