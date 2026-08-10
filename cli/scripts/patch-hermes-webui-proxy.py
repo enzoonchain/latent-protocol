@@ -31,6 +31,65 @@ PRE_AUTH_BEGIN = "# latent-protocol-pre-auth-begin"
 PRE_AUTH_END = "# latent-protocol-pre-auth-end"
 CSRF_BEGIN = "# latent-protocol-csrf-exempt-begin"
 CSRF_END = "# latent-protocol-csrf-exempt-end"
+NUCLEAR_BEGIN = "# latent-protocol-nuclear-begin"
+NUCLEAR_END = "# latent-protocol-nuclear-end"
+
+NUCLEAR_WRAP = f"""
+{NUCLEAR_BEGIN}
+# Last-resort wrap: replaces Handler.do_POST after class definition so auth
+# inside _handle_write can never 401 /api/latent/* requests.
+try:
+    import http.server as _latent_http_server
+    _latent_handler_cls = None
+    for _latent_name, _latent_obj in list(globals().items()):
+        if (
+            isinstance(_latent_obj, type)
+            and issubclass(_latent_obj, _latent_http_server.BaseHTTPRequestHandler)
+            and _latent_obj is not _latent_http_server.BaseHTTPRequestHandler
+            and hasattr(_latent_obj, "do_POST")
+        ):
+            _latent_handler_cls = _latent_obj
+            break
+    if _latent_handler_cls is not None:
+        _latent_orig_do_POST = _latent_handler_cls.do_POST
+
+        def _latent_nuclear_do_POST(self, *args, **kwargs):
+            try:
+                from urllib.parse import urlparse as _latent_urlparse
+                _latent_parsed = _latent_urlparse(getattr(self, "path", "") or "")
+                _latent_path = _latent_parsed.path or ""
+                if ("/api/latent/" in _latent_path) or ("/__latent__/" in _latent_path):
+                    from api.latent_ads_proxy import handle_latent_proxy
+                    return handle_latent_proxy(self, _latent_parsed)
+            except Exception as _latent_exc:
+                try:
+                    print("[latent-protocol] nuclear do_POST error: %r" % (_latent_exc,), flush=True)
+                except Exception:
+                    pass
+                try:
+                    _latent_body = b'{{"error":"proxy_failed","where":"nuclear"}}'
+                    self.send_response(502)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(_latent_body)))
+                    self.end_headers()
+                    self.wfile.write(_latent_body)
+                    return
+                except Exception:
+                    pass
+            return _latent_orig_do_POST(self, *args, **kwargs)
+
+        _latent_handler_cls.do_POST = _latent_nuclear_do_POST
+        print(
+            "[latent-protocol] nuclear do_POST wrap installed on %s"
+            % (_latent_handler_cls.__name__,),
+            flush=True,
+        )
+    else:
+        print("[latent-protocol] nuclear wrap: no Handler class found", flush=True)
+except Exception as _latent_nuclear_exc:
+    print("[latent-protocol] nuclear wrap failed: %r" % (_latent_nuclear_exc,), flush=True)
+{NUCLEAR_END}
+"""
 
 
 def strip_block(src: str, begin: str, end: str) -> str:
@@ -183,6 +242,7 @@ def patch_server(server_path: Path) -> dict[str, int | bool]:
     src = strip_block(src, PROXY_BEGIN, PROXY_END)
     src = strip_block(src, SHADOW_BEGIN, SHADOW_END)
     src = strip_block(src, PRE_AUTH_BEGIN, PRE_AUTH_END)
+    src = strip_block(src, NUCLEAR_BEGIN, NUCLEAR_END)
 
     hook = f"""        {PROXY_BEGIN}
         try:
@@ -250,8 +310,42 @@ def check_auth(handler, parsed):
         pre,
     )
 
+    # Install nuclear wrap BEFORE `if __name__ == "__main__"` so it runs at
+    # import time. Appending after the main guard never executes while
+    # serve_forever() is blocking.
+    nuclear_ok = False
+    if NUCLEAR_BEGIN not in src:
+        block = NUCLEAR_WRAP.rstrip() + "\n"
+        src2, count = insert_before_all(
+            src,
+            r'^if __name__\s*==\s*[\'"]__main__[\'"]\s*:\s*$',
+            block,
+        )
+        if count == 1:
+            src = src2
+            nuclear_ok = True
+        else:
+            src2, count = insert_before_all(
+                src,
+                r'^def main\(\s*\)\s*(?:->\s*None)?:\s*$',
+                block,
+            )
+            if count >= 1:
+                src = src2
+                nuclear_ok = True
+            else:
+                print("WARN: could not find main guard; nuclear wrap not installed")
+                nuclear_ok = False
+    else:
+        nuclear_ok = True
+
     server_path.write_text(src)
-    return {"hooks": n, "shadow": shadow_ok, "pre_auth": pre_n}
+    return {
+        "hooks": n,
+        "shadow": shadow_ok,
+        "pre_auth": pre_n,
+        "nuclear": nuclear_ok,
+    }
 
 
 def patch_routes(routes_path: Path) -> dict[str, bool]:
@@ -307,9 +401,106 @@ def clear_pyc(root: Path) -> int:
     return n
 
 
+def diagnose(root: Path, port: int = 8787) -> int:
+    import json
+    import subprocess
+    import urllib.error
+    import urllib.request
+
+    print("=== DIAGNOSE ===")
+    print("root:", root)
+    srv = root / "server.py"
+    auth = root / "api" / "auth.py"
+    proxy = root / "api" / "latent_ads_proxy.py"
+    for p in (srv, auth, proxy):
+        print(f"exists {p}: {p.exists()}")
+    if srv.exists():
+        txt = srv.read_text()
+        for marker in (
+            NUCLEAR_BEGIN,
+            SHADOW_BEGIN,
+            PRE_AUTH_BEGIN,
+            PROXY_BEGIN,
+        ):
+            print(f"marker {marker}: {marker in txt}")
+        try:
+            compile(txt, str(srv), "exec")
+            print("server.py: syntax OK")
+        except SyntaxError as exc:
+            print("server.py: SYNTAX ERROR:", exc)
+            return 1
+
+    # Who owns the port?
+    try:
+        out = subprocess.check_output(
+            ["ss", "-ltnp"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        try:
+            out = subprocess.check_output(
+                ["lsof", f"-i:{port}", "-n", "-P"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception as exc:
+            out = f"(could not inspect port: {exc})"
+    print("--- listeners ---")
+    for line in out.splitlines():
+        if str(port) in line:
+            print(line)
+
+    pid_file = Path.home() / ".hermes" / "webui.pid"
+    log_file = Path.home() / ".hermes" / "webui.log"
+    print("pid_file:", pid_file, "exists=", pid_file.exists())
+    if pid_file.exists():
+        print("pid:", pid_file.read_text().strip())
+    if log_file.exists():
+        tail = log_file.read_text(errors="replace").splitlines()[-40:]
+        print("--- webui.log (tail) ---")
+        for line in tail:
+            print(line)
+        nuclear_hit = any("nuclear do_POST wrap installed" in ln for ln in tail)
+        print("log has nuclear wrap:", nuclear_hit)
+
+    url = f"http://127.0.0.1:{port}/api/latent/ad/request"
+    body = json.dumps(
+        {
+            "user_wallet": "0x54829098D8107259a790f31679229Df447c75f06",
+            "agent": "hermes",
+            "context": "diagnose",
+        }
+    ).encode()
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = resp.read()[:300]
+            print(f"curl-equivalent: HTTP {resp.status} body={data!r}")
+    except urllib.error.HTTPError as err:
+        data = err.read()[:300]
+        print(f"curl-equivalent: HTTP {err.code} body={data!r}")
+    except Exception as exc:
+        print(f"curl-equivalent: ERROR {exc!r}")
+
+    print("=== END DIAGNOSE ===")
+    return 0
+
+
 def main() -> int:
-    root = Path(sys.argv[1] if len(sys.argv) > 1 else "/root/hermes-webui")
-    server = sys.argv[2] if len(sys.argv) > 2 else "https://api.latentprotocol.xyz"
+    args = [a for a in sys.argv[1:] if a]
+    if args and args[0] in {"--diagnose", "diagnose"}:
+        root = Path(args[1] if len(args) > 1 else "/root/hermes-webui")
+        port = int(args[2]) if len(args) > 2 else 8787
+        return diagnose(root, port)
+
+    root = Path(args[0] if args else "/root/hermes-webui")
+    server = args[1] if len(args) > 1 else "https://api.latentprotocol.xyz"
     api = root / "api"
     if not api.is_dir():
         print("FAIL: api/ missing under", root)
@@ -331,10 +522,10 @@ def main() -> int:
     stats = patch_server(srv)
     print(
         f"OK server.py hooks={stats['hooks']} shadow={stats['shadow']} "
-        f"pre_auth={stats['pre_auth']}"
+        f"pre_auth={stats['pre_auth']} nuclear={stats['nuclear']}"
     )
-    if not stats["shadow"] and stats["pre_auth"] == 0 and stats["hooks"] == 0:
-        print("FAIL: no server.py auth bypass landed")
+    if not stats.get("nuclear"):
+        print("FAIL: nuclear wrap missing")
         return 1
 
     routes = api / "routes.py"
@@ -343,23 +534,37 @@ def main() -> int:
 
     auth_txt = auth.read_text() if auth.exists() else ""
     srv_txt = srv.read_text()
+    assert NUCLEAR_BEGIN in srv_txt
     assert "/api/latent/" in srv_txt
-    assert SHADOW_BEGIN in srv_txt or PRE_AUTH_BEGIN in srv_txt or PROXY_BEGIN in srv_txt
     if auth.exists():
         assert AUTH_BEGIN in auth_txt
-    print("VERIFY bypass markers present")
+    try:
+        compile(srv_txt, str(srv), "exec")
+        print("VERIFY server.py syntax OK")
+    except SyntaxError as exc:
+        print("FAIL server.py syntax:", exc)
+        return 1
+    print("VERIFY nuclear marker present")
 
     cleared = clear_pyc(root)
     print(f"cleared {cleared} .pyc files")
 
-    print("NEXT: cd", root, "&& ./ctl.sh restart")
+    print("NEXT:")
+    print(f"  cd {root}")
+    print("  ./ctl.sh stop || true")
+    print("  # if old process still holds 8787:")
+    print("  #   ss -ltnp | grep 8787")
+    print("  #   kill <pid>")
+    print("  ./ctl.sh start")
+    print("  grep -F 'nuclear do_POST wrap installed' ~/.hermes/webui.log | tail -3")
     print(
-        "THEN: curl -sS -w '\\nHTTP %{http_code}\\n' -X POST "
+        "  curl -sS -w '\\nHTTP %{http_code}\\n' -X POST "
         "http://127.0.0.1:8787/api/latent/ad/request "
         "-H 'Content-Type: application/json' "
         '-d \'{"user_wallet":"0x54829098D8107259a790f31679229Df447c75f06","agent":"hermes","context":"szia"}\''
     )
-    print("Expect: HTTP 200 + ad JSON (NOT 401 Authentication required)")
+    print("Expect: log line + HTTP 200 (NOT 401)")
+    print("If still 401: python3 /tmp/patch-hermes-webui-proxy.py --diagnose", root)
     return 0
 
 

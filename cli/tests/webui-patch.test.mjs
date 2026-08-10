@@ -191,6 +191,12 @@ try {
       "        if not check_auth(self, parsed): return",
       "        return handle_get(self, parsed)",
       "",
+      "def main() -> None:",
+      "    pass",
+      "",
+      'if __name__ == "__main__":',
+      "    main()",
+      "",
     ].join("\n"),
   );
   writeFileSync(
@@ -249,6 +255,8 @@ try {
     assert.ok(srv.includes("latent-protocol-auth-shadow-begin"));
     assert.ok(srv.includes("_latent_check_auth_bound"));
     assert.ok(srv.includes("latent-protocol-pre-auth-begin"));
+    assert.ok(srv.includes("latent-protocol-nuclear-begin"));
+    assert.ok(srv.includes("_latent_nuclear_do_POST"));
     // do_POST + _handle_write both hooked
     assert.equal(
       srv.split("latent-protocol-proxy-begin").length - 1,
@@ -260,6 +268,11 @@ try {
       srv.split("latent-protocol-pre-auth-begin").length - 1,
       2,
       "server.py should have 2 pre-auth bypasses",
+    );
+    assert.equal(
+      srv.split("latent-protocol-nuclear-begin").length - 1,
+      1,
+      "server.py should have 1 nuclear wrap",
     );
     const routes = readFileSync(join(apiDir, "routes.py"), "utf8");
     assert.ok(routes.includes("handle_latent_proxy"));
@@ -287,6 +300,16 @@ try {
       srv2.split("latent-protocol-pre-auth-begin").length - 1,
       2,
       "pre-auth bypasses should stay at 2 after re-patch",
+    );
+    assert.equal(
+      srv2.split("latent-protocol-nuclear-begin").length - 1,
+      1,
+      "nuclear wrap should stay at 1 after re-patch",
+    );
+    assert.ok(
+      srv2.indexOf("latent-protocol-nuclear-begin") <
+        srv2.indexOf('if __name__ == "__main__":'),
+      "nuclear wrap must run before main guard",
     );
   }
 
