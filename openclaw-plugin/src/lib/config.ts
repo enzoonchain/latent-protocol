@@ -3,9 +3,14 @@
  *
  * OpenClaw validates the user's config against `openclaw.plugin.json`'s
  * `configSchema` and hands the resulting object to the plugin. We merge it with
- * `process.env` fallbacks (handy for local dev / CI) and defaults so a single
- * `getConfig(raw)` call is the only config source the hooks ever touch.
+ * `process.env` fallbacks, `~/.latent-protocol/config.json` (written by
+ * `npx latent-protocol init`), and defaults so a single `getConfig(raw)` call
+ * is the only config source the hooks ever touch.
  */
+
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 export interface PluginConfig {
   wallet: string;
@@ -27,13 +32,46 @@ function envNum(value: string | undefined, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function readLatentConfigFile(): Partial<PluginConfig> {
+  const paths = [
+    join(homedir(), ".latent-protocol", "config.json"),
+    join(homedir(), ".openclaw", "latent-protocol.config.json"),
+  ];
+  for (const p of paths) {
+    try {
+      const raw = JSON.parse(readFileSync(p, "utf8")) as Record<string, unknown>;
+      const out: Partial<PluginConfig> = {};
+      if (typeof raw.wallet === "string") out.wallet = raw.wallet;
+      if (typeof raw.enabled === "boolean") out.enabled = raw.enabled;
+      if (typeof raw.frequency === "number") out.frequency = raw.frequency;
+      if (typeof raw.server === "string") out.server = raw.server;
+      if (typeof raw.min_payout === "number") out.minPayout = raw.min_payout;
+      if (typeof raw.minPayout === "number") out.minPayout = raw.minPayout;
+      return out;
+    } catch {
+      // try next
+    }
+  }
+  return {};
+}
+
 /** Merge the SDK-provided config with env fallbacks and defaults. */
 export function getConfig(raw: Partial<PluginConfig> = {}): PluginConfig {
+  const file = readLatentConfigFile();
   return {
-    wallet: raw.wallet ?? process.env.ADS_WALLET ?? "",
-    enabled: raw.enabled ?? envBool(process.env.ADS_ENABLED, true),
-    frequency: raw.frequency ?? envNum(process.env.ADS_FREQUENCY, 5),
-    server: (raw.server ?? process.env.ADS_SERVER ?? DEFAULT_SERVER).replace(/\/+$/, ""),
-    minPayout: raw.minPayout ?? envNum(process.env.ADS_MIN_PAYOUT, 5.0),
+    wallet: raw.wallet || process.env.ADS_WALLET || file.wallet || "",
+    enabled: raw.enabled ?? envBool(process.env.ADS_ENABLED, file.enabled ?? true),
+    frequency:
+      raw.frequency ??
+      envNum(process.env.ADS_FREQUENCY, file.frequency ?? 1),
+    server: (
+      raw.server ||
+      process.env.ADS_SERVER ||
+      file.server ||
+      DEFAULT_SERVER
+    ).replace(/\/+$/, ""),
+    minPayout:
+      raw.minPayout ??
+      envNum(process.env.ADS_MIN_PAYOUT, file.minPayout ?? 5.0),
   };
 }

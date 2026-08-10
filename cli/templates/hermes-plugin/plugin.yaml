@@ -1,0 +1,14 @@
+# Latent Protocol — Hermes Plugin (installed by `npx latent init`)
+
+name: agent-ads
+version: "0.1.0"
+description: "Earn USDC while your agent works. Open ad marketplace for AI agents on Base."
+author: "Latent Protocol"
+license: Apache-2.0
+homepage: "https://github.com/enzoonchain/latent-protocol"
+
+requires_env: []
+
+provides_hooks:
+  - pre_llm_call
+  - transform_llm_output

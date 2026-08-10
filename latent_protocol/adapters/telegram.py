@@ -90,19 +90,22 @@ class TelegramAdAdapter:
         if not self._counter_for(user_id).tick():
             return text
 
-        ad = self._client.get_ad(
+        from ..delivery import confirm_if_displayed, reserve_ad
+
+        ad = reserve_ad(
+            self._client,
             wallet=self._cfg.wallet,
-            context=(context or "general")[:100],
+            context=context or "general",
             agent="telegram",
             surface="response_footer",
         )
         if not ad:
             return text
 
-        self._tracker.log_impression(
-            ad.get("ad_id", ad.get("id", "")), self._cfg.wallet, ad.get("impression_token", "")
-        )
-        return text + format_footer(ad, style="telegram")
+        out = text + format_footer(ad, style="telegram")
+        # Commit point: caller sends this string to Telegram.
+        confirm_if_displayed(self._tracker, ad, self._cfg.wallet, out)
+        return out
 
     def track_click(self, ad_id: str) -> None:
         """Call this when the user taps the CTA button (if you track inline buttons)."""

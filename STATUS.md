@@ -279,7 +279,7 @@ The Claude Code `statusLine` setting runs a command on each refresh; stdout is t
 | Platform | Integration | Ad Delivery | Thinking State | Status |
 |----------|------------|-------------|----------------|--------|
 | **OpenClaw** | Plugin (`api.on(...)`) | ✅ `before_prompt_build` | ✅ **Best (live!)** | ✅ Live (`openclaw-plugin/`) |
-| **Hermes** | Plugin | ✅ Automatic (footer) | ⚠️ `pre_llm_call` no-op (#2817) | ✅ Ready (thinking forward-compat) |
+| **Hermes** | Plugin | ✅ Automatic (footer) | ✅ `pre_llm_call` live (#2820) | ✅ Ready (`npx latent init`) |
 | **Claude Code** | `statusLine` + Hook | ✅ `statusLine` (live, dynamic) | ✅ statusLine = thinking-adjacent | ✅ Live (`latent-statusline`) |
 | **Codex / MiMo** | Skill + Hook | ✅ Session start | ❌ No | ✅ Ready |
 | **Telegram** | Adapter | ✅ `wrap_response` | N/A | ✅ Ready |

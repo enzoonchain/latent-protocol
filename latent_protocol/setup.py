@@ -92,9 +92,11 @@ def run_interactive_setup() -> None:
         return
 
     # Optional: customise frequency
-    freq_raw = input(f"\nShow ads every N messages [default 5]: ").strip()
+    freq_raw = input(f"\nShow ads every N messages [default 1]: ").strip()
     if freq_raw.isdigit() and int(freq_raw) > 0:
         save_config_file({"frequency": int(freq_raw)})
+    else:
+        save_config_file({"frequency": 1})
 
     print("\n🎉 Setup complete! Your agent will now earn USDC from sponsored ads.")
     print(f"   Config: {_CONFIG_FILE}")

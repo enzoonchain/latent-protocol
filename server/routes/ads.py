@@ -28,9 +28,10 @@ router = APIRouter()
 async def request_ad(
     req: AdRequest, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    """Serve best matching ad to agent.
+    """Reserve best matching ad + impression_token (not billable).
 
-    Safety checks (all fail open):
+    Billing happens only on POST /ad/impression after the client confirms
+    display. Safety checks (all fail open):
     1. Kill switch
     2. Rate limiting (per-user, per-IP)
     3. Content moderation
@@ -85,9 +86,11 @@ async def request_ad(
 async def track_impression(
     req: ImpressionRequest, db: AsyncSession = Depends(get_db)
 ):
-    """Track an ad impression (called by the client).
+    """Confirm a viewable impression (the only billable event).
 
-    Requires a valid signed token from the /ad/request response.
+    Requires a valid signed token from the /ad/request response. Clients must
+    call this only after the creative is attached to delivered UI/text —
+    never immediately after /ad/request alone.
     """
     if not verify_impression_token(req.token, req.ad_id, req.user_wallet):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "invalid impression token")
@@ -151,7 +154,7 @@ async def safety_status():
         "rate_limit_ip_per_min": 30,
         "max_impressions_per_day": 100,
         "max_impressions_per_session": 20,
-        "default_frequency": 5,
+        "default_frequency": 1,
     }
 
 

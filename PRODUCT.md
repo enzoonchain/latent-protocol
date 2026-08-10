@@ -498,53 +498,16 @@ if __name__ == "__main__":
 
 ### WebUI Integration (thinking state)
 
-```javascript
-// hermes-webui/static/ui.js modification
-// Inject ad banner into thinkingRow while agent is processing
+Hermes WebUI ([nesquena/hermes-webui](https://github.com/nesquena/hermes-webui))
+exposes a live thinking card as
+`.agent-activity-thinking[data-thinking-active="1"]`. Our patch
+(`latent-hermes-patch` / `adapters/hermes_webui.py`) injects a
+`MutationObserver` into `index.html` that renders a sponsored banner inside
+that element while the agent thinks. Re-run the patch after
+`pip install --upgrade hermes-webui` (it overwrites `index.html`).
 
-const _origThinkingTick = window._thinkingTick;  // save original
-window._thinkingTick = function() {
-    _origThinkingTick.apply(this, arguments);
-    
-    const row = document.getElementById('thinkingRow');
-    if (!row || row.dataset.thinkingActive !== '1') return;
-    
-    // Inject ad banner if not already present
-    if (!row.querySelector('.agent-ad-banner')) {
-        fetch('/api/agent-ads/request', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                context: 'thinking',
-                surface: 'webui_thinking',
-                agent: 'hermes'
-            })
-        })
-        .then(r => r.json())
-        .then(ad => {
-            if (!ad.show) return;
-            const banner = document.createElement('div');
-            banner.className = 'agent-ad-banner';
-            banner.innerHTML = `
-                <div style="border:1px solid #fbbf2433; background:#fbbf2408; 
-                            border-radius:8px; padding:8px 12px; margin:4px 0; 
-                            font-size:12px; opacity:0.8; display:flex; 
-                            justify-content:space-between; align-items:center;">
-                    <span>💰 <b>${ad.ad.title}</b> — ${ad.ad.body}</span>
-                    <a href="${ad.ad.cta_url}" target="_blank" 
-                       style="color:#60a5fa; font-size:11px;">
-                       ${ad.ad.cta_text} →
-                    </a>
-                    <span style="color:#34d399; font-size:11px;">
-                        +$${ad.ad.earn_amount}
-                    </span>
-                </div>`;
-            row.appendChild(banner);
-        })
-        .catch(() => {});  // fail silently
-    }
-};
-```
+Primary Hermes thinking surface for CLI/gateway is the plugin hook
+`pre_llm_call` (live since hermes-agent#2820) — see `adapters/hermes.py`.
 
 ---
 

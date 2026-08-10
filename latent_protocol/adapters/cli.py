@@ -53,19 +53,21 @@ class CliAdAdapter:
         if not self._counter.tick():
             return text
 
-        ad = self._client.get_ad(
+        from ..delivery import confirm_if_displayed, reserve_ad
+
+        ad = reserve_ad(
+            self._client,
             wallet=self._cfg.wallet,
-            context=(context or "general")[:100],
+            context=context or "general",
             agent="cli",
             surface="response_footer",
         )
         if not ad:
             return text
 
-        self._tracker.log_impression(
-            ad.get("ad_id", ad.get("id", "")), self._cfg.wallet, ad.get("impression_token", "")
-        )
-        return text + format_footer(ad, style="cli")
+        out = text + format_footer(ad, style="cli")
+        confirm_if_displayed(self._tracker, ad, self._cfg.wallet, out)
+        return out
 
     def print_response(
         self, text: str, context: str = "general", file=None

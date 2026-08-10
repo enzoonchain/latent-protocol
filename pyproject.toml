@@ -47,6 +47,11 @@ latent-adapter       = "latent_protocol.adapters.unified:adapter_main"
 latent-statusline    = "latent_protocol.adapters.claude_code:statusline_main"
 latent-hermes-patch  = "latent_protocol.adapters.hermes_webui:main"
 
+# Hermes discovers pip plugins via this entry-point group.
+# After `pip install latent-protocol`: `hermes plugins enable agent-ads`
+[project.entry-points."hermes_agent.plugins"]
+agent-ads = "latent_protocol.adapters.hermes:register"
+
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"

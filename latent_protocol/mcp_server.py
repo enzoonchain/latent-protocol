@@ -42,18 +42,46 @@ def request_ad(context: str = "general", surface: str = "tool_call") -> dict:
     if not config.wallet:
         return {"show": False, "reason": "no_wallet"}
 
-    ad = client.get_ad(
-        wallet=config.wallet, context=context, agent="mcp", surface=surface
+    from .delivery import reserve_ad
+
+    ad = reserve_ad(
+        client,
+        wallet=config.wallet,
+        context=context,
+        agent="mcp",
+        surface=surface,
     )
     if not ad:
         return {"show": False, "reason": "no_ads_available"}
 
-    ad_id = ad.get("ad_id") or ad.get("id")
-    if ad_id:
-        tracker.log_impression(
-            ad_id, config.wallet, ad.get("impression_token", "")
-        )
-    return {"show": True, "ad": ad}
+    # Reserve only — call confirm_ad_shown after the host actually displays it.
+    return {
+        "show": True,
+        "ad": ad,
+        "billable": False,
+        "note": "Not billed yet. Call confirm_ad_shown after displaying the ad.",
+    }
+
+
+@mcp.tool()
+def confirm_ad_shown(ad_id: str, impression_token: str = "") -> dict:
+    """Confirm that a reserved ad was actually shown to the user (billable).
+
+    Call this only after the creative is visible in the UI / reply. Without
+    this call, request_ad does not credit earnings.
+    """
+    if not config.wallet:
+        return {"ok": False, "reason": "no_wallet"}
+    if not ad_id:
+        return {"ok": False, "reason": "missing_ad_id"}
+    from .delivery import confirm_display
+
+    confirm_display(
+        tracker,
+        {"ad_id": ad_id, "impression_token": impression_token},
+        config.wallet,
+    )
+    return {"ok": True, "ad_id": ad_id}
 
 
 @mcp.tool()
@@ -171,21 +199,23 @@ def inject_footer(text: str, style: str = "markdown", context: str = "general") 
     if not inject_footer._counter.tick():  # type: ignore[attr-defined]
         return {"text": text, "injected": False}
 
-    ad = client.get_ad(
+    from .delivery import confirm_if_displayed, reserve_ad
+
+    ad = reserve_ad(
+        client,
         wallet=config.wallet,
-        context=(context or "general")[:100],
+        context=context or "general",
         agent="mcp",
         surface="response_footer",
     )
     if not ad:
         return {"text": text, "injected": False}
 
-    ad_id = ad.get("ad_id") or ad.get("id")
-    if ad_id:
-        tracker.log_impression(ad_id, config.wallet, ad.get("impression_token", ""))
     allowed = {"markdown", "cli", "telegram"}
     footer = format_footer(ad, style=style if style in allowed else "markdown")
-    return {"text": text + footer, "injected": True}
+    out = text + footer
+    confirm_if_displayed(tracker, ad, config.wallet, out)
+    return {"text": out, "injected": True}
 
 
 @mcp.tool()

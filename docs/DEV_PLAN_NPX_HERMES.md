@@ -4,28 +4,26 @@
 > Latent Protocol integrates into Hermes and the bugs that block it today, (3) a
 > prioritized, phased engineering plan.
 >
-> Status date: 2026-08-10. This is a planning document, not shipped behavior.
+> Status date: 2026-08-10 (revised after Hermes upstream recon). This is a planning
+> document; Phase 1 ships alongside the `cli/` package in this PR.
 
 ---
 
 ## 0. TL;DR
 
-- **Onboarding today is fragmented and multi-runtime**: `pip install` + `latent-setup`
-  + `git clone` into `~/.hermes/plugins` + `latent-hermes-patch` + `openclaw plugins
-  install` + a Claude Code `statusLine` written by a **Python** console script. There is
-  **no npm entry point at all** (no root `package.json`, no `bin`, no built `dist/`,
-  nothing published to npm). A one-line `npx` flow does not exist yet — it must be built.
-- **The competitor (CodeBacks) wins on packaging**: `npx codebacks init` is all-Node,
-  patches Claude Code / Codex / Cursor in one shot. To match it we need a Node CLI that
-  *orchestrates* our surfaces — and, to be truly Python-free on Claude Code, a **Node port
-  of the statusline renderer**.
-- **Hermes native thinking-state is externally blocked** (`pre_llm_call` not dispatched,
-  hermes-agent#2817). The only *working* Hermes thinking surface is the **WebUI DOM patch**,
-  and that patch currently ships **an unverified/self-contradicting DOM selector** — a real
-  functional blocker we can fix on our side.
-- Plan: ship an all-Node `npx latent init` orchestrator (Phase 1–2), harden the Hermes
-  WebUI patch behind a verified DOM contract (Phase 3), keep `pre_llm_call` forward-compat,
-  and add the missing build/publish/CI plumbing so "Live" is actually true (Phase 4).
+- **Onboarding today is fragmented**: Python console scripts + manual Hermes clone
+  paths + OpenClaw TS plugin. Target: `npx latent init` orchestrates Claude Code
+  (Node-native statusline) and Hermes (pip + plugin enable).
+- **Hermes `pre_llm_call` is LIVE upstream.** Issue [#2817](https://github.com/NousResearch/hermes-agent/issues/2817)
+  was fixed in PR #2820 (closed 2026-04-27 as implemented). Native thinking-state
+  injection works on current Hermes — our adapter already registers it as primary.
+- **Real Hermes blockers are install-path / config**, not the hook:
+  clone layout puts `plugin.yaml` one level too deep, enable name mismatches
+  (`agent-ads` vs `latent-protocol`), and wallet config is split between Hermes
+  `ads.*` keys and `~/.latent-protocol/config.json`.
+- **WebUI selector `.agent-activity-thinking[data-thinking-active="1"]` is correct**
+  (confirmed against [hermes-webui](https://github.com/nesquena/hermes-webui));
+  `PRODUCT.md`'s `#thinkingRow` / `_thinkingTick` is legacy.
 
 ---
 
@@ -33,201 +31,160 @@
 
 | Platform | Install path today | Runtime | Entry point in repo |
 |----------|-------------------|---------|---------------------|
-| Claude Code | `latent-statusline --install` → writes `~/.claude/settings.json` | **Python** | `latent_protocol/adapters/claude_code.py` |
-| Hermes (plugin) | `git clone … ~/.hermes/plugins/…` + enable in config | **Python** | `plugin/__init__.py` → `adapters/hermes.py` |
+| Claude Code | `latent-statusline --install` → writes `~/.claude/settings.json` | **Python** (→ Node via `cli/`) | `latent_protocol/adapters/claude_code.py` |
+| Hermes (plugin) | pip / clone + `hermes plugins enable agent-ads` | **Python** | `plugin/` → `adapters/hermes.py` |
 | Hermes (WebUI) | `latent-hermes-patch` → patches `index.html` | **Python** | `latent_protocol/adapters/hermes_webui.py` |
 | OpenClaw | `openclaw plugins install …` (needs `tsc` build) | **Node/TS** | `openclaw-plugin/` |
 | Telegram / CLI | `pip install` + wrap code manually | **Python** | `adapters/telegram.py`, `adapters/cli.py` |
 | MCP (any) | `pip install '.[mcp]'` + edit `mcp.json` | **Python** | `latent_protocol/mcp_server.py` |
-| Wallet setup | `latent-setup` (interactive) | **Python** | `latent_protocol/setup.py` |
-
-**Key gap:** every path except OpenClaw assumes Python is installed and on PATH. There is
-no `npx`-reachable code. The console scripts (`latent-statusline`, `latent-hermes-patch`,
-`latent-setup`, `latent-adapter`, `latent-mcp`) are all `[project.scripts]` in
-`pyproject.toml` — pip-only.
+| Wallet setup | `latent-setup` / `npx latent init` | **Python / Node** | `setup.py` / `cli/src/wallet.ts` |
 
 ---
 
 ## 2. Target: `npx latent init`
 
-### 2.1 UX goal
-
 ```bash
 npx latent init            # detect agents → wallet setup → patch every detected surface
 npx latent status          # what's installed, balance, config
 npx latent uninstall       # revert every patch
+npx latent statusline      # Claude Code statusLine command (Node)
 ```
 
 `init` should:
-1. **Detect** installed agents by probing well-known dirs:
-   `~/.claude` (Claude Code), `~/.hermes` (Hermes), `~/.openclaw` (OpenClaw),
-   `~/.codex` (Codex), VS Code / Cursor extension dirs.
-2. **Wallet**: generate (viem `generatePrivateKey`) or import a Base address; persist to
-   `~/.latent-protocol/config.json` (same file the Python side already reads).
-3. **Patch each detected surface** idempotently, with a clear per-surface success/skip line.
-4. **Fail open + reversible**: every patch has a matching `uninstall`, never corrupts a
-   user's `settings.json` (merge, never overwrite).
+1. **Detect** installed agents (`~/.claude`, `~/.hermes`, `~/.openclaw`, …).
+2. **Wallet**: generate (viem) or import a Base address → `~/.latent-protocol/config.json`
+   (byte-compatible with the Python `setup.py` schema).
+3. **Patch each detected surface** idempotently.
+4. **Fail open + reversible**: merge, never overwrite user settings.
 
-### 2.2 The core architectural decision (READ THIS FIRST)
+**Architecture:** Option B — Node-native for Claude Code statusline; Hermes stays
+Python (pip + Hermes plugin entry point / flat plugin dir). Flagship `npx` flow
+needs zero Python for Claude Code-only machines.
 
-CodeBacks is all-Node, so `npx` runs the actual runtime, not just an installer. We are
-Python-first on the two most valuable surfaces (Claude Code statusline, Hermes). Two ways
-to get to one-line `npx`:
-
-- **Option A — Node orchestrator over existing Python runtime** (fast, less work):
-  the Node CLI writes configs and shells out to the Python console scripts. Requires the
-  user to have Python + our pip package. *Not really "one-line"* — still a hidden Python dep.
-- **Option B — Node-native runtime for the flagship surfaces** (recommended):
-  port the **Claude Code statusline renderer** and the **Hermes WebUI patch** to Node so
-  `npx latent init` needs zero Python. Keep Python only for MCP/Telegram/CLI SDK users.
-  This is what makes us match CodeBacks' "just works" install.
-
-**Recommendation: Option B**, staged — ship the Node CLI + Node statusline first (covers
-Claude Code, the strongest live surface), then fold Hermes in.
-
-### 2.3 Proposed package layout
+### Package layout
 
 ```
-cli/                          # NEW — published to npm as `latent` (bin: latent)
-├── package.json              # "bin": { "latent": "dist/index.js" }, engines node>=18
+cli/                          # published to npm as `latent` (bin: latent)
+├── package.json
 ├── src/
-│   ├── index.ts              # arg parse: init | status | uninstall
-│   ├── detect.ts             # agent detection
-│   ├── wallet.ts             # generate/import (viem), writes ~/.latent-protocol/config.json
-│   ├── surfaces/
-│   │   ├── claude-code.ts    # writes statusLine → "latent statusline" (node, self-invoke)
-│   │   ├── hermes-webui.ts   # DOM patch (ported from hermes_webui.py, verified selectors)
-│   │   ├── hermes-plugin.ts  # clone/link + enable
-│   │   └── openclaw.ts       # build + install the existing TS plugin
-│   └── statusline.ts         # NEW node port of claude_code.render() (rotation + OSC8)
+│   ├── index.ts              # init | status | uninstall | statusline
+│   ├── detect.ts
+│   ├── wallet.ts
+│   ├── config.ts
+│   ├── api.ts
+│   ├── statusline.ts         # Node port of claude_code.render()
+│   └── surfaces/
+│       ├── claude-code.ts
+│       └── hermes.ts
 └── tsconfig.json
 ```
 
-`npx latent init` writes `statusLine.command = "npx --yes latent statusline"` (or a locally
-linked bin), so the same package renders the live status line — no Python.
-
 ---
 
-## 3. Hermes integration — reconnaissance
+## 3. Hermes integration — recon (updated)
 
-### 3.1 How Hermes plugins work (as targeted by this repo)
+### 3.1 How Hermes plugins work
 
-- Plugin lives in `~/.hermes/plugins/<name>/`, declared by a `plugin.yaml` manifest
-  (`plugin/plugin.yaml`: `name: agent-ads`, `config: { ads.wallet, ads.enabled, … }`).
-- The runtime calls a `register(ctx)` entry; `ctx.register_hook(name, fn)` and
-  `ctx.register_command(name, fn, desc)` wire behavior. Our `plugin/__init__.py` re-exports
-  `register` from `adapters/hermes.py`.
-- Two ad surfaces are attempted, in priority order:
-  1. `pre_llm_call` — **thinking-state** context injection (returns `{context: …}`).
-  2. `transform_llm_output` (fallback `post_response`) — **response footer** (live today).
-- Plus the WebUI DOM patch (`hermes_webui.py`), a *separate* browser-side surface.
+Official docs: [Build a Hermes Plugin](https://hermes-agent.nousresearch.com/docs/developer-guide/plugins),
+[Event Hooks](https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks).
 
-### 3.2 Blocking bugs (mapped)
+- Plugin lives in `~/.hermes/plugins/<name>/` with **flat** `plugin.yaml` + `__init__.py`
+  exposing `register(ctx)`, **or** via pip entry point group `hermes_agent.plugins`.
+- Opt-in: `hermes plugins enable <name>` → `plugins.enabled` in `~/.hermes/config.yaml`.
+- Ad surfaces (priority order in our adapter):
+  1. `pre_llm_call` — thinking-state context injection (`{"context": …}`) — **LIVE**.
+  2. `transform_llm_output` — response footer (fallback when thinking hook did not own the turn).
+- Plus optional WebUI DOM patch (`hermes_webui.py`) for the browser dashboard
+  ([nesquena/hermes-webui](https://github.com/nesquena/hermes-webui)).
+
+### 3.2 Blocking bugs (mapped, revised)
 
 | # | Blocker | Where | Type | Effect | Fix owner |
 |---|---------|-------|------|--------|-----------|
-| B1 | `pre_llm_call` documented but **not dispatched** (hermes-agent#2817, "closed not planned") | upstream Hermes | External | Native thinking-state earns **$0**; hook is a no-op | Upstream — we stay forward-compat |
-| B2 | **WebUI DOM contract is unverified & self-contradicting** | `hermes_webui.py` vs `PRODUCT.md` | Internal | Banner may never render → thinking surface silently dead | **Us** |
-| B3 | `plugin.yaml` has **no entry pointer** to `register()` | `plugin/plugin.yaml` | Internal | Unclear/undocumented how Hermes discovers the entry; plugin may not load | **Us** |
-| B4 | `pip install --upgrade hermes-webui` **overwrites `index.html`** | patch mechanism | Internal/UX | Patch silently lost after upgrade | **Us** (detect + re-apply) |
-| B5 | Raw user prompt (first 100 chars) sent to server as `context` | `hermes.py`, `hermes_webui.py` | Internal/Privacy | Weaker privacy story than CodeBacks (slug-only) | **Us** |
-| B6 | No test coverage for the injected WebUI JS | tests | Internal | Regressions in the DOM patch invisible to CI | **Us** |
+| ~~B1~~ | ~~`pre_llm_call` not dispatched~~ | ~~#2817~~ | ~~External~~ | **RESOLVED** — fixed in #2820, closed 2026-04-27 | Upstream ✅ |
+| B2 | `PRODUCT.md` still documents legacy `#thinkingRow` | docs | Internal | Spec noise; runtime selector is fine | **Us** (docs) |
+| B3 | Install path / name mismatch | README, PLUGIN.md, layout | Internal | Plugin never loads | **Us** |
+| B4 | `pip upgrade hermes-webui` overwrites `index.html` | patch mechanism | Internal/UX | WebUI patch lost after upgrade | **Us** |
+| B5 | Raw user prompt (first 100 chars) sent as `context` | hermes adapters | Privacy | Weaker than slug-only | **Us** |
+| B6 | No jsdom coverage for WebUI JS | tests | Internal | DOM regressions invisible | **Us** |
+| B7 | Config bridge: Hermes `ads.*` vs `~/.latent-protocol/config.json` | config | Internal | `hermes config set ads.wallet` may not reach adapter | **Us** |
 
-#### B2 in detail (the real functional blocker)
+#### B3 in detail (highest-value Hermes fix)
 
-Two different, incompatible DOM contracts ship in the repo:
+Hermes requires:
 
-- `adapters/hermes_webui.py` (the code that runs):
-  - thinking element: `.agent-activity-thinking[data-thinking-active="1"]`
-  - last user text: `.user-segment:last-of-type .msg-body`
-- `PRODUCT.md` (the design spec):
-  - thinking element: `#thinkingRow` with `dataset.thinkingActive === '1'`
-  - hooks `window._thinkingTick`
+```
+~/.hermes/plugins/<name>/plugin.yaml
+~/.hermes/plugins/<name>/__init__.py   # register(ctx)
+```
 
-At most one of these matches a real Hermes WebUI build; neither is validated against a
-running instance. If the selector is wrong, the `MutationObserver` never fires and the
-**entire thinking-state surface on Hermes produces nothing** — while all Python-side unit
-tests stay green (they don't exercise the JS). This is the highest-value Hermes fix we
-own outright.
+Cloning the whole monorepo into `~/.hermes/plugins/latent-protocol` puts
+`plugin.yaml` one level too deep → discovery skips it.
 
-### 3.3 What actually works on Hermes today
+Also: manifest `name: agent-ads` but docs tell users to enable `latent-protocol`.
 
-- ✅ `transform_llm_output` **response footer** — live revenue surface (multi-channel style
-  mapping: telegram / cli-ANSI / markdown).
-- ✅ `/ads` command suite (setup/on/off/click/balance/payout/settings).
-- ⚠️ WebUI thinking banner — works *only if* the DOM selector is correct (B2).
-- ❌ `pre_llm_call` native thinking — dead pending B1.
+**Fix:** pip entry point + `npx latent init` writes a flat `agent-ads` plugin dir
+(or enables the entry-point plugin) and documents `hermes plugins enable agent-ads`.
+
+#### B2 in detail (downgraded)
+
+Runtime code uses `.agent-activity-thinking[data-thinking-active="1"]` — matches
+current hermes-webui. `PRODUCT.md` `#thinkingRow` path is legacy; update the spec,
+keep the runtime selector.
+
+### 3.3 What works on Hermes today
+
+- ✅ `pre_llm_call` thinking-state — live on current Hermes (post-#2820).
+- ✅ `transform_llm_output` response footer — live fallback / older builds.
+- ✅ `/ads` command suite.
+- ⚠️ WebUI thinking banner — selector OK; upgrade still wipes the patch (B4).
+- ⚠️ Install/docs — broken until B3/B7 fixed.
 
 ---
 
 ## 4. Phased engineering plan
 
-### Phase 1 — Node CLI skeleton + wallet + Claude Code (highest ROI, fully in our control)
-- [ ] Create `cli/` npm package, `bin: latent`, `node>=18`, TS build.
-- [ ] `latent init` → agent detection (`detect.ts`) + summary table.
-- [ ] `wallet.ts`: generate (viem) / import; write `~/.latent-protocol/config.json`
-      (byte-compatible with the Python `setup.py` schema).
-- [ ] Node port of the statusline renderer (`statusline.ts`): disk-cache rotation,
-      OSC 8 https-only, fail-open. Reuse the exact anti-spam + security rules from
-      `claude_code.py`.
-- [ ] `latent init` writes the `statusLine` block into `~/.claude/settings.json`
-      (merge, never overwrite) pointing at `latent statusline`.
-- [ ] `latent uninstall` reverts it.
-- **Exit criteria:** `npx latent init` on a machine with only Node installed shows a live
-  sponsored status line in Claude Code, impressions billed once per rotation.
+### Phase 1 — Node CLI + Claude Code + Hermes install fix (this PR)
+- [x] Create `cli/` npm package, `bin: latent`, `node>=18`, TS build.
+- [x] `latent init` → agent detection + wallet + surface patching.
+- [x] Node statusline renderer (rotation + OSC 8 https-only + fail-open).
+- [x] Claude Code: merge `statusLine` → `npx --yes latent statusline`.
+- [x] Hermes: pip entry point + flat plugin dir install + `hermes plugins enable agent-ads`.
+- [x] Docs: B1 corrected, PLUGIN/README install paths fixed.
+- **Exit criteria:** `npx latent init` on a Node-only machine lights Claude Code;
+  with Python + Hermes present, also enables `agent-ads`.
 
 ### Phase 2 — Multi-surface orchestration
-- [ ] `openclaw.ts`: build (`tsc`) + `openclaw plugins install ./openclaw-plugin --link` +
-      enable + set wallet.
-- [ ] `hermes-plugin.ts`: clone/symlink into `~/.hermes/plugins/` + enable + set `ads.wallet`.
-- [ ] `latent status`: read config + call `/earnings/{wallet}` for balance; list patched
-      surfaces.
-- [ ] Codex / Cursor / VS Code detection stubs (patch where a surface exists).
+- [ ] OpenClaw surface in the CLI.
+- [ ] `latent status` earnings + patched-surface list (partial in Phase 1).
+- [ ] Codex / Cursor detection stubs.
 
-### Phase 3 — Hermes thinking-state hardening (fix B2–B6)
-- [ ] **B2**: obtain a real Hermes WebUI build; capture the actual thinking-row DOM;
-      pick ONE verified selector; delete the contradicting spec in `PRODUCT.md`.
-      Add a resilient multi-selector fallback + a one-time console.warn when none match.
-- [ ] **B6**: jsdom test that drives the injected script against a fixture of the real
-      thinking-row markup (banner appears once, impression posted once, cleared on exit).
-- [ ] **B4**: `hermes-webui.ts` records a content hash; `latent status` warns + offers
-      re-patch when `index.html` no longer contains the marker (post-upgrade detection).
-- [ ] **B3**: confirm the real Hermes plugin-discovery contract; add whatever
-      entry/module pointer `plugin.yaml` needs (or document why re-export suffices).
-- [ ] **B5** (privacy, cross-cutting): move to **client-side categorization** — send only a
-      category slug to `/ad/request`, never raw prompt text. Matches CodeBacks' privacy
-      claim and is a marketing differentiator. Applies to `claude_code.py`, `hermes.py`,
-      `hermes_webui.py`, and the new Node renderer.
+### Phase 3 — Hermes hardening (B4–B7)
+- [ ] B4: content-hash re-patch detection after hermes-webui upgrades.
+- [ ] B5: client-side categorization (slug only, no raw prompt).
+- [ ] B6: jsdom fixture tests for WebUI injected script.
+- [ ] B7: read Hermes plugin config keys as a fallback in `Config.from_env()`.
 
 ### Phase 4 — Make "Live" true (build/publish/CI)
-- [ ] Build the OpenClaw plugin `dist/` in CI; add `tsc --noEmit` typecheck for both
-      `cli/` and `openclaw-plugin/` (today CI runs Python tests only).
-- [ ] Resolve the OpenClaw manifest question: `openclaw.plugin.json` currently declares
-      `"kind": "skill"` while shipping a hook plugin with `definePluginEntry`; the
-      `OPENCLAW_PLUGIN.md` example JSON contradicts the real manifest. Pick one, validate
-      against the SDK, publish to ClawHub.
-- [ ] Publish `latent` to npm; publish `latent-protocol` to PyPI (verify it isn't a
-      phantom badge like the kickbacks lesson).
-- [ ] End-to-end smoke against live `api.latentprotocol.xyz` with a seeded ad + real wallet
-      (currently x402 + payout are stubs; no verified live inventory).
+- [ ] Publish `latent` to npm; publish `latent-protocol` to PyPI.
+- [ ] CI: `tsc --noEmit` for `cli/` + `openclaw-plugin/`.
+- [ ] E2E smoke against live `api.latentprotocol.xyz`.
 
 ---
 
 ## 5. Risks / open questions
 
-- **B1 is not ours to fix.** Native Hermes thinking-state depends on upstream #2817. Do not
-  block the roadmap on it; the WebUI patch (B2) is the pragmatic thinking surface.
-- **Do we require Python at all after Phase 1–3?** Only for MCP/Telegram/CLI SDK consumers.
-  The flagship `npx` flow (Claude Code + Hermes WebUI + OpenClaw) becomes Python-free.
-- **Real Hermes WebUI DOM is unknown to us.** Phase 3 is blocked on getting a real build to
-  inspect; everything before it is not.
-- **Config file is a shared contract** between Python and Node (`~/.latent-protocol/config.json`).
-  Keep the schema identical so a user can mix installers.
+- **Hermes still needs Python** after Phase 1 (plugin runtime). Claude Code does not.
+- **Config file is a shared contract** (`~/.latent-protocol/config.json`) between
+  Python and Node — keep the schema identical.
+- **npm package name `latent`** — verify availability before first publish.
+- **PyPI publish** required for the cleanest Hermes path (`pip install latent-protocol`);
+  until then init falls back to `pip install git+https://…`.
 
 ---
 
 ## 6. Suggested first PR
 
-Phase 1 only: `cli/` package + `latent init`/`uninstall` + Node statusline for Claude Code.
-It is self-contained, needs no Hermes build to inspect, and immediately delivers the
-one-line `npx` promise on our strongest live surface.
+Phase 1: `cli/` package + docs correction + Hermes install path fix.
+Self-contained, delivers one-line `npx` for Claude Code, and makes Hermes
+actually load on current official Hermes.

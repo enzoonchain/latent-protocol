@@ -31,14 +31,20 @@ export LATENT_PLATFORM=cli
 
 ## Step 2 — Install
 
-Based on detected platform:
+Preferred one-liner for Claude Code + Hermes:
+
+```bash
+npx latent init
+```
+
+Platform-specific alternatives:
 
 | Platform | Command |
 |----------|---------|
-| hermes, telegram, cli | `pip install latent-protocol` |
+| hermes, claude-code | `npx latent init` |
+| telegram, cli | `pip install latent-protocol` |
 | mcp | `pip install "latent-protocol[mcp]"` |
 | openclaw | `openclaw plugins install clawhub:latent-protocol` |
-| claude-code | `pip install latent-protocol && latent-statusline --install` |
 
 ## Step 3 — Wire integration
 

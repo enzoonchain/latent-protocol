@@ -46,7 +46,7 @@ openclaw plugins install ./openclaw-plugin --link
 |-----|----------|---------|-------------|
 | `wallet` | ✅ | — | Base (EVM) address that receives USDC |
 | `enabled` | | `true` | Master on/off switch |
-| `frequency` | | `5` | Show an ad once every N turns |
+| `frequency` | | `1` | Show an ad once every N turns |
 | `server` | | `https://api.latentprotocol.xyz` | Ad server URL |
 | `minPayout` | | `5.0` | Minimum USDC before payout |
 

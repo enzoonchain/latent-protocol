@@ -12,14 +12,33 @@ Built on [x402](https://x402.org) — the internet's native payment protocol by 
 
 ## Quick Start
 
-### Install Plugin (Hermes Users)
+### One-line install (Claude Code + Hermes)
+
+Prerequisite: [Hermes](https://hermes-agent.nousresearch.com/docs/getting-started/quickstart) or Claude Code already installed.
 
 ```bash
-cd ~/.hermes/plugins/
-git clone https://github.com/enzoonchain/latent-protocol.git agent-ads
-hermes config set plugins.enabled '[agent-ads]'
-hermes config set ads.wallet 0xYOUR_BASE_WALLET
-hermes gateway restart
+# after npm publish:
+npx latent-protocol init
+
+# until publish lands (from this repo / GitHub):
+npx --yes github:enzoonchain/latent-protocol init --yes --generate
+```
+
+This detects installed agents, sets up a Base wallet, and patches every surface it finds:
+
+- **Claude Code** — Node status line (no Python required)
+- **Hermes** — pip package + `agent-ads` plugin enable (Python 3.10+)
+
+```bash
+npx latent-protocol status      # wallet, balance, patched surfaces
+npx latent-protocol uninstall   # revert patches
+```
+
+Point at a custom ad server (e.g. staging):
+
+```bash
+npx latent-protocol init --yes --generate \
+  --server https://ad-server-production-bffc.up.railway.app
 ```
 
 ### Self-Host Ad Server
@@ -34,9 +53,9 @@ docker compose up -d
 ## Architecture
 
 ```
-Advertiser (Protocol/Token)     User/Agent (Hermes)
+Advertiser (Protocol/Token)     User/Agent (Hermes / Claude Code)
         │                              │
-        │  x402 payment                │  plugin fetches ad
+        │  x402 payment                │  plugin / statusline fetches ad
         ▼                              ▼
 ┌──────────────────────────────────────────────┐
 │           AD MARKETPLACE SERVER               │
@@ -56,11 +75,12 @@ Advertiser (Protocol/Token)     User/Agent (Hermes)
 
 ## Features
 
-- **Hermes Plugin** — drop-in plugin for any Hermes instance
+- **One-line `npx latent init`** — Claude Code + Hermes onboarding
+- **Hermes Plugin** — `pre_llm_call` thinking-state + response footer
+- **Claude Code status line** — sponsored chrome while the agent thinks
 - **x402 Payments** — instant USDC micropayments on Base (~$0.0001 gas)
-- **Multi-surface** — WebUI thinking state, response footer, Telegram, CLI
+- **Multi-surface** — WebUI thinking state, Telegram, CLI, MCP
 - **Block Bidding** — advertisers buy blocks of 1,000 impressions
-- **User Dashboard** — earnings, stats, payout management
 - **Open Source** — Apache-2.0, self-hostable
 
 ## Revenue Split
@@ -75,11 +95,11 @@ Advertiser (Protocol/Token)     User/Agent (Hermes)
 
 ```
 latent-protocol/
+├── cli/             # npm `latent` — npx installer + Node statusline
 ├── server/          # FastAPI ad server + x402
-├── plugin/          # Hermes plugin
-├── webui/           # WebUI patches (thinking state, footer)
-├── portal/          # Advertiser portal (Next.js)
-├── contracts/       # Smart contracts (optional)
+├── plugin/          # Hermes plugin (flat dir template)
+├── openclaw-plugin/ # OpenClaw TypeScript plugin
+├── landing/         # Advertiser portal (Next.js)
 ├── docs/            # Documentation
 └── scripts/         # Setup + deployment scripts
 ```
@@ -92,7 +112,8 @@ latent-protocol/
 | Database | Railway Postgres (SQLAlchemy async + asyncpg) |
 | Payments | x402 protocol, USDC on Base |
 | Facilitator | Coinbase CDP (1K free tx/mo) |
-| Plugin | Hermes plugin system |
+| Installer | Node CLI (`npx latent`) |
+| Plugin | Hermes plugin system + Claude Code statusLine |
 | Portal | Next.js + Wagmi + RainbowKit |
 | Chain | Base L2 (eip155:8453) |
 
@@ -100,6 +121,7 @@ latent-protocol/
 
 - [Product](PRODUCT.md) — product spec and architecture
 - [Plugin Guide](docs/PLUGIN.md) — plugin installation + configuration
+- [Dev Plan](docs/DEV_PLAN_NPX_HERMES.md) — `npx` installer + Hermes recon
 - [OpenClaw Plugin](docs/OPENCLAW_PLUGIN.md) — OpenClaw-specific setup
 - [Advertiser Guide](docs/ADVERTISER.md) — how to create campaigns
 

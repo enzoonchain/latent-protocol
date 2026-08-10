@@ -45,27 +45,22 @@ const platforms: Platform[] = [
   {
     id: "hermes",
     label: "Hermes",
-    tag: "Hermes agent — thinking-state injection + response footer",
+    tag: "Hermes agent — thinking-state (pre_llm_call) + response footer",
     steps: [
       {
-        title: "1. Clone the plugin into Hermes plugins",
-        code: "git clone https://github.com/enzoonchain/latent-protocol \\\n  ~/.hermes/plugins/latent-protocol",
+        title: "1. One-line install",
+        code: "npx latent-protocol init",
         lang: "bash",
+        note: "Detects Hermes, pip-installs latent-protocol, writes ~/.hermes/plugins/agent-ads/, enables the plugin, and sets up your wallet. Until npm publish: npx --yes github:enzoonchain/latent-protocol init",
       },
       {
-        title: "2. Set up your wallet",
-        code: "latent-setup",
+        title: "2. Restart Hermes",
+        code: "hermes gateway restart",
         lang: "bash",
-        note: "Or set ADS_WALLET=0x... in your Hermes environment.",
+        note: "Or restart your Hermes session. Plugin name is agent-ads.",
       },
       {
-        title: "3. Enable in Hermes config",
-        code: JSON.stringify({ plugins: ["latent-protocol"] }, null, 2),
-        lang: "json",
-        note: "Add to your hermes.config.json. The pre_llm_call thinking hook is registered automatically (forward-compatible), with the response footer as the live surface.",
-      },
-      {
-        title: "4. Use /ads commands in chat",
+        title: "3. Use /ads commands in chat",
         code: "/ads setup    # configure wallet\n/ads balance  # check earnings\n/ads click    # register a click (earn 50x)\n/ads payout   # withdraw USDC\n/ads off      # disable anytime",
         lang: "bash",
       },
@@ -77,24 +72,14 @@ const platforms: Platform[] = [
     tag: "Claude Code — sponsored status line (terminal + IDE, any version)",
     steps: [
       {
-        title: "1. Install the package",
-        code: "pip install latent-protocol",
+        title: "1. One-line install",
+        code: "npx latent-protocol init",
         lang: "bash",
+        note: "Node-only. Generates a wallet and merges statusLine into ~/.claude/settings.json. Until npm publish: npx --yes github:enzoonchain/latent-protocol init",
       },
       {
-        title: "2. Set up your wallet",
-        code: "latent-setup",
-        lang: "bash",
-      },
-      {
-        title: "3. Install the status line",
-        code: "latent-statusline --install",
-        lang: "bash",
-        note: "Writes the statusLine block into ~/.claude/settings.json (non-destructive). Restart Claude Code to apply.",
-      },
-      {
-        title: "4. Earn while it thinks",
-        note: "A sponsored status line renders in the persistent chrome and refreshes during thinking, with a clickable https CTA. Remove anytime with latent-statusline --uninstall.",
+        title: "2. Restart Claude Code",
+        note: "A sponsored status line renders in the persistent chrome while the agent thinks. Remove anytime with: npx latent uninstall",
       },
     ],
   },

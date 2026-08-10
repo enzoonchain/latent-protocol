@@ -156,9 +156,12 @@ def render(session: dict | None = None) -> str:
     if fresh:
         return format_statusline(cache["ad"])
 
-    # Rotation window elapsed (or first run) → fetch a new ad, bill once.
+    # Rotation window elapsed (or first run) → reserve, render, then bill.
+    from ..delivery import confirm_display, reserve_ad
+
     client = AdClient(config.server)
-    ad = client.get_ad(
+    ad = reserve_ad(
+        client,
         wallet=config.wallet,
         context=_context_from_session(session),
         agent="claude_code",
@@ -167,11 +170,13 @@ def render(session: dict | None = None) -> str:
     if not ad:
         return ""
 
-    Tracker(config.server).log_impression(
-        ad.get("ad_id", ad.get("id", "")), config.wallet, ad.get("impression_token", "")
-    )
+    line = format_statusline(ad)
+    if not line:
+        return ""
+    # Commit point: Claude Code displays whatever we return on the status line.
+    confirm_display(Tracker(config.server), ad, config.wallet)
     _save_cache({"ad": ad, "fetched_at": now, "session_id": session_id})
-    return format_statusline(ad)
+    return line
 
 
 # ── settings.json install / uninstall ────────────────────────────────────────
@@ -201,11 +206,22 @@ def install(refresh_interval: int = _DEFAULT_REFRESH_INTERVAL) -> str:
     )
 
 
+_STATUSLINE_COMMANDS = frozenset({
+    "latent-statusline",
+    "latent statusline",
+    "latent-protocol statusline",
+    "npx --yes latent statusline",
+    "npx -y latent statusline",
+    "npx --yes latent-protocol statusline",
+    "npx -y latent-protocol statusline",
+})
+
+
 def uninstall() -> str:
     """Remove our statusLine block from ~/.claude/settings.json."""
     settings = _load_claude_settings()
     sl = settings.get("statusLine")
-    if isinstance(sl, dict) and sl.get("command") == "latent-statusline":
+    if isinstance(sl, dict) and sl.get("command") in _STATUSLINE_COMMANDS:
         settings.pop("statusLine", None)
         _CLAUDE_SETTINGS.write_text(json.dumps(settings, indent=2))
         return f"✅ Removed Latent Protocol statusLine from {_CLAUDE_SETTINGS}"

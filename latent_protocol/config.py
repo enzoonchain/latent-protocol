@@ -35,7 +35,7 @@ class Config:
             enabled=enabled,
             wallet=_get("wallet", "ADS_WALLET", ""),
             server=_get("server", "ADS_SERVER", "https://api.latentprotocol.xyz"),
-            frequency=int(_get("frequency", "ADS_FREQUENCY", "5")),
+            frequency=int(_get("frequency", "ADS_FREQUENCY", "1")),
             min_payout=float(_get("min_payout", "ADS_MIN_PAYOUT", "5.0")),
             categories=categories,
         )

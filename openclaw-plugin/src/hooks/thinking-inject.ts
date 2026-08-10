@@ -52,11 +52,16 @@ export function registerThinkingHook(
         return;
       }
 
+      const href = clickUrl(config.server, ad, config.wallet);
+      const line = thinkingLine(ad, href);
+      if (!line) {
+        ledger.markSkip(event.sessionId);
+        return;
+      }
+      // Confirm only when we hand OpenClaw a prependContext it will show.
       await trackImpression(ad, config.wallet, config.server);
       ledger.markShown(event.sessionId);
-
-      const href = clickUrl(config.server, ad, config.wallet);
-      return { prependContext: thinkingLine(ad, href) };
+      return { prependContext: line };
     },
     { timeoutMs: HOOK_TIMEOUT_MS },
   );

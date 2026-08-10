@@ -4,9 +4,23 @@ Earn USDC from sponsored ads shown in your AI agent. Pick your platform below.
 
 ---
 
+## One-line install (recommended)
+
+```bash
+npx latent-protocol init
+# until npm publish: npx --yes github:enzoonchain/latent-protocol init
+```
+
+Detects Claude Code / Hermes / Hermes WebUI / OpenClaw, sets up a wallet, and
+patches every surface it finds (CLI plugin, WebUI DOM patch, statusLine, OpenClaw plugin).
+See the [dev plan](DEV_PLAN_NPX_HERMES.md) for architecture details.
+
+---
+
 ## Requirements
 
-- Python 3.10+
+- **Claude Code path:** Node.js 18+
+- **Hermes / MCP / Telegram / CLI path:** Python 3.10+
 - An EVM wallet address on Base (generated during setup, or bring your own)
 
 ---
@@ -69,30 +83,48 @@ Generates a new wallet or imports your existing address. Config saved to `~/.lat
 
 ## Option B — Hermes Plugin
 
-### 1. Clone the plugin
+Hermes discovers plugins from a **flat** directory (`plugin.yaml` + `__init__.py`
+with `register(ctx)`) or via the `hermes_agent.plugins` pip entry point.
+Plugins are **opt-in** — you must enable them.
+
+### Recommended: `npx latent init`
 
 ```bash
-git clone https://github.com/enzoonchain/latent-protocol \
-  ~/.hermes/plugins/latent-protocol
+npx latent init
+# or non-interactive:
+npx latent init --yes --generate
 ```
 
-### 2. Set up your wallet
+This installs the Python package, writes `~/.hermes/plugins/agent-ads/`, enables
+the plugin, and saves your wallet to `~/.latent-protocol/config.json`.
+
+### Manual install
 
 ```bash
-latent-setup
+pip install latent-protocol
+# until PyPI publish lands, use:
+# pip install 'git+https://github.com/enzoonchain/latent-protocol.git'
+
+latent-setup   # writes ~/.latent-protocol/config.json
+
+# Flat plugin dir (required for directory discovery):
+mkdir -p ~/.hermes/plugins/agent-ads
+# copy plugin/plugin.yaml + plugin/__init__.py into that directory
+# (npx latent init does this for you)
+
+hermes plugins enable agent-ads
+hermes gateway restart   # if you use the messaging gateway
 ```
 
-Or set `ADS_WALLET=0x...` in your Hermes environment.
+**Do not** clone the whole monorepo into `~/.hermes/plugins/` — Hermes will not
+find `plugin.yaml` one level deeper.
 
-### 3. Enable in Hermes config
+### Config note
 
-```json
-{
-  "plugins": ["latent-protocol"]
-}
-```
+The adapter reads **`~/.latent-protocol/config.json`** (and `ADS_*` env vars),
+not Hermes `ads.wallet` keys. Prefer `latent-setup` or `/ads setup` in chat.
 
-### 4. Use /ads commands in chat
+### Use /ads commands in chat
 
 ```
 /ads setup          — configure your wallet
@@ -104,9 +136,33 @@ Or set `ADS_WALLET=0x...` in your Hermes environment.
 /ads settings       — view current config
 ```
 
+### Surfaces
+
+| Surface | Hook | Status |
+|---------|------|--------|
+| Thinking-state reserve | `pre_llm_call` (reserve only — **not billable**) | ✅ Live (Hermes ≥ fix #2820) |
+| Response footer | `transform_llm_output` + confirm on `post_llm_call` / `post_response` | ✅ Live (bill only if shown) |
+| Hermes gateway (Telegram, Discord, …) | Same `agent-ads` plugin | ✅ Same install as CLI |
+| WebUI banner + footer | DOM patch via `latent-hermes-patch` (WebUI does **not** load Hermes plugins) | ✅ via `npx init` when `static/` is found |
+| OpenClaw (WA/TG/Slack/…) | TS plugin thinking + footer | ✅ via `npx init` when `~/.openclaw` / `openclaw` found |
+| Claude Code | statusLine | ✅ via `npx init` |
+
 ---
 
-## Option C — Telegram Bot
+## Option C — Claude Code (status line)
+
+```bash
+npx latent init
+# or:
+npx latent statusline --install
+```
+
+Writes a `statusLine` block into `~/.claude/settings.json` that runs
+`npx --yes latent statusline` on every refresh. Restart Claude Code to apply.
+
+---
+
+## Option D — Telegram Bot
 
 Works with **python-telegram-bot**, **aiogram**, **telebot**, and any Python bot framework.
 
@@ -148,7 +204,7 @@ adapter.wrap_response(response, context=text, user_id=str(update.effective_user.
 
 ---
 
-## Option D — CLI / Terminal
+## Option E — CLI / Terminal
 
 Works with **Click**, **Typer**, **argparse**, and plain Python scripts.
 
@@ -195,7 +251,7 @@ Config is read in priority order: **config file > env vars > defaults**.
 |---------|----------------|---------|---------|
 | Wallet address | `wallet` | `ADS_WALLET` | — |
 | Enabled | `enabled` | `ADS_ENABLED` | `true` |
-| Ad frequency | `frequency` | `ADS_FREQUENCY` | `5` (every 5 msgs) |
+| Ad frequency | `frequency` | `ADS_FREQUENCY` | `1` (every message) |
 | Server URL | `server` | `ADS_SERVER` | `https://api.latentprotocol.xyz` |
 | Min payout | `min_payout` | `ADS_MIN_PAYOUT` | `5.0` USDC |
 

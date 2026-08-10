@@ -99,12 +99,12 @@ def test_should_show_ad_session_cap():
 
 def test_should_show_ad_frequency():
     """Should show ad at frequency intervals."""
-    # Default frequency is 5
-    assert should_show_ad("wallet", 0, 0) is True   # 0 % 5 == 0
-    assert should_show_ad("wallet", 1, 0) is False  # 1 % 5 != 0
-    assert should_show_ad("wallet", 4, 0) is False  # 4 % 5 != 0
-    assert should_show_ad("wallet", 5, 0) is True   # 5 % 5 == 0
-    assert should_show_ad("wallet", 10, 0) is True  # 10 % 5 == 0
+    # Default frequency is 1 (every message)
+    assert should_show_ad("wallet", 0, 0) is True
+    assert should_show_ad("wallet", 1, 0) is True
+    assert should_show_ad("wallet", 4, 0) is True
+    assert should_show_ad("wallet", 5, 0) is True
+    assert should_show_ad("wallet", 10, 0) is True
 
 
 def test_cleanup_old():

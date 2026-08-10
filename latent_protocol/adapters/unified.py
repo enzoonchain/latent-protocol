@@ -108,40 +108,58 @@ class UnifiedAdapter:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _fetch_ad(self, context: str = "general") -> dict | None:
+    def _reserve_ad(self, context: str = "general") -> dict | None:
+        """Reserve a creative (no billing)."""
         if not self._cfg.enabled or not self._cfg.wallet:
             return None
         if not self._counter.tick():
             return None
-        ad = self._client.get_ad(
+        from ..delivery import reserve_ad
+
+        return reserve_ad(
+            self._client,
             wallet=self._cfg.wallet,
-            context=(context or "general")[:100],
+            context=context or "general",
             agent=self.platform,
             surface="response_footer",
         )
-        if not ad:
-            return None
-        self._tracker.log_impression(
-            ad.get("ad_id", ad.get("id", "")), self._cfg.wallet, ad.get("impression_token", "")
-        )
-        return ad
 
     # ------------------------------------------------------------------
     # Universal interface
     # ------------------------------------------------------------------
 
     def get_footer(self, context: str = "general") -> str | None:
-        """Fetch an ad and return a rendered footer string, or ``None``."""
-        ad = self._fetch_ad(context)
+        """Reserve an ad and return a rendered footer, or ``None``.
+
+        Does not bill — callers that display the footer must confirm
+        (``wrap`` does this).
+        """
+        ad = self._reserve_ad(context)
         return format_footer(ad, style=self.style) if ad else None
 
     def wrap(self, text: str, context: str = "general") -> str:
         """Return *text* with a sponsored footer appended, or *text* unchanged.
 
-        This is the main method — works identically on all platforms.
+        Bills only when the returned string contains the sponsored footer.
         """
-        footer = self.get_footer(context)
-        return (text + footer) if footer else text
+        from ..delivery import confirm_if_displayed, reserve_ad
+
+        if not self._cfg.enabled or not self._cfg.wallet:
+            return text
+        if not self._counter.tick():
+            return text
+        ad = reserve_ad(
+            self._client,
+            wallet=self._cfg.wallet,
+            context=context or "general",
+            agent=self.platform,
+            surface="response_footer",
+        )
+        if not ad:
+            return text
+        out = text + format_footer(ad, style=self.style)
+        confirm_if_displayed(self._tracker, ad, self._cfg.wallet, out)
+        return out
 
     # ------------------------------------------------------------------
     # Hermes

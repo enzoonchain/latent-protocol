@@ -23,10 +23,13 @@ The design below was validated against the official SDK:
 | [OpenViking#1283](https://github.com/volcengine/OpenViking/issues/1283) | 2026.4.5 regression: model call stall after hook | `enqueueNextTurnInjection` + `timeoutMs` |
 | `allowPromptInjection=false` | disables all prompt-mutating hooks | surfaces 1 & 3 silently no-op |
 
-### Hermes Parallel (important!)
+### Hermes Parallel
 
-The Hermes `pre_llm_call` thinking hook is **documented but not running**
-([hermes-agent#2817](https://github.com/NousResearch/hermes-agent/issues/2817), "closed as not planned"). Therefore on Hermes, `transform_llm_output` footer is the only live surface; we register `pre_llm_call` in a forward-compatible way (`latent_protocol/adapters/hermes.py`), which will activate automatically when #2817 is resolved. **OpenClaw is the only platform with a working thinking-state today.**
+Hermes `pre_llm_call` is **live** on current builds — [#2817](https://github.com/NousResearch/hermes-agent/issues/2817)
+was fixed in PR #2820 (closed 2026-04-27 as implemented). Our Hermes adapter uses
+`pre_llm_call` as the primary thinking-state surface and `transform_llm_output` as
+the footer fallback. OpenClaw remains the strongest multi-channel / ClawHub surface;
+Hermes is the strongest Python-native / Nous ecosystem surface.
 
 ---
 
@@ -34,13 +37,13 @@ The Hermes `pre_llm_call` thinking hook is **documented but not running**
 
 | Feature | OpenClaw | Hermes | Claude Code | Codex/MiMo |
 |---------|----------|--------|-------------|------------|
-| **Thinking State** | ✅ `before_prompt_build` | ✅ `pre_llm_call` | ❌ No | ❌ No |
+| **Thinking State** | ✅ `before_prompt_build` | ✅ `pre_llm_call` | ⚠️ statusLine | ❌ No |
 | **Plugin system** | ✅ Full (`api.on(...)`) | ✅ `register_hook()` | ⚠️ Hooks only | ⚠️ Skill only |
-| **Thinking injection** | ✅ `enqueueNextTurnInjection` | ⚠️ Context only | ❌ No | ❌ No |
-| **Multi-channel** | ✅ 13+ (WA, TG, Slack, Discord) | ⚠️ Telegram | ❌ Terminal | ❌ Terminal |
+| **Thinking injection** | ✅ `enqueueNextTurnInjection` | ✅ Context append | ⚠️ status chrome | ❌ No |
+| **Multi-channel** | ✅ 13+ (WA, TG, Slack, Discord) | ✅ Gateway (TG, Discord, …) | ❌ Terminal | ❌ Terminal |
 | **ClawHub registry** | ✅ Public skill marketplace | ❌ No | ❌ No | ❌ No |
 
-**OpenClaw = thinking state ad injection + multi-channel + plugin system**
+**OpenClaw = thinking state ad injection + multi-channel + ClawHub**
 
 ---
 

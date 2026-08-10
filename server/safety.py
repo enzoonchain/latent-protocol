@@ -104,7 +104,7 @@ def is_content_allowed(title: str, body: str) -> bool:
 # ── Ad Frequency (per-user configurable) ──
 
 # Default frequency: show ad every N messages
-DEFAULT_AD_FREQUENCY = int(os.getenv("ADS_FREQUENCY", "5"))
+DEFAULT_AD_FREQUENCY = int(os.getenv("ADS_FREQUENCY", "1"))
 MIN_AD_FREQUENCY = 1
 MAX_AD_FREQUENCY = 100
 
