@@ -788,6 +788,62 @@ const PRE_AUTH_BEGIN = "# latent-protocol-pre-auth-begin";
 const PRE_AUTH_END = "# latent-protocol-pre-auth-end";
 const CSRF_EXEMPT_BEGIN = "# latent-protocol-csrf-exempt-begin";
 const CSRF_EXEMPT_END = "# latent-protocol-csrf-exempt-end";
+const NUCLEAR_BEGIN = "# latent-protocol-nuclear-begin";
+const NUCLEAR_END = "# latent-protocol-nuclear-end";
+
+function nuclearWrapSnippet(): string {
+  // Must be placed BEFORE `if __name__ == "__main__"` so it runs at import time.
+  return [
+    NUCLEAR_BEGIN,
+    "try:",
+    "    import http.server as _latent_http_server",
+    "    _latent_handler_cls = None",
+    "    for _latent_name, _latent_obj in list(globals().items()):",
+    "        if (",
+    "            isinstance(_latent_obj, type)",
+    "            and issubclass(_latent_obj, _latent_http_server.BaseHTTPRequestHandler)",
+    "            and _latent_obj is not _latent_http_server.BaseHTTPRequestHandler",
+    '            and hasattr(_latent_obj, "do_POST")',
+    "        ):",
+    "            _latent_handler_cls = _latent_obj",
+    "            break",
+    "    if _latent_handler_cls is not None:",
+    "        _latent_orig_do_POST = _latent_handler_cls.do_POST",
+    "",
+    "        def _latent_nuclear_do_POST(self, *args, **kwargs):",
+    "            try:",
+    "                from urllib.parse import urlparse as _latent_urlparse",
+    '                _latent_parsed = _latent_urlparse(getattr(self, "path", "") or "")',
+    '                _latent_path = _latent_parsed.path or ""',
+    '                if ("/api/latent/" in _latent_path) or ("/__latent__/" in _latent_path):',
+    "                    from api.latent_ads_proxy import handle_latent_proxy",
+    "                    return handle_latent_proxy(self, _latent_parsed)",
+    "            except Exception as _latent_exc:",
+    "                try:",
+    '                    print("[latent-protocol] nuclear do_POST error: %r" % (_latent_exc,), flush=True)',
+    "                except Exception:",
+    "                    pass",
+    "                try:",
+    `                    _latent_body = b'{"error":"proxy_failed","where":"nuclear"}'`,
+    "                    self.send_response(502)",
+    '                    self.send_header("Content-Type", "application/json")',
+    "                    self.send_header(\"Content-Length\", str(len(_latent_body)))",
+    "                    self.end_headers()",
+    "                    self.wfile.write(_latent_body)",
+    "                    return",
+    "                except Exception:",
+    "                    pass",
+    "            return _latent_orig_do_POST(self, *args, **kwargs)",
+    "",
+    "        _latent_handler_cls.do_POST = _latent_nuclear_do_POST",
+    '        print("[latent-protocol] nuclear do_POST wrap installed on %s" % (_latent_handler_cls.__name__,), flush=True)',
+    "    else:",
+    '        print("[latent-protocol] nuclear wrap: no Handler class found", flush=True)',
+    "except Exception as _latent_nuclear_exc:",
+    '    print("[latent-protocol] nuclear wrap failed: %r" % (_latent_nuclear_exc,), flush=True)',
+    NUCLEAR_END,
+  ].join("\n");
+}
 
 function authExemptSnippet(indent = "        "): string {
   return [
@@ -910,6 +966,7 @@ export function patchWebuiLatentProxy(opts: {
     serverSrc = stripMarkedBlock(serverSrc, SERVER_PROXY_BEGIN, SERVER_PROXY_END);
     serverSrc = stripMarkedBlock(serverSrc, AUTH_SHADOW_BEGIN, AUTH_SHADOW_END);
     serverSrc = stripMarkedBlock(serverSrc, PRE_AUTH_BEGIN, PRE_AUTH_END);
+    serverSrc = stripMarkedBlock(serverSrc, NUCLEAR_BEGIN, NUCLEAR_END);
 
     let serverInserted = 0;
     for (const { re, indent } of [
@@ -951,7 +1008,7 @@ export function patchWebuiLatentProxy(opts: {
         : "server.py: check_auth shadow skipped",
     );
 
-    // Nuclear: proxy immediately before every check_auth(self, parsed) call site.
+    // Proxy immediately before every check_auth(self, parsed) call site.
     const pre = insertBeforeMatch(
       serverSrc,
       /^[ \t]*if (?:not _is_csp_report_post and )?not check_auth\(self, parsed\):[^\n]*$/gm,
@@ -962,6 +1019,29 @@ export function patchWebuiLatentProxy(opts: {
       notes.push(`server.py: pre-auth bypass x${pre.count}`);
     } else {
       notes.push("server.py: pre-auth bypass anchor missing");
+    }
+
+    // Last resort: wrap Handler.do_POST before the main guard (import-time).
+    const nuclear = insertBeforeMatch(
+      serverSrc,
+      /^if __name__\s*==\s*['"]__main__['"]\s*:\s*$/m,
+      `${nuclearWrapSnippet()}\n`,
+    );
+    if (nuclear.ok && nuclear.count === 1) {
+      serverSrc = nuclear.src;
+      notes.push("server.py: nuclear do_POST wrap");
+    } else {
+      const nuclearMain = insertBeforeMatch(
+        serverSrc,
+        /^def main\(\s*\)\s*(?:->\s*None)?:\s*$/m,
+        `${nuclearWrapSnippet()}\n`,
+      );
+      if (nuclearMain.ok) {
+        serverSrc = nuclearMain.src;
+        notes.push("server.py: nuclear do_POST wrap (before main)");
+      } else {
+        notes.push("server.py: nuclear wrap FAILED");
+      }
     }
 
     writeFileSync(serverPath, serverSrc, "utf8");
