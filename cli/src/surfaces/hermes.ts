@@ -16,7 +16,9 @@ import { loadConfig, resolveServer, resolveWallet, saveConfig } from "../config.
 import {
   ensureWebuiCspConnectExtra,
   patchWebuiCspSource,
+  patchWebuiCtlShCsp,
   patchWebuiIndex,
+  patchWebuiLatentProxy,
   unpatchWebuiIndex,
 } from "./hermes-webui-patch.js";
 
@@ -302,30 +304,31 @@ function patchHermesWebui(): string {
       } catch {
         // ignore
       }
-      const cspEnv = ensureWebuiCspConnectExtra({
+      const proxy = patchWebuiLatentProxy({ staticDir: dir, server });
+      // CSP widen kept as belt-and-suspenders; proxy is the reliable path.
+      ensureWebuiCspConnectExtra({
         staticDir: dir,
         server,
         hermesHome: detectAgents().paths.hermesHome,
       });
-      const cspSrc = patchWebuiCspSource({ staticDir: dir, server });
-      const cspEnvLines =
-        cspEnv.updated.length > 0
-          ? cspEnv.updated.map((p) => `   CSP .env updated: ${p}`).join("\n")
-          : `   ⚠️  Could not write HERMES_WEBUI_CSP_CONNECT_EXTRA=${cspEnv.origin}`;
-      const cspSrcLine = cspSrc.ok
-        ? `   CSP source patched: ${cspSrc.path} (+ ${cspSrc.origin})`
-        : `   ⚠️  CSP source patch failed: ${cspSrc.error}`;
+      patchWebuiCspSource({ staticDir: dir, server });
+      patchWebuiCtlShCsp({ staticDir: dir, server });
+      const proxyLine = proxy.ok
+        ? `   Same-origin proxy: ${proxy.proxyPath}\n` +
+          `   server.py: ${proxy.serverPath}\n` +
+          `   -> ${proxy.origin}\n` +
+          proxy.notes.map((n) => `   • ${n}`).join("\n")
+        : `   ⚠️  Proxy patch failed: ${proxy.error}`;
       return (
         `✅ Hermes WebUI patched (node → ${dir})\n` +
         `   Patched: ${res.indexPath}\n` +
-        `${cspSrcLine}\n` +
-        `${cspEnvLines}\n` +
+        `${proxyLine}\n` +
         "   REQUIRED next steps:\n" +
         "   1) Restart WebUI:  cd ~/hermes-webui && ./ctl.sh restart\n" +
-        "      (CSP headers are built at process start from api/helpers.py)\n" +
-        "   2) Hard-refresh Tailscale tab: Ctrl+Shift+R\n" +
-        "   3) DevTools console should show: [latent-protocol] WebUI ads active\n" +
-        `   4) Confirm CSP includes ${cspEnv.origin} (Response headers → content-security-policy)`
+        "   2) Verify proxy locally:\n" +
+        `      curl -sS -X POST http://127.0.0.1:PORT/api/latent/ad/request -H 'Content-Type: application/json' -d '{"user_wallet":"0x0","agent":"hermes","context":"test"}'\n` +
+        "   3) Hard-refresh: Ctrl+Shift+R\n" +
+        "   4) Console: version 7; Network POST /api/latent/ad/request -> 200 + Sponsored footer"
       );
     }
     errors.push(`${dir}: ${res.error}`);
