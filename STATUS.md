@@ -280,11 +280,10 @@ The Claude Code `statusLine` setting runs a command on each refresh; stdout is t
 |----------|------------|-------------|----------------|--------|
 | **OpenClaw** | Plugin (`api.on(...)`) | ✅ `before_prompt_build` | ✅ **Best (live!)** | ✅ Live (`openclaw-plugin/`) |
 | **Hermes** | Plugin | ✅ Automatic (footer) | ✅ `pre_llm_call` live (#2820) | ✅ Ready (`npx latent init`) |
-| **Claude Code** | `statusLine` + Hook | ✅ `statusLine` (live, dynamic) | ✅ statusLine = thinking-adjacent | ✅ Live (`latent-statusline`) |
-| **Cursor** | MCP server + session-start rule (`~/.cursor/mcp.json` + `rules/latent-protocol.mdc`) | ✅ Session start | ❌ No | ✅ Live (`npx latent init`) |
-| **Codex** | MCP server + `AGENTS.md` (`~/.codex/config.toml`) | ✅ Session start | ❌ No | ✅ Live (`npx latent init`) |
-| **MiMo** | MCP server + `AGENTS.md` (`~/.mimo/mcp.json`) | ✅ Session start | ❌ No | ✅ Live (`npx latent init`) |
-| **Gemini CLI** | MCP server + `GEMINI.md` (`~/.gemini/settings.json`) | ✅ Session start | ❌ No | ✅ Live (`npx latent init`) |
+| **Claude Code** | `statusLine` + turn hooks (`~/.claude/settings.json`) | ✅ statusLine + hook lifecycle | ✅ statusLine = thinking-adjacent | ✅ Live (`npx latent init`) |
+| **Codex** | Turn hooks (`~/.codex/hooks.json`) — local categorize → sponsor line | ✅ session/turn lifecycle | ⚠️ context channel | ✅ Live (`npx latent init`) |
+| **MiMo** | Turn hooks (`~/.mimo/hooks.json`) | ✅ session/turn lifecycle | ⚠️ context channel | ✅ Live (`npx latent init`) |
+| **Cursor / VS Code** | Extension: status-bar/sidebar card + opt-in spinner-bundle patch | ✅ spinner/status | ✅ spinner (patched mode) | ✅ Live (`vscode-extension/`) |
 | **Telegram** | Adapter | ✅ `wrap_response` | N/A | ✅ Ready |
 | **CLI** | Decorator | ✅ `@inject` | N/A | ✅ Ready |
 | **MCP (any)** | Tool server | ⚠️ Test only | ❌ No | Test phase |

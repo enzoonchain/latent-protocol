@@ -20,11 +20,13 @@ import {
   uninstallOpenclaw,
 } from "./surfaces/openclaw.js";
 import {
-  codingAgentsStatus,
-  detectCodingAgents,
-  installCodingAgents,
-  uninstallCodingAgents,
-} from "./surfaces/coding-agents.js";
+  CODEX_AGENTS,
+  codexDetected,
+  codexFamilyStatus,
+  installCodexFamily,
+  uninstallCodexFamily,
+} from "./surfaces/codex.js";
+import { runHook, type HookAgent, type HookEvent } from "./hook.js";
 
 function printHelp(): void {
   console.log(`latent-protocol — earn USDC while your agent thinks
@@ -34,20 +36,23 @@ Usage:
   npx latent-protocol status
   npx latent-protocol uninstall
   npx latent-protocol statusline [--install|--uninstall]
+  npx latent-protocol hook <event> --agent <codex|claude-code|mimo>
   npx latent-protocol help
 
 Commands:
   init         Detect agents, set up wallet, patch every found surface
   status       Show config, balance, and patched surfaces
-  uninstall    Revert Claude Code + Hermes + OpenClaw patches
+  uninstall    Revert Claude Code + Hermes + OpenClaw + Codex/MiMo patches
   statusline   Claude Code statusLine renderer (stdin → stdout)
+  hook         Turn-lifecycle hook runtime (invoked by installed hooks)
 
 Surfaces auto-installed when detected:
   • Hermes CLI / gateway (Telegram, Discord, …) — agent-ads plugin
   • Hermes WebUI — DOM patch (static/index.html)
-  • Claude Code — statusLine
+  • Claude Code — statusLine + turn hooks
   • OpenClaw — thinking + footer plugin
-  • Cursor / Codex / MiMo / Gemini — MCP server + session-start ad
+  • Codex / MiMo — turn hooks (hooks.json)
+  • Cursor / VS Code — extension (see vscode-extension/)
 `);
 }
 
@@ -89,17 +94,17 @@ async function cmdInit(args: string[]): Promise<void> {
   console.log(formatDetectionTable(detected));
   console.log();
 
-  const codingAgents = detectCodingAgents().filter((s) => s.present);
+  const codexAgents = CODEX_AGENTS.filter(codexDetected);
   const anyAgent =
     detected.claudeCode ||
     detected.hermes ||
     detected.hermesWebui ||
     detected.openclaw ||
-    codingAgents.length > 0;
+    codexAgents.length > 0;
 
   if (!anyAgent) {
     console.log(
-      "No Claude Code / Hermes / Hermes WebUI / OpenClaw / Cursor / Codex / MiMo / Gemini install found.\n" +
+      "No Claude Code / Hermes / Hermes WebUI / OpenClaw / Codex / MiMo install found.\n" +
         "Install an agent first, or pass --yes to still create a wallet/config.",
     );
     if (!flags.yes && !flags.generate && !flags.wallet) {
@@ -136,8 +141,8 @@ async function cmdInit(args: string[]): Promise<void> {
     console.log(installOpenclaw());
     console.log();
   }
-  if (codingAgents.length > 0) {
-    console.log(installCodingAgents());
+  if (codexAgents.length > 0) {
+    console.log(installCodexFamily());
     console.log();
   }
 
@@ -169,7 +174,7 @@ async function cmdStatus(): Promise<void> {
   console.log(`  ${claudeCodeStatus()}`);
   console.log(`  ${hermesStatus()}`);
   console.log(`  ${openclawStatus()}`);
-  for (const line of codingAgentsStatus()) console.log(`  ${line}`);
+  for (const line of codexFamilyStatus()) console.log(`  ${line}`);
   console.log();
   console.log("Detected:");
   console.log(formatDetectionTable(detected));
@@ -181,7 +186,7 @@ async function cmdUninstall(): Promise<void> {
   console.log(uninstallClaudeCode());
   console.log(uninstallHermes());
   console.log(uninstallOpenclaw());
-  console.log(uninstallCodingAgents());
+  console.log(uninstallCodexFamily());
 }
 
 async function cmdStatusline(args: string[]): Promise<void> {
@@ -204,6 +209,27 @@ async function cmdStatusline(args: string[]): Promise<void> {
   }
 }
 
+async function cmdHook(args: string[]): Promise<void> {
+  const event = (args[0] || "") as HookEvent;
+  const valid: HookEvent[] = ["session-start", "turn-start", "turn-end", "session-end"];
+  if (!valid.includes(event)) {
+    // Unknown event — stay silent, never disturb the host agent.
+    return;
+  }
+  let agent: HookAgent = "codex";
+  for (let i = 1; i < args.length; i++) {
+    if (args[i] === "--agent" && args[i + 1]) agent = args[++i] as HookAgent;
+    else if (args[i]!.startsWith("--agent=")) agent = args[i]!.slice("--agent=".length) as HookAgent;
+  }
+  try {
+    const payload = await readSessionFromStdin();
+    const out = await runHook(event, agent, payload);
+    if (out) process.stdout.write(out);
+  } catch {
+    // fail open
+  }
+}
+
 async function main(): Promise<void> {
   const [, , cmd = "help", ...args] = process.argv;
   switch (cmd) {
@@ -218,6 +244,9 @@ async function main(): Promise<void> {
       break;
     case "statusline":
       await cmdStatusline(args);
+      break;
+    case "hook":
+      await cmdHook(args);
       break;
     case "help":
     case "--help":

@@ -17,6 +17,7 @@ export async function requestAd(opts: {
   agent: string;
   surface: string;
   server?: string;
+  sessionId?: string;
 }): Promise<Ad | null> {
   const server = (opts.server || resolveServer()).replace(/\/+$/, "");
   try {
@@ -26,9 +27,12 @@ export async function requestAd(opts: {
       body: JSON.stringify({
         user_wallet: opts.wallet,
         agent: opts.agent,
+        // CodeBacks parity: category slug is the targeting signal; raw prompt
+        // never leaves the machine. sessionId scopes rotation/frequency.
         context: opts.context.slice(0, 100),
         surface: opts.surface,
-        tags: [],
+        tags: opts.context ? [opts.context] : [],
+        ...(opts.sessionId ? { session_id: opts.sessionId } : {}),
       }),
       signal: AbortSignal.timeout(2000),
     });
@@ -44,6 +48,7 @@ export async function logImpression(
   wallet: string,
   token: string,
   server?: string,
+  displayedMs?: number,
 ): Promise<void> {
   const base = (server || resolveServer()).replace(/\/+$/, "");
   try {
@@ -54,6 +59,8 @@ export async function logImpression(
         ad_id: adId,
         user_wallet: wallet,
         token: token || "",
+        // CodeBacks-style dwell reporting; server may ignore if unsupported.
+        ...(typeof displayedMs === "number" ? { displayed_ms: Math.round(displayedMs) } : {}),
       }),
       signal: AbortSignal.timeout(2000),
     });

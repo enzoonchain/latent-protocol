@@ -2,7 +2,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { configDir, cacheFile, isEnabled, loadConfig, resolveServer, resolveWallet } from "./config.js";
 import { logImpression, requestAd, type Ad } from "./api.js";
 
-const DEFAULT_ROTATE_SECONDS = 30;
+// 10s rotation = CodeBacks parity (ADS_STATUSLINE_ROTATE still overrides).
+const DEFAULT_ROTATE_SECONDS = 10;
 
 interface Cache {
   ad?: Ad;

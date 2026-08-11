@@ -1,0 +1,87 @@
+{
+  "name": "latent-protocol-vscode",
+  "displayName": "Latent Protocol — Sponsored Spinner",
+  "description": "Earn USDC while your coding agent thinks. Shows a labeled sponsor line in the agent's spinner/status area (Cursor, VS Code, Claude Code, Codex).",
+  "version": "0.1.0",
+  "publisher": "latent-protocol",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "latent.enable",
+        "title": "Latent: Enable sponsored spinner"
+      },
+      {
+        "command": "latent.disable",
+        "title": "Latent: Disable sponsored spinner"
+      },
+      {
+        "command": "latent.patchAgentBundles",
+        "title": "Latent: Patch agent spinner (in-agent ads, advanced)"
+      },
+      {
+        "command": "latent.restore",
+        "title": "Latent: Restore agent bundles (undo patch)"
+      },
+      {
+        "command": "latent.showEarnings",
+        "title": "Latent: Show earnings"
+      }
+    ],
+    "configuration": {
+      "title": "Latent Protocol",
+      "properties": {
+        "latent.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Master on/off for the sponsored spinner."
+        },
+        "latent.wallet": {
+          "type": "string",
+          "default": "",
+          "description": "EVM wallet for earnings. Falls back to ~/.latent-protocol/config.json."
+        },
+        "latent.server": {
+          "type": "string",
+          "default": "https://api.latentprotocol.xyz",
+          "description": "Latent ad server base URL."
+        },
+        "latent.patchAgentBundles": {
+          "type": "boolean",
+          "default": false,
+          "description": "Advanced/invasive: runtime-patch the installed Claude Code / Codex extension webview bundle to render the sponsor line inside its native spinner. Reversible (pristine backup + Latent: Restore), but it modifies a third-party extension and relaxes its webview CSP to reach the local loopback. Off by default — the non-invasive status-bar + sidebar fallback is always available."
+        },
+        "latent.rotateSeconds": {
+          "type": "number",
+          "default": 10,
+          "description": "How often the shown sponsor line rotates."
+        }
+      }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "latentSponsor",
+          "name": "Latent Sponsor",
+          "type": "webview"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc -p ./",
+    "typecheck": "tsc -p ./ --noEmit",
+    "vscode:prepublish": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.7.0"
+  }
+}
