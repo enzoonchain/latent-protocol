@@ -19,6 +19,12 @@ import {
   openclawStatus,
   uninstallOpenclaw,
 } from "./surfaces/openclaw.js";
+import {
+  codingAgentsStatus,
+  detectCodingAgents,
+  installCodingAgents,
+  uninstallCodingAgents,
+} from "./surfaces/coding-agents.js";
 
 function printHelp(): void {
   console.log(`latent-protocol — earn USDC while your agent thinks
@@ -41,6 +47,7 @@ Surfaces auto-installed when detected:
   • Hermes WebUI — DOM patch (static/index.html)
   • Claude Code — statusLine
   • OpenClaw — thinking + footer plugin
+  • Cursor / Codex / MiMo / Gemini — MCP server + session-start ad
 `);
 }
 
@@ -82,15 +89,17 @@ async function cmdInit(args: string[]): Promise<void> {
   console.log(formatDetectionTable(detected));
   console.log();
 
+  const codingAgents = detectCodingAgents().filter((s) => s.present);
   const anyAgent =
     detected.claudeCode ||
     detected.hermes ||
     detected.hermesWebui ||
-    detected.openclaw;
+    detected.openclaw ||
+    codingAgents.length > 0;
 
   if (!anyAgent) {
     console.log(
-      "No Claude Code / Hermes / Hermes WebUI / OpenClaw install found.\n" +
+      "No Claude Code / Hermes / Hermes WebUI / OpenClaw / Cursor / Codex / MiMo / Gemini install found.\n" +
         "Install an agent first, or pass --yes to still create a wallet/config.",
     );
     if (!flags.yes && !flags.generate && !flags.wallet) {
@@ -127,6 +136,10 @@ async function cmdInit(args: string[]): Promise<void> {
     console.log(installOpenclaw());
     console.log();
   }
+  if (codingAgents.length > 0) {
+    console.log(installCodingAgents());
+    console.log();
+  }
 
   // Re-detect after install for accurate matrix
   const after = detectAgents();
@@ -156,6 +169,7 @@ async function cmdStatus(): Promise<void> {
   console.log(`  ${claudeCodeStatus()}`);
   console.log(`  ${hermesStatus()}`);
   console.log(`  ${openclawStatus()}`);
+  for (const line of codingAgentsStatus()) console.log(`  ${line}`);
   console.log();
   console.log("Detected:");
   console.log(formatDetectionTable(detected));
@@ -167,6 +181,7 @@ async function cmdUninstall(): Promise<void> {
   console.log(uninstallClaudeCode());
   console.log(uninstallHermes());
   console.log(uninstallOpenclaw());
+  console.log(uninstallCodingAgents());
 }
 
 async function cmdStatusline(args: string[]): Promise<void> {

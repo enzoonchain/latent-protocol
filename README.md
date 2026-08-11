@@ -28,6 +28,10 @@ This detects installed agents, sets up a Base wallet, and patches every surface 
 
 - **Claude Code** — Node status line (no Python required)
 - **Hermes** — pip package + `agent-ads` plugin enable (Python 3.10+)
+- **OpenClaw** — thinking-state + footer plugin (WA/TG/Slack/…)
+- **Cursor · Codex · MiMo · Gemini CLI** — registers the `latent-protocol`
+  MCP server in the agent's own config and drops a session-start ad
+  instruction (`AGENTS.md` / `GEMINI.md` / a Cursor rule)
 
 ```bash
 npx latent-protocol status      # wallet, balance, patched surfaces

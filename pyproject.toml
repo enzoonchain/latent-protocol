@@ -38,6 +38,11 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "ruff>=0.1.0",
     "alembic>=1.13.0",
+    # Server-route tests (e.g. tests/test_ads_history_route.py) import
+    # server.routes.*, which pull in FastAPI + SQLAlchemy. Keep these in the
+    # dev/test set so `pip install -e ".[dev]"` can collect the whole suite.
+    "fastapi>=0.104.0",
+    "sqlalchemy[asyncio]>=2.0.0",
 ]
 
 [project.scripts]

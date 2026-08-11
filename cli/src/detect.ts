@@ -3,6 +3,10 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { loadConfig, saveConfig } from "./config.js";
+import {
+  codingAgentsDetectionRows,
+  codingAgentsMatrix,
+} from "./surfaces/coding-agents.js";
 
 export interface DetectedAgents {
   claudeCode: boolean;
@@ -379,6 +383,7 @@ export function formatDetectionTable(d: DetectedAgents): string {
       d.openclaw ? (d.openclawBin ? "detected+bin" : "detected") : "not found",
       d.paths.openclawHome,
     ],
+    ...codingAgentsDetectionRows(),
   ];
   return rows
     .map(
@@ -401,6 +406,7 @@ export function formatSurfaceMatrix(d: DetectedAgents): string {
     `  • Hermes WebUI (browser / Tailscale):         ${webui}`,
     `  • Claude Code:                                ${d.claudeCode ? "statusLine" : "skipped"}`,
     `  • OpenClaw (WA/TG/Slack/…):                   ${d.openclaw ? "plugin latent-protocol" : "skipped"}`,
+    ...codingAgentsMatrix(),
     "  • Standalone Telegram bots:                   manual wrap (see docs/PLUGIN.md)",
   ];
   return lines.join("\n");
