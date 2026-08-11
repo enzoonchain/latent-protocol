@@ -12,7 +12,8 @@ const STATUSLINE_COMMANDS = new Set([
   "latent-statusline",
 ]);
 
-const DEFAULT_REFRESH = 30;
+// 10s to match the CodeBacks rotation cadence (adcache ROTATE_MS / vsix default).
+const DEFAULT_REFRESH = 10;
 
 const HOOK_CMD_TAG = "latent-protocol hook";
 

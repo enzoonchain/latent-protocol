@@ -117,7 +117,8 @@ export class Loopback {
             agent: this.agent,
             context: category, // slug only
             surface: "spinner",
-            tags: [],
+            tags: category ? [category] : [],
+            session_id: this.token,
           }),
           signal: AbortSignal.timeout(3000),
         });

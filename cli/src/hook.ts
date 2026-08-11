@@ -120,6 +120,7 @@ export async function runHook(
           agent,
           surface: agent === "claude-code" ? "status_line" : "hook",
           server,
+          sessionId: payloadSession || state.sessionId,
         });
         if (!ad) {
           saveState(state);
