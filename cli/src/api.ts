@@ -44,6 +44,7 @@ export async function logImpression(
   wallet: string,
   token: string,
   server?: string,
+  displayedMs?: number,
 ): Promise<void> {
   const base = (server || resolveServer()).replace(/\/+$/, "");
   try {
@@ -54,6 +55,8 @@ export async function logImpression(
         ad_id: adId,
         user_wallet: wallet,
         token: token || "",
+        // CodeBacks-style dwell reporting; server may ignore if unsupported.
+        ...(typeof displayedMs === "number" ? { displayed_ms: Math.round(displayedMs) } : {}),
       }),
       signal: AbortSignal.timeout(2000),
     });
