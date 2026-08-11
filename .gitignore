@@ -66,3 +66,4 @@ landing/.vercel/
 .claude/*.log
 .vercel
 .vercel/
+/vscode-extension/dist/
