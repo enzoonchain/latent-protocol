@@ -84,3 +84,58 @@ export async function getBalance(wallet?: string, server?: string): Promise<numb
     return 0;
   }
 }
+
+export async function getTopBid(server?: string): Promise<number | null> {
+  const base = (server || resolveServer()).replace(/\/+$/, "");
+  try {
+    const res = await fetch(`${base}/ad/top-bid`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { top_bid?: number };
+    return Number(data.top_bid ?? 0);
+  } catch {
+    return null;
+  }
+}
+
+export interface PrelaunchMetrics {
+  scan_version: string;
+  days_scanned: number;
+  billable_slots: number;
+  missed_usd_estimate: number;
+  top_bid: number;
+  per_agent: Array<{
+    agent: string;
+    sessions: number;
+    user_turns: number;
+    thinking_states: number;
+    billable_slots: number;
+  }>;
+}
+
+export async function registerPrelaunch(opts: {
+  wallet: string;
+  agents: string[];
+  metrics: PrelaunchMetrics;
+  server?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const base = (opts.server || resolveServer()).replace(/\/+$/, "");
+  try {
+    const res = await fetch(`${base}/prelaunch/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        wallet: opts.wallet,
+        agents: opts.agents,
+        metrics: opts.metrics,
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return { ok: false, error: text || `HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}

@@ -27,6 +27,8 @@ import {
   uninstallCodexFamily,
 } from "./surfaces/codex.js";
 import { runHook, type HookAgent, type HookEvent } from "./hook.js";
+import { runPrelaunch, runActivate } from "./prelaunch.js";
+import { DEFAULT_SCAN_DAYS } from "./scanners/types.js";
 
 function printHelp(): void {
   console.log(`latent-protocol — earn USDC while your agent thinks
@@ -37,10 +39,14 @@ Usage:
   npx latent-protocol uninstall
   npx latent-protocol statusline [--install|--uninstall]
   npx latent-protocol hook <event> --agent <codex|claude-code|mimo>
+  npx latent-protocol prelaunch [--yes] [--generate] [--wallet 0x…] [--days 30]
+  npx latent-protocol activate
   npx latent-protocol help
 
 Commands:
   init         Detect agents, set up wallet, patch every found surface
+  prelaunch    Pre-launch signup: wallet + local scan + register (ads OFF)
+  activate     Enable ads and patch surfaces (after public launch)
   status       Show config, balance, and patched surfaces
   uninstall    Revert Claude Code + Hermes + OpenClaw + Codex/MiMo patches
   statusline   Claude Code statusLine renderer (stdin → stdout)
@@ -164,6 +170,10 @@ async function cmdStatus(): Promise<void> {
   console.log(`  Wallet:  ${wallet || "(not set)"}`);
   console.log(`  Server:  ${server}`);
   console.log(`  Enabled: ${cfg.enabled === false ? "false" : "true"}`);
+  console.log(`  Mode:    ${cfg.mode ?? "live"}`);
+  if (cfg.prelaunch_registered_at) {
+    console.log(`  Prelaunch registered: ${cfg.prelaunch_registered_at}`);
+  }
   console.log(`  Frequency: ${cfg.frequency ?? 1}`);
   if (wallet) {
     const bal = await getBalance(wallet, server);
@@ -230,11 +240,38 @@ async function cmdHook(args: string[]): Promise<void> {
   }
 }
 
+async function cmdPrelaunch(args: string[]): Promise<void> {
+  const flags = parseFlags(args);
+  let days = DEFAULT_SCAN_DAYS;
+  for (let i = 0; i < flags.rest.length; i++) {
+    if (flags.rest[i] === "--days" && flags.rest[i + 1]) {
+      days = Math.max(1, parseInt(flags.rest[++i]!, 10) || DEFAULT_SCAN_DAYS);
+    } else if (flags.rest[i]!.startsWith("--days=")) {
+      days = Math.max(1, parseInt(flags.rest[i]!.slice("--days=".length), 10) || DEFAULT_SCAN_DAYS);
+    }
+  }
+  const skipRegister = flags.rest.includes("--skip-register");
+  await runPrelaunch({
+    yes: flags.yes,
+    generate: flags.generate,
+    wallet: flags.wallet,
+    server: flags.server,
+    days,
+    skipRegister,
+  });
+}
+
 async function main(): Promise<void> {
   const [, , cmd = "help", ...args] = process.argv;
   switch (cmd) {
     case "init":
       await cmdInit(args);
+      break;
+    case "prelaunch":
+      await cmdPrelaunch(args);
+      break;
+    case "activate":
+      await runActivate();
       break;
     case "status":
       await cmdStatus();

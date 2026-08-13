@@ -33,6 +33,10 @@ export interface LatentConfig {
   categories?: string;
   /** Cached path to hermes-webui static/ (auto-detected by init). */
   hermes_webui_static?: string;
+  /** prelaunch = wallet + scan only; live = ads enabled. */
+  mode?: "prelaunch" | "live";
+  /** ISO timestamp when POST /prelaunch/register succeeded. */
+  prelaunch_registered_at?: string;
 }
 
 export function loadConfig(): LatentConfig {

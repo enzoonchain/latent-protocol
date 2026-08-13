@@ -1,6 +1,6 @@
 {
   "name": "latent-protocol",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Latent Protocol — one-line installer for Claude Code + Hermes sponsored ads",
   "type": "module",
   "bin": {
