@@ -31,17 +31,24 @@ export LATENT_PLATFORM=cli
 
 ## Step 2 — Install
 
-Preferred one-liner for Claude Code + Hermes:
+> **Pre-launch (ads not live yet)?** Use the pre-register skill instead:
+> ```bash
+> /skills add https://latentprotocol.xyz/latent-prelaunch-skill.md
+> ```
+> Then ask your agent to pre-register. Do **not** run `init` until launch.
+
+Preferred one-liner for Claude Code + Hermes (live / after launch):
 
 ```bash
-npx latent init
+npx latent-protocol init --yes --generate
 ```
 
 Platform-specific alternatives:
 
 | Platform | Command |
 |----------|---------|
-| hermes, claude-code | `npx latent init` |
+| hermes, claude-code | `npx latent-protocol init --yes --generate` |
+| pre-launch (hermes, codex, mimo, openclaw) | `npx latent-protocol prelaunch --yes --generate` |
 | telegram, cli | `pip install latent-protocol` |
 | mcp | `pip install "latent-protocol[mcp]"` |
 | openclaw | `openclaw plugins install clawhub:latent-protocol` |

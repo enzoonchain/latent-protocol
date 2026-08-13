@@ -14,10 +14,10 @@ export function Footer() {
             <h4 className="font-medium text-ivory mb-4 text-sm">Product</h4>
             <ul className="space-y-2">
               {[
-                ["#how", "How it works"],
-                ["#surfaces", "Surfaces"],
-                ["#economics", "Economics"],
-                ["#protocol", "Protocol"],
+                ["/#how", "How it works"],
+                ["/prelaunch", "Pre-launch"],
+                ["/#economics", "Economics"],
+                ["/#protocol", "Protocol"],
               ].map(([href, label]) => (
                 <li key={href}>
                   <a
@@ -36,9 +36,9 @@ export function Footer() {
             <ul className="space-y-2">
               {[
                 ["https://github.com/enzoonchain/latent-protocol", "GitHub"],
-                ["#opensource", "Plugin"],
-                ["#protocol", "x402"],
-                ["#install", "Spec"],
+                ["/#opensource", "Plugin"],
+                ["/#protocol", "x402"],
+                ["/#install", "Spec"],
               ].map(([href, label]) => (
                 <li key={href}>
                   <a
@@ -60,8 +60,8 @@ export function Footer() {
               {[
                 ["https://base.org", "Base L2"],
                 ["https://x402.org", "x402"],
-                ["#economics", "USDC"],
-                ["#install", "Coinbase CDP"],
+                ["/#economics", "USDC"],
+                ["/#install", "Coinbase CDP"],
               ].map(([href, label]) => (
                 <li key={href}>
                   <a

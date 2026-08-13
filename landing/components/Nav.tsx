@@ -5,10 +5,11 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAccount, useDisconnect } from "wagmi";
 
 const NAV_LINKS = [
-  ["#how", "How it works"],
-  ["#blocks", "Live Ads"],
-  ["#advertiser", "Advertise"],
-  ["#user", "Dashboard"],
+  ["/#how", "How it works"],
+  ["/#blocks", "Live Ads"],
+  ["/prelaunch", "Pre-launch"],
+  ["/#advertiser", "Advertise"],
+  ["/#user", "Dashboard"],
 ] as const;
 
 export function Nav() {
@@ -41,7 +42,7 @@ export function Nav() {
         }`}
         style={{ paddingInline: "var(--gutter)" }}
       >
-        <a href="#top" className="font-script text-3xl text-ivory no-underline leading-none">
+        <a href="/" className="font-script text-3xl text-ivory no-underline leading-none">
           Latent
         </a>
 
