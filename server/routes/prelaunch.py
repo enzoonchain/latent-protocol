@@ -68,6 +68,48 @@ async def prelaunch_count(db: AsyncSession = Depends(get_db)):
     return {"count": count}
 
 
+def _truncate_wallet(wallet: str) -> str:
+    w = wallet.strip()
+    if len(w) <= 12:
+        return w
+    return f"{w[:6]}…{w[-4:]}"
+
+
+@router.get("/feed")
+async def prelaunch_feed(limit: int = 20, db: AsyncSession = Depends(get_db)):
+    """Public: recent signups for landing feed (truncated wallets only)."""
+    lim = min(max(limit, 1), 50)
+
+    rows = (
+        await db.execute(
+            text(
+                """
+                SELECT wallet_address, agents, metrics, created_at
+                FROM prelaunch_signups
+                ORDER BY created_at DESC
+                LIMIT :limit
+                """
+            ),
+            {"limit": lim},
+        )
+    ).mappings().all()
+
+    entries = []
+    for r in rows:
+        metrics = r["metrics"] or {}
+        missed = float(metrics.get("missed_usd_estimate") or 0)
+        entries.append(
+            {
+                "wallet_short": _truncate_wallet(r["wallet_address"]),
+                "missed_usd": round(missed, 2),
+                "agents": list(r["agents"] or []),
+                "created_at": r["created_at"].isoformat(),
+            }
+        )
+
+    return {"entries": entries}
+
+
 @router.get("/signups")
 async def list_prelaunch_signups(
     limit: int = 100,

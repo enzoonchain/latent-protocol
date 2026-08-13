@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchPrelaunchCount } from "@/lib/api";
+import {
+  fetchPrelaunchCount,
+  fetchPrelaunchFeed,
+  type PrelaunchFeedEntry,
+} from "@/lib/api";
+
+const POLL_MS = 12_000;
 
 const PRELAUNCH_CMD = "npx latent-protocol prelaunch --yes --generate";
 const PRELAUNCH_GITHUB =
@@ -40,6 +46,15 @@ const AGENTS = [
   { name: "OpenClaw", note: "sessions" },
 ];
 
+function formatUsd(amount: number): string {
+  return amount.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 function CodeBlock({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
@@ -63,28 +78,164 @@ function CodeBlock({ code }: { code: string }) {
   );
 }
 
-function CountDisplay() {
+function InstallSection() {
+  return (
+    <div className="wrap max-w-2xl mx-auto">
+      <div className="section-head text-center mb-10">
+        <span className="eyebrow justify-center flex">Get started</span>
+        <h2 className="section-title mt-4">Install & pre-register</h2>
+        <p className="lead mt-4 mx-auto">
+          Pick a method below. One command — no hooks, no ads until launch.
+        </p>
+      </div>
+
+      <div className="relative rounded-xl border border-bronze/40 bg-gradient-to-br from-[rgba(180,140,80,0.08)] to-transparent p-7 mb-10">
+        <div className="absolute -top-3.5 left-6">
+          <span className="bg-bronze text-ink text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full">
+            ✦ Recommended
+          </span>
+        </div>
+        <h3 className="font-serif text-lg text-ivory mt-1 mb-2">
+          Let your agent do it
+        </h3>
+        <p className="text-ivory-soft text-sm mb-5 opacity-80">
+          Load the pre-launch skill in Claude Code, Cursor, or any agent that
+          supports skills. It runs the npx command for you — non-interactive,
+          ads stay off.
+        </p>
+        <p className="text-xs text-ivory-soft tracking-widest uppercase opacity-60 mb-3">
+          Add skill
+        </p>
+        <CodeBlock code={PRELAUNCH_SKILL_CMD} />
+      </div>
+
+      <div className="relative rounded-xl border border-bronze/40 bg-gradient-to-br from-[rgba(180,140,80,0.08)] to-transparent p-7">
+        <div className="absolute -top-3.5 left-6">
+          <span className="bg-bronze text-ink text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full">
+            One-liner
+          </span>
+        </div>
+        <h3 className="font-serif text-lg text-ivory mt-1 mb-2">
+          Pre-register from the terminal
+        </h3>
+        <p className="text-ivory-soft text-sm mb-5 opacity-80">
+          Hermes, Codex, MiMo, OpenClaw. Ads stay disabled until you run{" "}
+          <code className="text-bronze">activate</code> at launch.
+        </p>
+        <p className="text-xs text-ivory-soft tracking-widest uppercase opacity-60 mb-3">
+          After npm publish
+        </p>
+        <CodeBlock code={PRELAUNCH_CMD} />
+        <p className="text-xs text-ivory-soft tracking-widest uppercase opacity-60 mt-5 mb-3">
+          Until then
+        </p>
+        <CodeBlock code={PRELAUNCH_GITHUB} />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-10">
+        {AGENTS.map((a) => (
+          <div
+            key={a.name}
+            className="border border-ivory-faint px-4 py-4 text-center"
+          >
+            <div className="font-serif text-ivory text-sm">{a.name}</div>
+            <div className="text-ivory-dim text-[11px] tracking-widest uppercase mt-1">
+              {a.note}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FeedLine({ entry }: { entry: PrelaunchFeedEntry }) {
+  return (
+    <div className="flex items-baseline gap-2 py-2.5 border-b border-ivory-faint/40 last:border-0 text-sm font-mono">
+      <span className="text-bronze shrink-0">{entry.walletShort}</span>
+      <span className="text-ivory-soft">left</span>
+      <span className="text-ivory font-medium">{formatUsd(entry.missedUsd)}</span>
+      <span className="text-ivory-soft">on the table</span>
+      {entry.agents.length > 0 && (
+        <span className="text-ivory-dim text-xs ml-auto hidden sm:inline truncate max-w-[140px]">
+          {entry.agents.join(", ")}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function LiveActivity() {
   const [count, setCount] = useState<number | null>(null);
+  const [feed, setFeed] = useState<PrelaunchFeedEntry[]>([]);
+  const [live, setLive] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    fetchPrelaunchCount().then((n) => {
-      if (!cancelled) setCount(n);
-    });
+
+    const refresh = async () => {
+      const [n, entries] = await Promise.all([
+        fetchPrelaunchCount(),
+        fetchPrelaunchFeed(25),
+      ]);
+      if (cancelled) return;
+      setCount(n);
+      setFeed(entries);
+      setLive(true);
+    };
+
+    refresh();
+    const id = setInterval(refresh, POLL_MS);
     return () => {
       cancelled = true;
+      clearInterval(id);
     };
   }, []);
 
   return (
-    <div className="text-center border border-ivory-faint bg-ink/40 px-8 py-12">
-      <span className="eyebrow justify-center flex mb-6">Pre-registered</span>
-      <div className="font-serif text-[clamp(4.5rem,14vw,9rem)] leading-none text-bronze tracking-tight">
-        {count === null ? "—" : count.toLocaleString("en-US")}
+    <div className="wrap max-w-2xl mx-auto">
+      <div className="text-center border border-ivory-faint bg-ink/40 px-8 py-10 relative">
+        <div className="absolute top-4 right-4 flex items-center gap-2">
+          <span
+            className={`inline-block w-2 h-2 rounded-full ${live ? "bg-emerald-500 animate-pulse" : "bg-ivory-dim"}`}
+            aria-hidden
+          />
+          <span className="text-[10px] tracking-widest uppercase text-ivory-dim">
+            Live
+          </span>
+        </div>
+        <span className="eyebrow justify-center flex mb-6">Pre-registered</span>
+        <div className="font-serif text-[clamp(4rem,12vw,7.5rem)] leading-none text-bronze tracking-tight tabular-nums">
+          {count === null ? "—" : count.toLocaleString("en-US")}
+        </div>
+        <p className="mt-4 text-ivory-soft text-sm tracking-widest uppercase">
+          wallets waiting for launch
+        </p>
       </div>
-      <p className="mt-5 text-ivory-soft text-sm tracking-widest uppercase">
-        wallets waiting for launch
-      </p>
+
+      <div className="mt-8 border border-ivory-faint bg-ink/30">
+        <div className="px-5 py-3 border-b border-ivory-faint flex items-center justify-between">
+          <span className="text-xs tracking-widest uppercase text-ivory-dim">
+            Recent scans
+          </span>
+          <span className="text-[10px] text-ivory-dim">
+            updates every {POLL_MS / 1000}s
+          </span>
+        </div>
+        <div className="px-5 py-2 max-h-[320px] overflow-y-auto">
+          {feed.length === 0 ? (
+            <p className="py-6 text-center text-ivory-dim text-sm">
+              {count === null
+                ? "Loading activity…"
+                : "No signups yet — be the first."}
+            </p>
+          ) : (
+            feed.map((entry, i) => (
+              <FeedLine key={`${entry.walletShort}-${entry.createdAt}-${i}`} entry={entry} />
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -92,9 +243,9 @@ function CountDisplay() {
 export function Prelaunch() {
   return (
     <main className="relative z-10">
-      <header className="section pt-36 pb-16">
+      <header className="section pt-36 pb-10">
         <div className="wrap text-center max-w-3xl mx-auto">
-          <span className="eyebrow flank justify-center flex mb-8">
+          <span className="eyebrow flank justify-center flex mb-6">
             Before the curtain rises
           </span>
           <h1 className="section-title">
@@ -103,18 +254,19 @@ export function Prelaunch() {
               pre-launch seat
             </span>
           </h1>
-          <p className="lead mx-auto mt-8">
+          <p className="lead mx-auto mt-6">
             Ads are not live yet. Register a wallet, scan the agents you already
-            run, and see how much you left on the table — so you are first in
-            line when Latent opens.
+            run, and see how much you left on the table.
           </p>
         </div>
       </header>
 
+      <section className="section pt-0 pb-12">
+        <InstallSection />
+      </section>
+
       <section className="section pt-0">
-        <div className="wrap max-w-2xl mx-auto">
-          <CountDisplay />
-        </div>
+        <LiveActivity />
       </section>
 
       <section className="section pt-0">
@@ -148,66 +300,9 @@ export function Prelaunch() {
         </div>
       </section>
 
-      <section className="section pt-0">
+      <section className="section pt-0 pb-20">
         <div className="wrap max-w-2xl mx-auto">
-          <div className="relative rounded-xl border border-bronze/40 bg-gradient-to-br from-[rgba(180,140,80,0.08)] to-transparent p-7 mb-10">
-            <div className="absolute -top-3.5 left-6">
-              <span className="bg-bronze text-ink text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full">
-                ✦ Recommended
-              </span>
-            </div>
-            <h3 className="font-serif text-lg text-ivory mt-1 mb-2">
-              Let your agent do it
-            </h3>
-            <p className="text-ivory-soft text-sm mb-5 opacity-80">
-              Load the pre-launch skill in Claude Code, Cursor, or any agent that
-              supports skills. It runs the npx command for you — non-interactive,
-              ads stay off.
-            </p>
-            <p className="text-xs text-ivory-soft tracking-widest uppercase opacity-60 mb-3">
-              Add skill
-            </p>
-            <CodeBlock code={PRELAUNCH_SKILL_CMD} />
-          </div>
-
-          <div className="relative rounded-xl border border-bronze/40 bg-gradient-to-br from-[rgba(180,140,80,0.08)] to-transparent p-7">
-            <div className="absolute -top-3.5 left-6">
-              <span className="bg-bronze text-ink text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full">
-                One-liner
-              </span>
-            </div>
-            <h3 className="font-serif text-lg text-ivory mt-1 mb-2">
-              Pre-register from the terminal
-            </h3>
-            <p className="text-ivory-soft text-sm mb-5 opacity-80">
-              Hermes, Codex, MiMo, OpenClaw. Ads stay disabled until you run{" "}
-              <code className="text-bronze">activate</code> at launch.
-            </p>
-            <p className="text-xs text-ivory-soft tracking-widest uppercase opacity-60 mb-3">
-              After npm publish
-            </p>
-            <CodeBlock code={PRELAUNCH_CMD} />
-            <p className="text-xs text-ivory-soft tracking-widest uppercase opacity-60 mt-5 mb-3">
-              Until then
-            </p>
-            <CodeBlock code={PRELAUNCH_GITHUB} />
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-10">
-            {AGENTS.map((a) => (
-              <div
-                key={a.name}
-                className="border border-ivory-faint px-4 py-4 text-center"
-              >
-                <div className="font-serif text-ivory text-sm">{a.name}</div>
-                <div className="text-ivory-dim text-[11px] tracking-widest uppercase mt-1">
-                  {a.note}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-12 border border-ivory-faint divide-y divide-ivory-faint">
+          <div className="border border-ivory-faint divide-y divide-ivory-faint">
             <div className="grid grid-cols-2 px-6 py-3 text-xs tracking-wider uppercase text-ivory-dim">
               <span>Happens now</span>
               <span>Does not happen</span>

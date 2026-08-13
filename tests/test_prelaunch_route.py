@@ -13,6 +13,11 @@ def test_prelaunch_count_route_registered():
     assert "/count" in paths
 
 
+def test_prelaunch_feed_route_registered():
+    paths = {getattr(r, "path", None) for r in prelaunch_router.routes}
+    assert "/feed" in paths
+
+
 def test_prelaunch_signups_admin_route_registered():
     paths = {getattr(r, "path", None) for r in prelaunch_router.routes}
     assert "/signups" in paths

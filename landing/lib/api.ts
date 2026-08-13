@@ -384,3 +384,25 @@ export async function fetchPrelaunchCount(): Promise<number> {
     return 0;
   }
 }
+
+export type PrelaunchFeedEntry = {
+  walletShort: string;
+  missedUsd: number;
+  agents: string[];
+  createdAt: string;
+};
+
+export async function fetchPrelaunchFeed(limit = 20): Promise<PrelaunchFeedEntry[]> {
+  try {
+    const data = await api<{ entries: unknown[] }>(`/prelaunch/feed?limit=${limit}`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return data.entries.map((e: any) => ({
+      walletShort: e.wallet_short ?? "",
+      missedUsd: Number(e.missed_usd ?? 0),
+      agents: Array.isArray(e.agents) ? e.agents : [],
+      createdAt: e.created_at ?? "",
+    }));
+  } catch {
+    return [];
+  }
+}
