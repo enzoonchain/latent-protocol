@@ -8,7 +8,7 @@ import { LatentLogo } from "./LatentLogo";
 const NAV_LINKS = [
   ["/#how", "How it works"],
   ["/#blocks", "Live Ads"],
-  ["/prelaunch", "Pre-launch"],
+  ["/missed", "On the table"],
   ["/#advertiser", "Advertise"],
   ["/#user", "Dashboard"],
 ] as const;

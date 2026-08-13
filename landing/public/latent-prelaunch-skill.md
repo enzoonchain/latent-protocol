@@ -147,4 +147,4 @@ Or: `npx latent-protocol init --yes --generate`
 
 **Is my data uploaded?** Only wallet address, agent names, and aggregate counts (turns, billable slots, USD estimate). No prompts.
 
-**Landing page:** https://latentprotocol.xyz/prelaunch
+**Landing page:** https://latentprotocol.xyz/missed

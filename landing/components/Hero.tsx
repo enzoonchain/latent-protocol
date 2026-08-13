@@ -48,8 +48,8 @@ export function Hero() {
         </p>
 
         <div className="cta-row">
-          <a href="/prelaunch" className="btn">
-            Pre-register <span className="arrow">→</span>
+          <a href="/missed" className="btn">
+            What you missed <span className="arrow">→</span>
           </a>
           <a href="#install" className="btn ghost">
             Get paid to wait

@@ -31,11 +31,11 @@ export LATENT_PLATFORM=cli
 
 ## Step 2 — Install
 
-> **Pre-launch (ads not live yet)?** Use the pre-register skill instead:
+> **Ads not live yet?** Scan missed earnings first:
 > ```bash
 > /skills add https://latentprotocol.xyz/latent-prelaunch-skill.md
 > ```
-> Then ask your agent to pre-register. Do **not** run `init` until launch.
+> Then run the scan. Do **not** run `init` until launch. Landing: https://latentprotocol.xyz/missed
 
 Preferred one-liner for Claude Code + Hermes (live / after launch):
 
