@@ -6,6 +6,9 @@ import { fetchPrelaunchCount } from "@/lib/api";
 const PRELAUNCH_CMD = "npx latent-protocol prelaunch --yes --generate";
 const PRELAUNCH_GITHUB =
   "npx --yes github:enzoonchain/latent-protocol prelaunch --yes --generate";
+const PRELAUNCH_SKILL_URL =
+  "https://latentprotocol.xyz/latent-prelaunch-skill.md";
+const PRELAUNCH_SKILL_CMD = `/skills add ${PRELAUNCH_SKILL_URL}`;
 
 const STEPS = [
   {
@@ -147,6 +150,26 @@ export function Prelaunch() {
 
       <section className="section pt-0">
         <div className="wrap max-w-2xl mx-auto">
+          <div className="relative rounded-xl border border-bronze/40 bg-gradient-to-br from-[rgba(180,140,80,0.08)] to-transparent p-7 mb-10">
+            <div className="absolute -top-3.5 left-6">
+              <span className="bg-bronze text-ink text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full">
+                ✦ Recommended
+              </span>
+            </div>
+            <h3 className="font-serif text-lg text-ivory mt-1 mb-2">
+              Let your agent do it
+            </h3>
+            <p className="text-ivory-soft text-sm mb-5 opacity-80">
+              Load the pre-launch skill in Claude Code, Cursor, or any agent that
+              supports skills. It runs the npx command for you — non-interactive,
+              ads stay off.
+            </p>
+            <p className="text-xs text-ivory-soft tracking-widest uppercase opacity-60 mb-3">
+              Add skill
+            </p>
+            <CodeBlock code={PRELAUNCH_SKILL_CMD} />
+          </div>
+
           <div className="relative rounded-xl border border-bronze/40 bg-gradient-to-br from-[rgba(180,140,80,0.08)] to-transparent p-7">
             <div className="absolute -top-3.5 left-6">
               <span className="bg-bronze text-ink text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full">
