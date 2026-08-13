@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from server.admin_auth import require_admin
 from server.config import USER_SHARE
 from server.database import get_db
 from server.models import AdRequest, AdResponse, ImpressionRequest, ClickRequest
@@ -253,8 +254,9 @@ async def list_ad_events(
     event_type: str = "",
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
+    _: None = Depends(require_admin),
 ):
-    """Admin/debug: recent ad_events (optionally filter by wallet / type)."""
+    """Admin only: recent ad_events (optionally filter by wallet / type)."""
     from sqlalchemy import text
 
     lim = min(max(limit, 1), 500)

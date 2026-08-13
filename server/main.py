@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from server.config import EVM_ADDRESS, EVM_NETWORK, FACILITATOR_URL
+from server.config import EVM_ADDRESS, EVM_NETWORK, FACILITATOR_URL, ADMIN_API_KEY
 
 load_dotenv()
 
@@ -22,6 +22,10 @@ async def lifespan(app: FastAPI):
     print(f"  Network: {EVM_NETWORK}")
     print(f"  Treasury: {EVM_ADDRESS}")
     print(f"  Facilitator: {FACILITATOR_URL}")
+    if ADMIN_API_KEY:
+        print("  Admin API:   configured (X-Admin-Key / Bearer)")
+    else:
+        print("  Admin API:   NOT configured — set ADMIN_API_KEY for operator routes")
 
     # Auto-apply schema if DATABASE_URL is set
     from server.config import DATABASE_URL

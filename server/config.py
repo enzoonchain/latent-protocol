@@ -40,3 +40,6 @@ IMPRESSION_TOKEN_TTL_SECONDS = int(os.getenv("IMPRESSION_TOKEN_TTL_SECONDS", "30
 IMPRESSION_REPLAY_WINDOW_SECONDS = int(os.getenv("IMPRESSION_REPLAY_WINDOW_SECONDS", "60"))
 # A click only counts once the impression is at least this old (anti-misclick / fraud gate).
 CLICK_MIN_VIEW_SECONDS = int(os.getenv("CLICK_MIN_VIEW_SECONDS", "2"))
+
+# Admin — operator-only routes (prelaunch list, ad events debug, …)
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()
