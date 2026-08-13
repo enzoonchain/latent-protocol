@@ -94,3 +94,26 @@ class PayoutResponse(BaseModel):
     amount: float
     tx_hash: str
     status: str
+
+
+# ── Pre-launch ──
+
+class PrelaunchMetricsPayload(BaseModel):
+    scan_version: str = "1"
+    days_scanned: int = 30
+    billable_slots: int = 0
+    missed_usd_estimate: float = 0.0
+    top_bid: float = 0.005
+    per_agent: list[dict] = Field(default_factory=list)
+
+
+class PrelaunchRegisterRequest(BaseModel):
+    wallet: str
+    agents: list[str] = Field(default_factory=list)
+    metrics: PrelaunchMetricsPayload = Field(default_factory=PrelaunchMetricsPayload)
+
+
+class PrelaunchRegisterResponse(BaseModel):
+    wallet: str
+    registered: bool
+    updated: bool

@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from server.config import EVM_ADDRESS, EVM_NETWORK, FACILITATOR_URL
+from server.config import EVM_ADDRESS, EVM_NETWORK, FACILITATOR_URL, ADMIN_API_KEY
 
 load_dotenv()
 
@@ -22,6 +22,10 @@ async def lifespan(app: FastAPI):
     print(f"  Network: {EVM_NETWORK}")
     print(f"  Treasury: {EVM_ADDRESS}")
     print(f"  Facilitator: {FACILITATOR_URL}")
+    if ADMIN_API_KEY:
+        print("  Admin API:   configured (X-Admin-Key / Bearer)")
+    else:
+        print("  Admin API:   NOT configured — set ADMIN_API_KEY for operator routes")
 
     # Auto-apply schema if DATABASE_URL is set
     from server.config import DATABASE_URL
@@ -44,6 +48,11 @@ async def lifespan(app: FastAPI):
                     async with engine.begin() as conn:
                         raw = await conn.get_raw_connection()
                         await raw.driver_connection.execute(migrate.read_text())
+                migrate_prelaunch = Path(__file__).parent.parent / "scripts" / "migrate_prelaunch.sql"
+                if migrate_prelaunch.exists():
+                    async with engine.begin() as conn:
+                        raw = await conn.get_raw_connection()
+                        await raw.driver_connection.execute(migrate_prelaunch.read_text())
                 print("[latent-protocol] Schema applied successfully")
             else:
                 print(f"[latent-protocol] Schema file not found at {schema_path}")
@@ -79,11 +88,13 @@ from server.routes.ads import router as ads_router
 from server.routes.campaigns import router as campaigns_router
 from server.routes.earnings import router as earnings_router
 from server.routes.payouts import router as payouts_router
+from server.routes.prelaunch import router as prelaunch_router
 
 app.include_router(ads_router, prefix="/ad", tags=["ads"])
 app.include_router(campaigns_router, prefix="/campaign", tags=["campaigns"])
 app.include_router(earnings_router, prefix="/earnings", tags=["earnings"])
 app.include_router(payouts_router, prefix="/payout", tags=["payouts"])
+app.include_router(prelaunch_router, prefix="/prelaunch", tags=["prelaunch"])
 
 
 # ── x402 Payment Middleware (env-gated; see server/x402_payments.py) ──

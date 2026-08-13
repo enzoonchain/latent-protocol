@@ -12,6 +12,57 @@ Built on [x402](https://x402.org) — the internet's native payment protocol by 
 
 ## Quick Start
 
+### Pre-launch signup (ads OFF)
+
+Before public launch — create a wallet, scan local agent usage, and register
+your missed-earnings estimate. No ad hooks are installed; `enabled: false`.
+
+Supported for **Hermes, Codex, MiMo, OpenClaw** (non-extension agents):
+
+```bash
+npx latent-protocol prelaunch --yes --generate
+```
+
+At launch, enable ads and patch surfaces (keeps your wallet):
+
+```bash
+npx latent-protocol activate
+```
+
+Server endpoint: `POST /prelaunch/register` · signup count: `GET /prelaunch/count`
+
+Admin list/delete: `GET /prelaunch/signups`, `DELETE /prelaunch/signups/{wallet}` — requires `ADMIN_API_KEY` on the server (see below).
+
+### Admin (operator-only routes)
+
+Set a long random secret on the ad server:
+
+```bash
+# generate once
+openssl rand -hex 32
+
+# .env or Railway env
+ADMIN_API_KEY=your-secret-here
+```
+
+Use it in requests:
+
+```bash
+curl -H "X-Admin-Key: $ADMIN_API_KEY" https://api.latentprotocol.xyz/prelaunch/signups
+# or
+curl -H "Authorization: Bearer $ADMIN_API_KEY" https://api.latentprotocol.xyz/ad/events
+```
+
+| Route | Who |
+|-------|-----|
+| `POST /prelaunch/register` | Public (CLI signup) |
+| `GET /prelaunch/count` | Public (landing) |
+| `GET /prelaunch/signups` | Admin only |
+| `DELETE /prelaunch/signups/{wallet}` | Admin only |
+| `GET /ad/events` | Admin only |
+
+If `ADMIN_API_KEY` is unset, admin routes return **503**.
+
 ### One-line install (Claude Code + Hermes)
 
 Prerequisite: [Hermes](https://hermes-agent.nousresearch.com/docs/getting-started/quickstart) or Claude Code already installed.
