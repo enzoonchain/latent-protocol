@@ -375,3 +375,12 @@ export async function fetchTopBid(): Promise<number> {
     return 0.005;
   }
 }
+
+export async function fetchPrelaunchCount(): Promise<number> {
+  try {
+    const data = await api<{ count: number }>("/prelaunch/count");
+    return Number(data.count ?? 0);
+  } catch {
+    return 0;
+  }
+}

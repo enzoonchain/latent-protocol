@@ -48,11 +48,11 @@ export function Hero() {
         </p>
 
         <div className="cta-row">
-          <a href="#install" className="btn">
-            Get paid to wait <span className="arrow">→</span>
+          <a href="/prelaunch" className="btn">
+            Pre-register <span className="arrow">→</span>
           </a>
-          <a href="#advertise" className="btn ghost">
-            Become an advertiser
+          <a href="#install" className="btn ghost">
+            Get paid to wait
           </a>
         </div>
       </div>
