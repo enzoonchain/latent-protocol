@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAccount, useDisconnect } from "wagmi";
+import { LatentLogo } from "./LatentLogo";
 
 const NAV_LINKS = [
   ["/#how", "How it works"],
@@ -42,8 +43,8 @@ export function Nav() {
         }`}
         style={{ paddingInline: "var(--gutter)" }}
       >
-        <a href="/" className="font-script text-3xl text-ivory no-underline leading-none">
-          Latent
+        <a href="/" className="no-underline leading-none">
+          <LatentLogo />
         </a>
 
         {/* Desktop links */}
