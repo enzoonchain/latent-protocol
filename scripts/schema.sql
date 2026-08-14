@@ -121,8 +121,8 @@ CREATE INDEX IF NOT EXISTS idx_ad_events_type          ON ad_events (event_type)
 CREATE INDEX IF NOT EXISTS idx_ad_events_wallet_created
     ON ad_events (user_wallet, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_earnings_wallet         ON earnings (wallet_address);
-CREATE INDEX IF NOT EXISTS idx_earnings_unpaid         ON earnings (wallet_address) WHERE paid_out = FALSE;
--- Bulk payout sweep groups unpaid earnings by wallet:
+-- Covers both the per-wallet balance query and the bulk payout sweep
+-- (GROUP BY wallet WHERE NOT paid_out):
 CREATE INDEX IF NOT EXISTS idx_earnings_unpaid_wallet
     ON earnings (wallet_address) WHERE paid_out = FALSE;
 CREATE INDEX IF NOT EXISTS idx_ads_status              ON ads (status);
