@@ -17,6 +17,7 @@ from server.config import (
     FACILITATOR_URL,
     ADMIN_API_KEY,
     AD_EVENTS_ASYNC,
+    AD_EVENTS_RETENTION_DAYS,
     PAYOUT_SWEEP_INTERVAL_MINUTES,
 )
 
@@ -49,6 +50,14 @@ async def lifespan(app: FastAPI):
     if PAYOUT_SWEEP_INTERVAL_MINUTES > 0:
         sweep_task = asyncio.create_task(payout_sweep_loop())
         print(f"  payout sweep: every {PAYOUT_SWEEP_INTERVAL_MINUTES} min (background)")
+
+    # Optional ad_events retention sweep (AD_EVENTS_RETENTION_DAYS > 0).
+    from server.retention import retention_loop
+
+    retention_task = None
+    if AD_EVENTS_RETENTION_DAYS > 0:
+        retention_task = asyncio.create_task(retention_loop())
+        print(f"  ad_events retention: >{AD_EVENTS_RETENTION_DAYS}d (every {os.getenv('AD_EVENTS_RETENTION_INTERVAL_HOURS', '24')}h)")
 
     # Auto-apply schema if DATABASE_URL is set
     from server.config import DATABASE_URL
@@ -84,12 +93,13 @@ async def lifespan(app: FastAPI):
 
     yield
     print("[latent-protocol] Shutting down")
-    if sweep_task is not None:
-        sweep_task.cancel()
-        try:
-            await sweep_task
-        except asyncio.CancelledError:
-            pass
+    for task in (sweep_task, retention_task):
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
     await stop_event_writer()
 
 

@@ -14,6 +14,25 @@ router = APIRouter()
 MIN_CAMPAIGN_BUDGET = 0.0  # budget starts at 0; grows with each block purchase
 
 
+def _parse_ads(raw) -> list[dict]:
+    """Parse the json_agg ads payload from list_campaigns (str or list)."""
+    import json as _json
+
+    try:
+        ads = _json.loads(raw) if isinstance(raw, str) else (raw or [])
+    except (TypeError, ValueError):
+        return []
+    return [
+        {
+            "id": str(ad["id"]),
+            "title": ad["title"],
+            "body": ad["body"],
+            "bid": float(ad["bid"]),
+        }
+        for ad in ads
+    ]
+
+
 async def _record_payment(
     db: AsyncSession,
     campaign_id: str,
@@ -397,7 +416,15 @@ async def list_campaigns(wallet: str = "", status: str = "", db: AsyncSession = 
                 SELECT c.id, c.name, c.total_budget, c.budget_remaining, c.status,
                        COALESCE(MIN(a.bid_per_impression), 0.005) AS min_bid,
                        COALESCE(SUM(CASE WHEN i.id IS NOT NULL THEN 1 ELSE 0 END), 0) AS impressions,
-                       COALESCE(SUM(CASE WHEN i.clicked THEN 1 ELSE 0 END), 0) AS clicks
+                       COALESCE(SUM(CASE WHEN i.clicked THEN 1 ELSE 0 END), 0) AS clicks,
+                       COALESCE(
+                           (SELECT json_agg(json_build_object(
+                               'id', a2.id, 'title', a2.title,
+                               'body', a2.body, 'bid', a2.bid_per_impression))
+                            FROM ads a2
+                            WHERE a2.campaign_id = c.id AND a2.status = 'active'),
+                           '[]'::json
+                       ) AS ads_json
                 FROM campaigns c
                 LEFT JOIN ads a ON a.campaign_id = c.id
                 LEFT JOIN impressions i ON i.ad_id = a.id
@@ -409,37 +436,6 @@ async def list_campaigns(wallet: str = "", status: str = "", db: AsyncSession = 
             params,
         )
     ).mappings().all()
-
-    # Fetch ads for each campaign
-    campaign_ads = {}
-    if rows:
-        campaign_ids = [str(r["id"]) for r in rows]
-        if campaign_ids:
-            # Use individual queries to avoid asyncpg tuple parameter issues
-            for cid in campaign_ids:
-                ads_rows = (
-                    await db.execute(
-                        text(
-                            """
-                            SELECT id, title, body, bid_per_impression
-                            FROM ads
-                            WHERE campaign_id = CAST(:cid AS uuid)
-                              AND status = 'active'
-                            """
-                        ),
-                        {"cid": cid},
-                    )
-                ).mappings().all()
-                if ads_rows:
-                    campaign_ads[cid] = [
-                        {
-                            "id": str(ad["id"]),
-                            "title": ad["title"],
-                            "body": ad["body"],
-                            "bid": float(ad["bid_per_impression"]),
-                        }
-                        for ad in ads_rows
-                    ]
 
     return {
         "wallet": wallet,
@@ -455,7 +451,7 @@ async def list_campaigns(wallet: str = "", status: str = "", db: AsyncSession = 
                 "impressions": int(r["impressions"]),
                 "clicks": int(r["clicks"]),
                 "ctr": round(int(r["clicks"]) / int(r["impressions"]), 4) if int(r["impressions"]) > 0 else 0.0,
-                "ads": campaign_ads.get(str(r["id"]), []),
+                "ads": _parse_ads(r["ads_json"]),
             }
             for r in rows
         ],

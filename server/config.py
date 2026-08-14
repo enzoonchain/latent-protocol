@@ -37,6 +37,11 @@ AD_EVENTS_ASYNC = os.getenv("AD_EVENTS_ASYNC", "true").lower() == "true"
 AD_EVENTS_BATCH_SIZE = int(os.getenv("AD_EVENTS_BATCH_SIZE", "100"))
 AD_EVENTS_FLUSH_SECONDS = float(os.getenv("AD_EVENTS_FLUSH_SECONDS", "2.0"))
 
+# Retention: delete ad_events older than this many days (0 = disabled).
+AD_EVENTS_RETENTION_DAYS = int(os.getenv("AD_EVENTS_RETENTION_DAYS", "90"))
+# How often the retention sweep runs (hours).
+AD_EVENTS_RETENTION_INTERVAL_HOURS = int(os.getenv("AD_EVENTS_RETENTION_INTERVAL_HOURS", "24"))
+
 # Perf: background payout sweep. 0 = disabled; otherwise run every N minutes
 # and pay out every wallet that crossed the threshold. Requires EVM_PRIVATE_KEY.
 PAYOUT_SWEEP_INTERVAL_MINUTES = int(os.getenv("PAYOUT_SWEEP_INTERVAL_MINUTES", "0"))
