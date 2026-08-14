@@ -18,11 +18,18 @@ import { spawnSync } from "node:child_process";
 
 const HOOK_CMD_TAG = "latent-protocol hook";
 
-/** Host event key → our hook event name. */
+/**
+ * Host event key → our hook event name.
+ *
+ * Event names are the official Codex hook events (learn.chatgpt.com/docs/hooks):
+ * a turn starts with `UserPromptSubmit` and ends with `Stop` — there is no
+ * `TurnStart` / `TurnEnd` in the Codex hook system (those would silently never
+ * fire). `SessionStart` / `SessionEnd` bookend the session.
+ */
 const EVENTS: Record<string, string> = {
   SessionStart: "session-start",
-  TurnStart: "turn-start",
-  TurnEnd: "turn-end",
+  UserPromptSubmit: "turn-start",
+  Stop: "turn-end",
   SessionEnd: "session-end",
 };
 
