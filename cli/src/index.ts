@@ -28,6 +28,7 @@ import {
 } from "./surfaces/codex.js";
 import { runHook, type HookAgent, type HookEvent } from "./hook.js";
 import { runPrelaunch, runActivate } from "./prelaunch.js";
+import { runUpdate } from "./update.js";
 import { DEFAULT_SCAN_DAYS } from "./scanners/types.js";
 
 function printHelp(): void {
@@ -41,12 +42,14 @@ Usage:
   npx latent-protocol hook <event> --agent <codex|claude-code|mimo>
   npx latent-protocol prelaunch [--yes] [--generate] [--wallet 0x…] [--days 30]
   npx latent-protocol activate
+  npx latent-protocol update [--force]
   npx latent-protocol help
 
 Commands:
   init         Detect agents, set up wallet, patch every found surface
   prelaunch    Pre-launch signup: wallet + local scan + register (ads OFF)
   activate     Enable ads and patch surfaces (after public launch)
+  update       Update to latest version and re-patch surfaces
   status       Show config, balance, and patched surfaces
   uninstall    Revert Claude Code + Hermes + OpenClaw + Codex/MiMo patches
   statusline   Claude Code statusLine renderer (stdin → stdout)
@@ -240,6 +243,11 @@ async function cmdHook(args: string[]): Promise<void> {
   }
 }
 
+async function cmdUpdate(args: string[]): Promise<void> {
+  const flags = parseFlags(args);
+  await runUpdate({ yes: flags.yes, force: flags.rest.includes("--force") });
+}
+
 async function cmdPrelaunch(args: string[]): Promise<void> {
   const flags = parseFlags(args);
   let days = DEFAULT_SCAN_DAYS;
@@ -272,6 +280,9 @@ async function main(): Promise<void> {
       break;
     case "activate":
       await runActivate();
+      break;
+    case "update":
+      await cmdUpdate(args);
       break;
     case "status":
       await cmdStatus();
