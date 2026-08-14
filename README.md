@@ -80,8 +80,11 @@ This detects installed agents, sets up a Base wallet, and patches every surface 
 - **Claude Code** — Node status line + turn hooks (no Python required)
 - **Hermes** — pip package + `agent-ads` plugin enable (Python 3.10+)
 - **OpenClaw** — thinking-state + footer plugin (WA/TG/Slack/…)
-- **Codex · MiMo** — turn hooks in `~/.codex/hooks.json` (CodeBacks-style:
-  local categorization → sponsor line on session/turn lifecycle events)
+- **Codex · MiMo** — turn hooks in `~/.codex/hooks.json` (local categorization
+  → sponsor line on session/turn lifecycle events; uses the official Codex CLI
+  events `UserPromptSubmit` / `Stop` — the `TurnStart`/`TurnEnd` names exist
+  only in the Codex app-server/IDE protocol, which the VS Code / Cursor
+  extension surface covers instead)
 - **Cursor · VS Code** — the extension in [`vscode-extension/`](vscode-extension/):
   a status-bar/sidebar sponsor card by default, plus an opt-in advanced mode
   that renders the sponsor line inside the agent's own spinner

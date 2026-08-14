@@ -1,11 +1,18 @@
 /**
  * Codex / MiMo surface — lifecycle turn hooks in the agent's hooks.json.
  *
- * This is the CodeBacks-style injection point for TUI coding agents that have
- * no status-line command hook: we register command hooks on the four turn
- * lifecycle events, each invoking `latent hook <event> --agent <id>`. The hook
+ * This is the CLI-hooks injection point for TUI coding agents that have no
+ * status-line command hook: we register command hooks on the turn lifecycle
+ * events, each invoking `latent hook <event> --agent <id>`. The hook
  * classifies locally, fetches one ad by category slug, and (for Codex/MiMo)
  * surfaces the sponsor line via the hook's context channel.
+ *
+ * Event names are the OFFICIAL Codex CLI hook events (learn.chatgpt.com/docs/
+ * hooks): a turn starts with `UserPromptSubmit` and ends with `Stop`. There is
+ * no `TurnStart` / `TurnEnd` in the CLI hooks.json schema — those names come
+ * from the Codex app-server / IDE JSON-RPC protocol, which the VS Code / Cursor
+ * extension surface covers instead (see vscode-extension/, CodeBacks-style
+ * spinner patch). Writing them here would silently never fire.
  *
  * hooks.json is plain JSON (no comments), so our entries are tagged by their
  * command string (HOOK_CMD_TAG) and removed exactly on uninstall — the user's
