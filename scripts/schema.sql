@@ -109,12 +109,24 @@ CREATE TABLE IF NOT EXISTS payments (
 CREATE INDEX IF NOT EXISTS idx_impressions_user_wallet ON impressions (user_wallet);
 CREATE INDEX IF NOT EXISTS idx_impressions_ad_id       ON impressions (ad_id);
 CREATE INDEX IF NOT EXISTS idx_impressions_created_at  ON impressions (created_at);
+-- Hot-path lookups (daily cap + frequency window in matcher/select_best_ad):
+CREATE INDEX IF NOT EXISTS idx_impressions_wallet_created
+    ON impressions (user_wallet, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_impressions_ad_wallet_created
+    ON impressions (ad_id, user_wallet, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ad_events_user_wallet   ON ad_events (user_wallet);
 CREATE INDEX IF NOT EXISTS idx_ad_events_created_at    ON ad_events (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ad_events_type          ON ad_events (event_type);
+-- Admin debug listing filters by wallet + created_at:
+CREATE INDEX IF NOT EXISTS idx_ad_events_wallet_created
+    ON ad_events (user_wallet, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_earnings_wallet         ON earnings (wallet_address);
 CREATE INDEX IF NOT EXISTS idx_earnings_unpaid         ON earnings (wallet_address) WHERE paid_out = FALSE;
+-- Bulk payout sweep groups unpaid earnings by wallet:
+CREATE INDEX IF NOT EXISTS idx_earnings_unpaid_wallet
+    ON earnings (wallet_address) WHERE paid_out = FALSE;
 CREATE INDEX IF NOT EXISTS idx_ads_status              ON ads (status);
+CREATE INDEX IF NOT EXISTS idx_ads_campaign            ON ads (campaign_id);
 CREATE INDEX IF NOT EXISTS idx_campaigns_advertiser    ON campaigns (advertiser_wallet);
 CREATE INDEX IF NOT EXISTS idx_payments_campaign       ON payments (campaign_id);
 

@@ -50,3 +50,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     assert _sessionmaker is not None
     async with _sessionmaker() as session:
         yield session
+
+
+def session_factory():
+    """Return the module-level async sessionmaker (for background tasks)."""
+    if _sessionmaker is None:
+        get_engine()
+    assert _sessionmaker is not None
+    return _sessionmaker

@@ -4,11 +4,16 @@ Earnings are server-authoritative: the client may only *report* events, the
 server decides what is billable and how much the user earns.
 
 `log_ad_event` is a non-billable audit trail for admin debugging (every
-request / fill / no-fill / bill / click outcome).
+request / fill / no-fill / bill / click outcome). It is written in batches
+by a background writer when the event queue is running (see `start_event_writer`
+/ `stop_event_writer`, wired in server.main lifespan) so per-request commits
+don't slow down ad serving. Falls back to synchronous inserts when the queue
+is not running (e.g. tests).
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any, Optional
 
@@ -16,12 +21,155 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.config import (
+    AD_EVENTS_BATCH_SIZE,
+    AD_EVENTS_FLUSH_SECONDS,
     CLICK_MIN_VIEW_SECONDS,
     CLICK_MULTIPLIER,
     IMPRESSION_REPLAY_WINDOW_SECONDS,
     USER_SHARE,
 )
 
+# ── Async ad_events writer ────────────────────────────────────────────────
+
+_AD_EVENT_INSERT = text(
+    """
+    INSERT INTO ad_events
+        (user_wallet, event_type, reason, ad_id, agent, surface,
+         context, tags, ip, earned, meta)
+    VALUES
+        (:wallet, :event_type, :reason,
+         CAST(:ad_id AS uuid), :agent, :surface, :context,
+         CAST(:tags AS text[]), :ip, :earned,
+         CAST(:meta AS jsonb))
+    """
+)
+
+_event_queue: asyncio.Queue | None = None
+_event_writer_task: asyncio.Task | None = None
+_STOP = object()
+
+
+def _build_event_payload(
+    *,
+    event_type: str,
+    user_wallet: str = "",
+    reason: str = "",
+    ad_id: Optional[str] = None,
+    agent: str = "",
+    surface: str = "",
+    context: str = "",
+    tags: Optional[list[str]] = None,
+    ip: str = "",
+    earned: float = 0.0,
+    meta: Optional[dict[str, Any]] = None,
+) -> dict:
+    return {
+        "wallet": user_wallet or "",
+        "event_type": event_type,
+        "reason": reason or "",
+        "ad_id": ad_id,
+        "agent": agent or "",
+        "surface": surface or "",
+        "context": (context or "")[:500],
+        "tags": tags or [],
+        "ip": ip or "",
+        "earned": float(earned or 0),
+        "meta": json.dumps(meta or {}),
+    }
+
+
+async def _flush_events(batch: list[dict]) -> None:
+    """Insert a batch of ad_events with one executemany + commit.
+
+    Best-effort: audit logging must never break ad serving, so any failure is
+    logged and the batch is dropped.
+    """
+    if not batch:
+        return
+    from server.database import session_factory
+
+    try:
+        factory = session_factory()
+        async with factory() as session:
+            await session.execute(_AD_EVENT_INSERT, batch)
+            await session.commit()
+    except Exception as exc:  # noqa: BLE001 — audit must never break serving
+        print(f"[latent-protocol] ad_event batch flush failed ({len(batch)} events): {exc}")
+
+
+async def _event_writer() -> None:
+    """Drain the queue into batches, flush each batch, stop on _STOP sentinel."""
+    assert _event_queue is not None
+    while True:
+        batch: list[dict] = []
+        try:
+            item = await asyncio.wait_for(_event_queue.get(), timeout=AD_EVENTS_FLUSH_SECONDS)
+        except asyncio.TimeoutError:
+            item = None
+        if item is _STOP:
+            break
+        if item is not None:
+            batch.append(item)
+        while len(batch) < AD_EVENTS_BATCH_SIZE and not _event_queue.empty():
+            try:
+                nxt = _event_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            if nxt is _STOP:
+                # Sentinel seen while draining: flush what we have, then stop.
+                await _flush_events(batch)
+                return
+            batch.append(nxt)
+        await _flush_events(batch)
+
+
+def _ensure_writer_task() -> None:
+    """Create the writer task once a running event loop exists (lazy)."""
+    global _event_writer_task
+    if _event_queue is not None and _event_writer_task is None:
+        _event_writer_task = asyncio.create_task(_event_writer())
+
+
+def start_event_writer() -> None:
+    """Start the background ad_events writer (idempotent).
+
+    Only initializes the queue; the writer task is created lazily on the first
+    enqueue (or via `_ensure_writer_task`) so it always runs on the right loop.
+    """
+    global _event_queue
+    if _event_queue is not None:
+        return
+    _event_queue = asyncio.Queue()
+
+
+async def stop_event_writer() -> None:
+    """Flush remaining events and stop the writer (call on shutdown)."""
+    global _event_queue, _event_writer_task
+    if _event_queue is None:
+        return
+    _ensure_writer_task()
+    await _event_queue.put(_STOP)
+    if _event_writer_task is not None:
+        try:
+            await asyncio.wait_for(_event_writer_task, timeout=5)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            _event_writer_task.cancel()
+    # Anything enqueued after the sentinel (tiny race at shutdown) — flush it.
+    leftover: list[dict] = []
+    while not _event_queue.empty():
+        try:
+            nxt = _event_queue.get_nowait()
+        except asyncio.QueueEmpty:
+            break
+        if nxt is not _STOP:
+            leftover.append(nxt)
+    if leftover:
+        await _flush_events(leftover)
+    _event_queue = None
+    _event_writer_task = None
+
+
+# ── Audit log ──────────────────────────────────────────────────────────────
 
 async def log_ad_event(
     db: AsyncSession,
@@ -38,35 +186,32 @@ async def log_ad_event(
     earned: float = 0.0,
     meta: Optional[dict[str, Any]] = None,
 ) -> None:
-    """Best-effort audit log. Never raises — must not break ad serving."""
+    """Best-effort audit log. Never raises — must not break ad serving.
+
+    When the async writer is running, the event is queued and the request
+    returns immediately. Otherwise (tests, AD_EVENTS_ASYNC=false) it is
+    inserted synchronously on the caller's session.
+    """
+    payload = _build_event_payload(
+        event_type=event_type,
+        user_wallet=user_wallet,
+        reason=reason,
+        ad_id=ad_id,
+        agent=agent,
+        surface=surface,
+        context=context,
+        tags=tags,
+        ip=ip,
+        earned=earned,
+        meta=meta,
+    )
+    q = _event_queue
+    if q is not None:
+        q.put_nowait(payload)
+        _ensure_writer_task()
+        return
     try:
-        await db.execute(
-            text(
-                """
-                INSERT INTO ad_events
-                    (user_wallet, event_type, reason, ad_id, agent, surface,
-                     context, tags, ip, earned, meta)
-                VALUES
-                    (:wallet, :event_type, :reason,
-                     CAST(:ad_id AS uuid), :agent, :surface, :context,
-                     CAST(:tags AS text[]), :ip, :earned,
-                     CAST(:meta AS jsonb))
-                """
-            ),
-            {
-                "wallet": user_wallet or "",
-                "event_type": event_type,
-                "reason": reason or "",
-                "ad_id": ad_id,
-                "agent": agent or "",
-                "surface": surface or "",
-                "context": (context or "")[:500],
-                "tags": tags or [],
-                "ip": ip or "",
-                "earned": float(earned or 0),
-                "meta": json.dumps(meta or {}),
-            },
-        )
+        await db.execute(_AD_EVENT_INSERT, payload)
         await db.commit()
     except Exception as exc:  # noqa: BLE001 — audit must never break serving
         try:
@@ -75,6 +220,8 @@ async def log_ad_event(
             pass
         print(f"[latent-protocol] ad_event log failed ({event_type}): {exc}")
 
+
+# ── Earnings math ──────────────────────────────────────────────────────────
 
 def user_earning_for_impression(bid: float) -> float:
     """User's share of a single impression's bid."""

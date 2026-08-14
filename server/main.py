@@ -4,13 +4,21 @@ Crypto-native ad marketplace for AI agents.
 x402 micropayments on Base.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from server.config import EVM_ADDRESS, EVM_NETWORK, FACILITATOR_URL, ADMIN_API_KEY
+from server.config import (
+    EVM_ADDRESS,
+    EVM_NETWORK,
+    FACILITATOR_URL,
+    ADMIN_API_KEY,
+    AD_EVENTS_ASYNC,
+    PAYOUT_SWEEP_INTERVAL_MINUTES,
+)
 
 load_dotenv()
 
@@ -26,6 +34,21 @@ async def lifespan(app: FastAPI):
         print("  Admin API:   configured (X-Admin-Key / Bearer)")
     else:
         print("  Admin API:   NOT configured — set ADMIN_API_KEY for operator routes")
+
+    # Background ad_events writer (batched audit-log inserts).
+    from server.tracker import start_event_writer, stop_event_writer
+
+    if AD_EVENTS_ASYNC:
+        start_event_writer()
+        print("  ad_events:   async batched writer enabled")
+
+    # Optional periodic payout sweep (PAYOUT_SWEEP_INTERVAL_MINUTES > 0).
+    from server.routes.payouts import payout_sweep_loop
+
+    sweep_task = None
+    if PAYOUT_SWEEP_INTERVAL_MINUTES > 0:
+        sweep_task = asyncio.create_task(payout_sweep_loop())
+        print(f"  payout sweep: every {PAYOUT_SWEEP_INTERVAL_MINUTES} min (background)")
 
     # Auto-apply schema if DATABASE_URL is set
     from server.config import DATABASE_URL
@@ -61,6 +84,13 @@ async def lifespan(app: FastAPI):
 
     yield
     print("[latent-protocol] Shutting down")
+    if sweep_task is not None:
+        sweep_task.cancel()
+        try:
+            await sweep_task
+        except asyncio.CancelledError:
+            pass
+    await stop_event_writer()
 
 
 app = FastAPI(

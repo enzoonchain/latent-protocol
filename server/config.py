@@ -25,6 +25,22 @@ MAX_IMPRESSIONS_PER_SESSION = int(os.getenv("MAX_IMPRESSIONS_PER_SESSION", "20")
 AD_FREQUENCY_WINDOW_MINUTES = int(os.getenv("AD_FREQUENCY_WINDOW_MINUTES", "30"))
 PAYOUT_THRESHOLD_USDC = float(os.getenv("PAYOUT_THRESHOLD_USDC", "5.00"))
 
+# Perf: in-process caches (single instance). Disable for multi-instance deploys
+# (use Redis instead) — see server/matcher.py.
+AD_MEMORY_CACHE_ENABLED = os.getenv("AD_MEMORY_CACHE", "true").lower() == "true"
+# How long the servable ad inventory stays cached (seconds).
+AD_INVENTORY_TTL_SECONDS = float(os.getenv("AD_INVENTORY_TTL_SECONDS", "10"))
+
+# Perf: batch ad_events (audit log) writes instead of one commit per event.
+# Falls back to sync inserts when the writer queue is not running (e.g. tests).
+AD_EVENTS_ASYNC = os.getenv("AD_EVENTS_ASYNC", "true").lower() == "true"
+AD_EVENTS_BATCH_SIZE = int(os.getenv("AD_EVENTS_BATCH_SIZE", "100"))
+AD_EVENTS_FLUSH_SECONDS = float(os.getenv("AD_EVENTS_FLUSH_SECONDS", "2.0"))
+
+# Perf: background payout sweep. 0 = disabled; otherwise run every N minutes
+# and pay out every wallet that crossed the threshold. Requires EVM_PRIVATE_KEY.
+PAYOUT_SWEEP_INTERVAL_MINUTES = int(os.getenv("PAYOUT_SWEEP_INTERVAL_MINUTES", "0"))
+
 # Revenue split
 USER_SHARE = 0.50      # 50% to user
 OPERATOR_SHARE = 0.30   # 30% to operator
