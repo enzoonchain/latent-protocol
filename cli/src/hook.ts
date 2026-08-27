@@ -18,6 +18,18 @@ import { mkdirSync, writeFileSync } from "node:fs";
 export type HookEvent = "session-start" | "turn-start" | "turn-end" | "session-end";
 export type HookAgent = "codex" | "claude-code" | "mimo";
 
+/**
+ * Agents whose hook renders the sponsor line itself, and therefore owns the
+ * impression for it.
+ *
+ * Claude Code is deliberately absent. There the hook renders nothing — it
+ * prefetches an ad into the status line's cache and the status line displays
+ * it, so the status line bills (see statusline.ts). If the hook billed too,
+ * a single displayed ad would be charged to the advertiser twice, and the
+ * ad the hook billed for might never have reached the screen at all.
+ */
+const HOOK_OWNS_IMPRESSION: ReadonlySet<HookAgent> = new Set<HookAgent>(["codex", "mimo"]);
+
 /** Plain-text (no ANSI) sponsor line for context-injection hosts. */
 export function sponsorLine(ad: Ad): string {
   const body = ad.body || ad.title || "Sponsored";
@@ -50,21 +62,49 @@ function extractSessionId(payload: Record<string, unknown>): string {
   return "";
 }
 
-/** Mirror the statusLine cache so the Claude Code status line shows this ad. */
+/**
+ * Mirror the statusLine cache so the Claude Code status line shows this ad.
+ *
+ * `billed: false` is the important part: we hand the status line an ad nobody
+ * has charged for yet, and it bills on first render. Prefetching here is what
+ * lets the status line show an ad targeted at the actual prompt instead of a
+ * generic "coding" context.
+ */
 function writeStatuslineCache(ad: Ad, sessionId: string): void {
   try {
     mkdirSync(configDir(), { recursive: true });
     writeFileSync(
       cacheFile(),
-      JSON.stringify({ ad, fetched_at: Date.now() / 1000, session_id: sessionId }),
+      JSON.stringify({
+        ad,
+        fetched_at: Date.now() / 1000,
+        session_id: sessionId,
+        billed: false,
+      }),
     );
   } catch {
     // best-effort
   }
 }
 
-/** Accrue on-screen time and report it as one impression. */
-async function flushImpression(state: HookState, server: string, wallet: string): Promise<void> {
+/**
+ * Accrue on-screen time and report it as one impression.
+ *
+ * Only for agents this hook actually renders on — for the others the dwell
+ * counters are still reset, but nothing is billed, because another surface
+ * already owns that ad's impression.
+ */
+async function flushImpression(
+  state: HookState,
+  agent: HookAgent,
+  server: string,
+  wallet: string,
+): Promise<void> {
+  if (!HOOK_OWNS_IMPRESSION.has(agent)) {
+    state.displayedMs = 0;
+    state.displayStartedAt = 0;
+    return;
+  }
   if (!state.ad || !state.displayStartedAt) return;
   const shown = Math.min(Date.now() - state.displayStartedAt, MAX_DISPLAY_MS);
   const displayedMs = state.displayedMs + Math.max(shown, 0);
@@ -110,7 +150,7 @@ export async function runHook(
 
       case "turn-start": {
         // Report the previous turn's dwell before fetching the next ad.
-        await flushImpression(state, server, wallet);
+        await flushImpression(state, agent, server, wallet);
 
         const prompt = extractPrompt(payload);
         const category = classifyPrompt(prompt);
@@ -145,13 +185,13 @@ export async function runHook(
       }
 
       case "turn-end": {
-        await flushImpression(state, server, wallet);
+        await flushImpression(state, agent, server, wallet);
         saveState(state);
         return "";
       }
 
       case "session-end": {
-        await flushImpression(state, server, wallet);
+        await flushImpression(state, agent, server, wallet);
         saveState({
           sessionId: state.sessionId,
           category: "",

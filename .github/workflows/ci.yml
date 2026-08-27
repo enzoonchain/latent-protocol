@@ -49,6 +49,19 @@ jobs:
       - name: Tests
         run: node --test cli/tests/*.test.mjs
 
+      # `latent` on npm is an unrelated placeholder package, so `npx latent …`
+      # in docs or code sends users to somebody else's code. The published
+      # package is `latent-protocol`; only the local bin is named `latent`.
+      - name: No bare `npx latent` invocations
+        run: |
+          if grep -rn "npx latent[^-]" --include="*.md" --include="*.ts" \
+               --include="*.py" --include="*.mjs" --include="*.json" . \
+               | grep -v node_modules | grep -v "/dist/"; then
+            echo "::error::use 'npx latent-protocol', not 'npx latent'"
+            exit 1
+          fi
+          echo "OK — no bare 'npx latent' invocations"
+
   openclaw-plugin:
     name: OpenClaw plugin
     runs-on: ubuntu-latest

@@ -1,5 +1,13 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { configDir, cacheFile, isEnabled, loadConfig, resolveServer, resolveWallet } from "./config.js";
+import {
+  AGENT_CLAUDE_CODE,
+  configDir,
+  cacheFile,
+  isEnabled,
+  loadConfig,
+  resolveServer,
+  resolveWallet,
+} from "./config.js";
 import { logImpression, requestAd, type Ad } from "./api.js";
 
 // 10s rotation = CodeBacks parity (ADS_STATUSLINE_ROTATE still overrides).
@@ -9,6 +17,15 @@ interface Cache {
   ad?: Ad;
   fetched_at?: number;
   session_id?: string;
+  /**
+   * True once POST /ad/impression has been sent for this cached ad.
+   *
+   * The cache is shared with the turn hook, which prefetches an ad at
+   * turn-start using the classified prompt. That ad has not been billed by
+   * anyone yet, so the flag — not the presence of the entry — is what decides
+   * whether we still owe an impression.
+   */
+  billed?: boolean;
 }
 
 function isSafeUrl(url: string): boolean {
@@ -76,21 +93,39 @@ export async function render(session: Record<string, unknown> = {}): Promise<str
   const cache = loadCache();
   const now = Date.now() / 1000;
 
+  const server = resolveServer(cfg);
+
   const fresh =
     cache.ad &&
     (now - (cache.fetched_at ?? 0)) < rotateSeconds() &&
     (cache.session_id ?? sessionId) === sessionId;
 
+  // On Claude Code the status line is the only thing the user actually sees,
+  // so it owns the impression: it bills for exactly what it puts on screen,
+  // once, whoever fetched the ad. The turn hook deliberately does not bill
+  // (see HOOK_OWNS_IMPRESSION in hook.ts) — if both did, one displayed ad
+  // would be charged to the advertiser twice.
   if (fresh && cache.ad) {
-    return formatStatusline(cache.ad);
+    const line = formatStatusline(cache.ad);
+    if (!line) return "";
+    if (!cache.billed) {
+      await logImpression(
+        cache.ad.ad_id || cache.ad.id || "",
+        wallet,
+        cache.ad.impression_token || "",
+        server,
+      );
+      saveCache({ ...cache, billed: true });
+    }
+    return line;
   }
 
   const ad = await requestAd({
     wallet,
     context: contextFromSession(session),
-    agent: "claude_code",
+    agent: AGENT_CLAUDE_CODE,
     surface: "status_line",
-    server: resolveServer(cfg),
+    server,
   });
   if (!ad) return "";
 
@@ -99,8 +134,8 @@ export async function render(session: Record<string, unknown> = {}): Promise<str
   const line = formatStatusline(ad);
   if (!line) return "";
   const adId = ad.ad_id || ad.id || "";
-  await logImpression(adId, wallet, ad.impression_token || "", resolveServer(cfg));
-  saveCache({ ad, fetched_at: now, session_id: sessionId });
+  await logImpression(adId, wallet, ad.impression_token || "", server);
+  saveCache({ ad, fetched_at: now, session_id: sessionId, billed: true });
   return line;
 }
 

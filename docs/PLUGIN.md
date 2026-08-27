@@ -87,12 +87,12 @@ Hermes discovers plugins from a **flat** directory (`plugin.yaml` + `__init__.py
 with `register(ctx)`) or via the `hermes_agent.plugins` pip entry point.
 Plugins are **opt-in** — you must enable them.
 
-### Recommended: `npx latent init`
+### Recommended: `npx latent-protocol init`
 
 ```bash
-npx latent init
+npx latent-protocol init
 # or non-interactive:
-npx latent init --yes --generate
+npx latent-protocol init --yes --generate
 ```
 
 This installs the Python package, writes `~/.hermes/plugins/agent-ads/`, enables
@@ -110,7 +110,7 @@ latent-setup   # writes ~/.latent-protocol/config.json
 # Flat plugin dir (required for directory discovery):
 mkdir -p ~/.hermes/plugins/agent-ads
 # copy plugin/plugin.yaml + plugin/__init__.py into that directory
-# (npx latent init does this for you)
+# (npx latent-protocol init does this for you)
 
 hermes plugins enable agent-ads
 hermes gateway restart   # if you use the messaging gateway
@@ -161,14 +161,14 @@ means:
   Desktop chat with **zero extra setup** — they're the same
   `pre_llm_call` / `transform_llm_output` / `post_llm_call` / `post_response`
   hooks and command registered by the `agent-ads` plugin for the CLI.
-- `npx latent init` additionally writes a native
+- `npx latent-protocol init` additionally writes a native
   [Desktop Plugin SDK](https://hermes-agent.nousresearch.com/docs/developer-guide/desktop-plugin-sdk)
   plugin to `~/.hermes/plugins/agent-ads/desktop/plugin.js` (the "one
   package, both SDKs" pattern — same folder as the CLI plugin). It adds a
   status-bar chip showing your live USDC balance; clicking it opens a small
   panel with the wallet address and a **Request payout** button. The chip
   only appears once a wallet is configured (`/ads setup` or `latent-setup`) —
-  re-run `npx latent init` after changing wallets, since the value is baked
+  re-run `npx latent-protocol init` after changing wallets, since the value is baked
   into the file at install time.
 - Toggling ads on/off, frequency, and other settings stay on the `/ads
   settings` chat command — same as CLI/TUI.
@@ -178,9 +178,9 @@ means:
 ## Option C — Claude Code (status line)
 
 ```bash
-npx latent init
+npx latent-protocol init
 # or:
-npx latent statusline --install
+npx latent-protocol statusline --install
 ```
 
 Writes a `statusLine` block into `~/.claude/settings.json` that runs

@@ -1,6 +1,6 @@
 """Latent Protocol — Hermes plugin entry point (flat install).
 
-Installed by `npx latent init` into ~/.hermes/plugins/agent-ads/.
+Installed by `npx latent-protocol init` into ~/.hermes/plugins/agent-ads/.
 Requires: pip install latent-protocol
 """
 
