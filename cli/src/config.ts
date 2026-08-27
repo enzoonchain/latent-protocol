@@ -4,6 +4,16 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 export const DEFAULT_SERVER = "https://api.latentprotocol.xyz";
 
+/**
+ * Canonical host-agent identifier for Claude Code.
+ *
+ * Every surface of one agent must report the same `agent` value, or the ad
+ * server sees two unrelated agents and splits targeting and reporting in half.
+ * Claude Code has two surfaces — the status line and the turn hooks — so the
+ * name lives here rather than as a literal in each of them.
+ */
+export const AGENT_CLAUDE_CODE = "claude-code";
+
 /** Resolved at call time so HOME overrides (tests / sudo) are respected. */
 export function configDir(): string {
   return join(homedir(), ".latent-protocol");

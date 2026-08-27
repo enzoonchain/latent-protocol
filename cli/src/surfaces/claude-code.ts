@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { AGENT_CLAUDE_CODE } from "../config.js";
 import { detectAgents } from "../detect.js";
 
 const STATUSLINE_COMMANDS = new Set([
@@ -38,7 +39,7 @@ function hookEntry(event: string): unknown {
     hooks: [
       {
         type: "command",
-        command: `npx --yes latent-protocol hook ${event} --agent claude-code`,
+        command: `npx --yes latent-protocol hook ${event} --agent ${AGENT_CLAUDE_CODE}`,
         timeout: 10,
       },
     ],
