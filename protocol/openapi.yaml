@@ -1,0 +1,345 @@
+openapi: 3.1.0
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Latent Protocol — client ↔ ad-server contract
+#
+# This is the ONLY surface an adapter is allowed to depend on. The ad server
+# that implements it is a separate service; its internals (ad selection,
+# pricing, auction, budget accounting, payouts, fraud controls) are not part
+# of this contract and may change at any time.
+#
+# Adapter authors: you never need a real ad server. Run the mock in
+# tools/mock-ad-server.mjs, point ADS_SERVER at it, and develop offline.
+#
+# Contract rules every adapter MUST follow:
+#   1. Fail open. Any error, timeout, or non-2xx response means "render
+#      nothing" — never break, block, or slow the host agent.
+#   2. Never send raw user prompts. Send a category slug in `context`.
+#   3. Bill only what was displayed. POST /ad/impression exactly once, after
+#      the sponsored line is actually on screen — not on fetch.
+#   4. Echo `impression_token` back verbatim. It is signed and single-use.
+#   5. Treat 204 as normal. "No ad available" is the common case.
+# ─────────────────────────────────────────────────────────────────────────────
+
+info:
+  title: Latent Protocol Ad API
+  version: "1.0.0"
+  description: |
+    Public HTTP contract between Latent Protocol client adapters and an ad server.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+
+servers:
+  - url: https://api.latentprotocol.xyz
+    description: Production ad server
+  - url: http://127.0.0.1:8899
+    description: Local mock ad server (tools/mock-ad-server.mjs)
+
+paths:
+  /health:
+    get:
+      summary: Liveness probe
+      operationId: health
+      responses:
+        "200":
+          description: Server is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+
+  /ad/request:
+    post:
+      summary: Reserve an ad for display
+      operationId: requestAd
+      description: |
+        Reserves the best matching ad and returns a signed `impression_token`.
+        This call is NOT billable — nothing is credited until the adapter
+        confirms display via `POST /ad/impression`.
+
+        A `204` response is normal and expected: kill switch active, rate
+        limited, frequency cap reached, no matching inventory, or the creative
+        failed moderation. Adapters must render nothing and carry on.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdRequest"
+      responses:
+        "204":
+          description: No ad available — render nothing.
+        "200":
+          description: Ad reserved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdResponse"
+
+  /ad/impression:
+    post:
+      summary: Confirm a displayed impression (the billable event)
+      operationId: logImpression
+      description: |
+        Call exactly once, after the sponsored line is on screen. The server
+        is authoritative: it decides whether the impression is billable and
+        what the user earns. A duplicate within the server's replay window
+        returns `{"status":"skipped"}` — that is not an error.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImpressionRequest"
+      responses:
+        "200":
+          description: Processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [tracked, skipped]
+        "403":
+          description: Invalid or expired impression token
+
+  /ad/click:
+    post:
+      summary: Report a click on the ad's CTA
+      operationId: logClick
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClickRequest"
+      responses:
+        "200":
+          description: Processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [tracked, skipped]
+
+  /ad/top-bid:
+    get:
+      summary: Current highest bid per impression across active inventory
+      operationId: getTopBid
+      description: Used by the CLI to estimate earnings. Informational only.
+      responses:
+        "200":
+          description: Top bid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  top_bid: { type: number, format: double, example: 0.005 }
+
+  /earnings/{wallet}:
+    get:
+      summary: Earnings summary for a wallet
+      operationId: getEarnings
+      parameters:
+        - name: wallet
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/WalletAddress" }
+      responses:
+        "200":
+          description: Earnings summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EarningsResponse"
+
+  /earnings/{wallet}/history:
+    get:
+      summary: Individual earning events for a wallet
+      operationId: getEarningsHistory
+      parameters:
+        - name: wallet
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/WalletAddress" }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50, minimum: 1, maximum: 500 }
+      responses:
+        "200":
+          description: Earning events, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items: { type: object }
+
+  /payout/request:
+    post:
+      summary: Request a USDC payout of the wallet's unpaid balance
+      operationId: requestPayout
+      description: |
+        Pays out to the wallet address itself. Subject to a server-side
+        minimum threshold; below it the request is rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [wallet_address]
+              properties:
+                wallet_address: { $ref: "#/components/schemas/WalletAddress" }
+      responses:
+        "200":
+          description: Payout submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payout_id: { type: string }
+                  amount:    { type: number, format: double }
+                  tx_hash:   { type: string }
+                  status:    { type: string }
+        "400":
+          description: Balance below the payout threshold
+
+  /payout/{wallet}:
+    get:
+      summary: Payout history for a wallet
+      operationId: getPayoutHistory
+      parameters:
+        - name: wallet
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/WalletAddress" }
+      responses:
+        "200":
+          description: Payout records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payouts:
+                    type: array
+                    items: { type: object }
+
+components:
+  schemas:
+    WalletAddress:
+      type: string
+      pattern: "^0x[0-9a-fA-F]{40}$"
+      description: EVM address that earnings are credited to and paid out to.
+      example: "0x1111111111111111111111111111111111111111"
+
+    Surface:
+      type: string
+      description: |
+        Where the sponsored line is rendered. Adapters should use an existing
+        value where one fits; new surfaces are added to this contract by PR.
+      enum: [status_line, hook, footer, thinking, spinner, sidebar, any]
+
+    AdRequest:
+      type: object
+      required: [user_wallet]
+      properties:
+        user_wallet:
+          $ref: "#/components/schemas/WalletAddress"
+        agent:
+          type: string
+          description: |
+            Stable identifier of the host agent. Use lowercase with hyphens
+            (`claude-code`, not `claude_code`) — the same adapter must send the
+            same value from every surface it owns, or reporting splits in two.
+          examples: [claude-code, codex, mimo, hermes, openclaw, telegram, cli]
+          default: hermes
+        context:
+          type: string
+          maxLength: 100
+          description: |
+            Targeting signal — a CATEGORY SLUG, never the user's raw prompt.
+            Classify locally and send the slug only.
+          examples: [web3-crypto, devops, data-science, general]
+          default: general
+        surface:
+          $ref: "#/components/schemas/Surface"
+        tags:
+          type: array
+          items: { type: string }
+          description: Optional extra targeting tags.
+          default: []
+
+    AdResponse:
+      type: object
+      required: [ad_id, title, body, cta_text, cta_url, earn_amount, impression_token]
+      properties:
+        ad_id:       { type: string, description: Echo back on impression and click. }
+        title:       { type: string, maxLength: 30 }
+        body:        { type: string, maxLength: 140 }
+        cta_text:    { type: string, example: Learn more }
+        cta_url:
+          type: string
+          format: uri
+          description: |
+            Always render as a plain link. Adapters MUST NOT auto-open, prefetch,
+            or execute it, and MUST reject anything that is not `https://` or
+            contains control characters before emitting it into a terminal.
+        earn_amount:
+          type: number
+          format: double
+          description: |
+            Indicative user earnings for this impression, in USDC. Display
+            value only — the server recomputes the authoritative amount on
+            confirmation, so never accumulate a balance from this field.
+        image_url:
+          type: [string, "null"]
+          format: uri
+        impression_token:
+          type: string
+          description: Signed, single-use. Echo back verbatim on impression.
+
+    ImpressionRequest:
+      type: object
+      required: [ad_id, user_wallet]
+      properties:
+        ad_id:       { type: string }
+        user_wallet: { $ref: "#/components/schemas/WalletAddress" }
+        token:
+          type: string
+          description: The `impression_token` from the matching /ad/request.
+        agent:   { type: string, default: plugin }
+        surface: { $ref: "#/components/schemas/Surface" }
+        context: { type: string, default: "" }
+
+    ClickRequest:
+      type: object
+      required: [ad_id, user_wallet]
+      properties:
+        ad_id:       { type: string }
+        user_wallet: { $ref: "#/components/schemas/WalletAddress" }
+        agent:   { type: string, default: "" }
+        surface: { $ref: "#/components/schemas/Surface" }
+        context: { type: string, default: "" }
+
+    EarningsResponse:
+      type: object
+      properties:
+        wallet_address:     { $ref: "#/components/schemas/WalletAddress" }
+        balance:            { type: number, format: double, description: Unpaid USDC. }
+        total_earned:       { type: number, format: double }
+        total_impressions:  { type: integer }
+        total_clicks:       { type: integer }

@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+*.egg
+.eggs/
+
+# Build outputs (avoid bare `dist/` so cli/templates/openclaw-plugin/dist ships)
+/cli/dist/
+/openclaw-plugin/dist/
+/landing/dist/
+/dist/
+
+# Virtual environment
+venv/
+.venv/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (portal)
+node_modules/
+.next/
+out/
+
+# Supabase
+supabase/.temp/
+supabase/.branches/
+
+# Logs
+*.log
+logs/
+
+# Coverage
+htmlcov/
+.coverage
+coverage.xml
+
+# pytest
+.pytest_cache/
+
+# Environment files
+landing/.env.local
+landing/.env*.local
+
+# Vercel deployment metadata
+.vercel/
+landing/.vercel/
+
+# Claude Code — ignore session data but track skills
+.claude/commands/
+.claude/todos/
+.claude/worktrees/
+.claude/session*
+.claude/*.jsonl
+.claude/*.log
+.vercel
+.vercel/
+/vscode-extension/dist/

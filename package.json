@@ -1,0 +1,31 @@
+{
+  "name": "latent-protocol",
+  "version": "0.1.2",
+  "private": false,
+  "description": "Latent Protocol — one-line installer for Claude Code + Hermes sponsored ads",
+  "type": "module",
+  "bin": {
+    "latent": "./cli/dist/index.js",
+    "latent-protocol": "./cli/dist/index.js"
+  },
+  "files": [
+    "cli/dist",
+    "cli/templates"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "prepare": "npm --prefix cli install --include=dev && bash scripts/sync-openclaw-template.sh && npm --prefix cli run build",
+    "build": "bash scripts/sync-openclaw-template.sh && npm --prefix cli run build",
+    "sync:openclaw": "bash scripts/sync-openclaw-template.sh"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/enzoonchain/latent-protocol.git"
+  },
+  "license": "Apache-2.0"
+}
