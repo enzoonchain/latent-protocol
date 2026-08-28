@@ -1,5 +1,12 @@
 #!/usr/bin/env node
-import { loadConfig, resolveServer, resolveWallet, saveConfig, configFile } from "./config.js";
+import {
+  canonicalizeServer,
+  configFile,
+  loadConfig,
+  resolveServer,
+  resolveWallet,
+  saveConfig,
+} from "./config.js";
 import {
   detectAgents,
   formatDetectionTable,
@@ -124,14 +131,14 @@ async function cmdInit(args: string[]): Promise<void> {
     generate: flags.generate,
     wallet: flags.wallet,
   });
-  if (flags.server) {
-    saveConfig({ server: flags.server.replace(/\/+$/, "") });
-  }
-  // Force every-message ads on init (overrides older frequency: 5 configs).
-  saveConfig({ frequency: 1 });
+  const server = flags.server
+    ? canonicalizeServer(flags.server)
+    : resolveServer(loadConfig());
+  // Persist canonical server + every-message ads (overrides older frequency: 5 configs).
+  saveConfig({ server, frequency: 1 });
   console.log(`\n💳 Wallet: ${wallet}`);
   console.log(`   Config: ${configFile()}`);
-  console.log(`   Server: ${flags.server?.replace(/\/+$/, "") || resolveServer()}`);
+  console.log(`   Server: ${server}`);
   console.log(`   Frequency: 1 (every message)\n`);
 
   // Only install surfaces that are actually present (or --yes for Claude/Hermes legacy).
