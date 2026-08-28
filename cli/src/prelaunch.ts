@@ -1,5 +1,5 @@
 import { detectAgents } from "./detect.js";
-import { configFile, loadConfig, resolveServer, resolveWallet, saveConfig } from "./config.js";
+import { configFile, canonicalizeServer, loadConfig, resolveServer, resolveWallet, saveConfig } from "./config.js";
 import { ensureWallet, type WalletOpts } from "./wallet.js";
 import { registerPrelaunch } from "./api.js";
 import { buildScanReport, formatScanReport } from "./scan.js";
@@ -22,7 +22,7 @@ export interface PrelaunchOpts extends WalletOpts {
 
 export async function runPrelaunch(opts: PrelaunchOpts = {}): Promise<void> {
   const days = opts.days ?? DEFAULT_SCAN_DAYS;
-  const server = opts.server?.replace(/\/+$/, "") || resolveServer();
+  const server = canonicalizeServer(opts.server || resolveServer(loadConfig()));
 
   console.log("🚀 Latent Protocol — pre-launch signup\n");
   console.log("   Ads stay OFF until public launch. We only save your wallet + usage counts.\n");
