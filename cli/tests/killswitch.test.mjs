@@ -81,6 +81,56 @@ test("refreshKillswitch: 404 endpoint => not killed", async () => {
   }
 });
 
+test("fail-safe: a 5xx killswitch check pauses serving (unreachable kind)", async () => {
+  const f = freshHome();
+  const s = await serve((_r, res) => {
+    res.writeHead(503);
+    res.end("nope");
+  });
+  try {
+    await ks.refreshKillswitch(`http://127.0.0.1:${s.port}`);
+    const h = readHealth(f);
+    assert.equal(h.killed, true);
+    assert.equal(h.killKind, "unreachable");
+    assert.equal(ks.shouldServe().ok, false);
+    // shorter grace than an explicit kill — self-heals after TTL + soft grace
+    assert.equal(
+      ks.shouldServe(h.killCheckedAt + ks.KILL_TTL_MS + ks.KILL_SOFT_GRACE_MS - 1).ok,
+      false,
+    );
+    assert.equal(
+      ks.shouldServe(h.killCheckedAt + ks.KILL_TTL_MS + ks.KILL_SOFT_GRACE_MS + 1).ok,
+      true,
+    );
+  } finally {
+    s.close();
+  }
+});
+
+test("fail-safe: an unreachable server pauses serving, then a good check clears it", async () => {
+  const f = freshHome();
+  // No server listening at this port → connection refused.
+  await ks.refreshKillswitch("http://127.0.0.1:9");
+  assert.equal(readHealth(f).killed, true);
+  assert.equal(readHealth(f).killKind, "unreachable");
+  assert.equal(ks.shouldServe().ok, false);
+
+  const s = await serve((_r, res) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ killed: false }));
+  });
+  try {
+    // force past the TTL so the next check runs
+    const h = readHealth(f);
+    writeFileSync(f, JSON.stringify({ ...h, killCheckedAt: h.killCheckedAt - ks.KILL_TTL_MS - 1 }));
+    await ks.refreshKillswitch(`http://127.0.0.1:${s.port}`);
+    assert.equal(readHealth(f).killed, false);
+    assert.equal(ks.shouldServe().ok, true);
+  } finally {
+    s.close();
+  }
+});
+
 test("killed:true pauses every surface; requestAd never reaches the ad server", async () => {
   const f = freshHome();
   const now = Date.now();
