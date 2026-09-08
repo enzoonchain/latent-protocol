@@ -62,7 +62,7 @@ Commands:
 Surfaces auto-installed when detected:
   • Hermes CLI / gateway (Telegram, Discord, …) — agent-ads plugin
   • Hermes WebUI — DOM patch (static/index.html)
-  • Claude Code — statusLine + turn hooks
+  • Claude Code — statusLine + turn hooks (staged to ~/.latent-protocol/bin, run via node)
   • OpenClaw — thinking + footer plugin
   • Codex / MiMo — turn hooks (hooks.json)
   • Cursor / VS Code — extension (see vscode-extension/)

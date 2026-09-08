@@ -34,6 +34,18 @@ export function configFile(): string {
   return join(configDir(), "config.json");
 }
 
+/**
+ * Where `init` drops the self-contained runtime bundles (statusline.mjs,
+ * hook.mjs) that the Claude Code surface points its settings.json at.
+ *
+ * Runtime surfaces must never shell out to `npx` — a status line that
+ * re-resolves a git dependency every few seconds thrashes the npm cache and
+ * times out. The bundles here are plain `node <file>` targets instead.
+ */
+export function binDir(): string {
+  return join(configDir(), "bin");
+}
+
 export function cacheFile(): string {
   return join(configDir(), "statusline_cache.json");
 }
