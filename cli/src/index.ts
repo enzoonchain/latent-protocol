@@ -14,6 +14,7 @@ import {
 } from "./detect.js";
 import { ensureWallet } from "./wallet.js";
 import { getBalance } from "./api.js";
+import { healthSummary, resetHealth } from "./killswitch.js";
 import { readSessionFromStdin, render } from "./statusline.js";
 import {
   claudeCodeStatus,
@@ -66,7 +67,7 @@ Surfaces auto-installed when detected:
   • Claude Code — statusLine + turn hooks (staged to ~/.latent-protocol/bin, run via node)
                   + spinnerVerbs thinking-shimmer line on CC >= 2.1.143
   • OpenClaw — thinking + footer plugin
-  • Codex / MiMo — turn hooks (hooks.json)
+  • Codex / MiMo — turn hooks in hooks.json (staged bundle, run via node)
   • Cursor / VS Code — extension (see vscode-extension/)
 `);
 }
@@ -188,6 +189,8 @@ async function cmdStatus(): Promise<void> {
   if (cfg.spinner_verbs !== undefined) {
     console.log(`  spinnerVerbs: ${cfg.spinner_verbs ? "on" : "off"}`);
   }
+  const health = healthSummary();
+  if (health) console.log(`  Health:  ${health}`);
   if (wallet) {
     const bal = await getBalance(wallet, server);
     console.log(`  Balance: $${bal.toFixed(4)} USDC`);
@@ -210,6 +213,7 @@ async function cmdUninstall(): Promise<void> {
   console.log(uninstallHermes());
   console.log(uninstallOpenclaw());
   console.log(uninstallCodexFamily());
+  resetHealth();
 }
 
 async function cmdStatusline(args: string[]): Promise<void> {

@@ -6,7 +6,7 @@
  *   - keep one pristine backup so uninstall can revert byte-exact
  *
  * Run after `npm --prefix cli run build`:
- *   node --test cli/tests/claude-settings.test.mjs
+ *   node --test cli/tests/json-settings.test.mjs
  */
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
@@ -22,7 +22,7 @@ const {
   restoreFromBackup,
   hasBackup,
   BACKUP_SUFFIX,
-} = await import("../dist/surfaces/claude-settings.js");
+} = await import("../dist/surfaces/json-settings.js");
 
 const tmp = () => mkdtempSync(join(tmpdir(), "latent-settings-"));
 

@@ -6,7 +6,7 @@
  * Unlike the status line — a `node` script CC re-runs every few seconds — the
  * verb is a static string CC reads at session boot. So the turn-start hook
  * rewrites it with the freshly-fetched ad (a comment-safe minimal edit via
- * claude-settings.ts); the new verb shows from the next session on.
+ * json-settings.ts); the new verb shows from the next session on.
  *
  * Every verb we write is prefixed with MARKER so we can recognise our own
  * entry and never clobber a `spinnerVerbs` the user set themselves.
@@ -14,7 +14,7 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { parseable, readSettings, setPath } from "./claude-settings.js";
+import { parseable, readSettings, setPath } from "./json-settings.js";
 
 const MARKER = "✦";
 

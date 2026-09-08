@@ -13,12 +13,12 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { detectAgents } from "../detect.js";
 import { loadConfig, resolveServer, resolveWallet } from "../config.js";
+import { packageRoot, templatePath } from "../pkg.js";
 
 const PLUGIN_ID = "latent-protocol";
 
@@ -42,14 +42,13 @@ function which(bin: string): string | null {
 
 /** Resolve the OpenClaw plugin source directory (with openclaw.plugin.json). */
 export function resolveOpenclawPluginSrc(): string | null {
-  const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
     process.env.LATENT_OPENCLAW_PLUGIN,
-    // Bundled with npm / npx package
-    join(here, "..", "..", "templates", "openclaw-plugin"),
-    // Git checkout: cli/src/surfaces → ../../openclaw-plugin
-    join(here, "..", "..", "..", "openclaw-plugin"),
-    // Monorepo root when cwd is repo
+    // Shipped in the package (bundle- and tsc-layout safe).
+    templatePath("openclaw-plugin"),
+    // Git checkout: sibling of the package root (cli/ → ../openclaw-plugin).
+    join(packageRoot(), "..", "openclaw-plugin"),
+    // Monorepo root when cwd is repo.
     join(process.cwd(), "openclaw-plugin"),
     join(process.cwd(), "cli", "templates", "openclaw-plugin"),
   ].filter((p): p is string => Boolean(p));

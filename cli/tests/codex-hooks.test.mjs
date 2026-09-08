@@ -1,73 +1,172 @@
 /**
- * Run after `npm --prefix cli run build`:
- *   node cli/tests/codex-hooks.test.mjs
+ * Codex / MiMo turn hooks:
+ *   - official Codex event names only (UserPromptSubmit / Stop, never TurnStart)
+ *   - a LOCAL `node <bundle>` command, never `npx` (the command runs every turn)
+ *   - hooks.json edits are parse-guarded, backed up, and migrate legacy npx
+ *   - the staged bundle actually runs
  *
- * Verifies that the installed Codex / MiMo hooks.json uses the OFFICIAL Codex
- * hook event names (learn.chatgpt.com/docs/hooks): UserPromptSubmit = turn
- * start, Stop = turn end. `TurnStart` / `TurnEnd` do not exist in Codex and
- * would silently never fire.
+ * Run after `npm --prefix cli run build`:
+ *   node --test cli/tests/codex-hooks.test.mjs
  */
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { test } from "node:test";
+import { strict as assert } from "node:assert";
+import { createServer } from "node:http";
+import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { strict as assert } from "node:assert";
-import {
-  CODEX_AGENTS,
-  installCodexAgent,
-  codexDetected,
-} from "../dist/surfaces/codex.js";
 
-const root = mkdtempSync(join(tmpdir(), "latent-codex-hooks-"));
-try {
-  // Give both agents a fake home so detection finds them.
-  for (const a of CODEX_AGENTS) {
-    writeFileSync(join(root, `${a.id}-marker`), "");
-    process.env[a.homeEnv] = join(root, a.homeRel);
-  }
-  // Ensure detection passes (home dir exists).
-  for (const a of CODEX_AGENTS) {
-    const { mkdirSync } = await import("node:fs");
+const { readSettings } = await import("../dist/surfaces/json-settings.js");
+
+/** Fresh sandbox: $HOME + CODEX_HOME/MIMO_HOME under a tmp dir. Returns the
+ *  codex surface module (paths resolve lazily via env, so a fresh import per
+ *  test keeps them isolated). */
+async function sandbox() {
+  const home = mkdtempSync(join(tmpdir(), "latent-codex-"));
+  process.env.HOME = home;
+  const mod = await import(`../dist/surfaces/codex.js?${Math.random()}`);
+  for (const a of mod.CODEX_AGENTS) {
+    process.env[a.homeEnv] = join(home, a.homeRel);
     mkdirSync(process.env[a.homeEnv], { recursive: true });
   }
-  assert.ok(CODEX_AGENTS.every(codexDetected), "both agents should be detected");
-
-  for (const a of CODEX_AGENTS) {
-    const msg = installCodexAgent(a);
-    assert.ok(msg.includes(a.name), `install message names ${a.name}`);
-    const path = join(process.env[a.homeEnv], "hooks.json");
-    const cfg = JSON.parse(readFileSync(path, "utf8"));
-
-    // Official event names present:
-    assert.ok(
-      cfg.hooks.UserPromptSubmit,
-      `${a.id}: UserPromptSubmit (turn start) must be registered`,
-    );
-    assert.ok(cfg.hooks.Stop, `${a.id}: Stop (turn end) must be registered`);
-    assert.ok(cfg.hooks.SessionStart, `${a.id}: SessionStart registered`);
-    assert.ok(cfg.hooks.SessionEnd, `${a.id}: SessionEnd registered`);
-
-    // Non-existent TurnStart/TurnEnd must NOT be present:
-    assert.ok(
-      !cfg.hooks.TurnStart,
-      `${a.id}: TurnStart is not a valid Codex event and must not be written`,
-    );
-    assert.ok(
-      !cfg.hooks.TurnEnd,
-      `${a.id}: TurnEnd is not a valid Codex event and must not be written`,
-    );
-
-    // Each entry is a command hook tagged with our marker, firing our runtime.
-    for (const event of ["UserPromptSubmit", "Stop", "SessionStart", "SessionEnd"]) {
-      const entries = cfg.hooks[event];
-      assert.ok(Array.isArray(entries) && entries.length >= 1, `${a.id}: ${event} has entries`);
-      const cmd = entries[0].hooks[0].command;
-      assert.ok(cmd.includes("latent-protocol hook"), `${a.id}: ${event} uses latent hook`);
-      assert.ok(cmd.includes(`--agent ${a.id}`), `${a.id}: ${event} targets ${a.id}`);
-    }
-  }
-
-  console.log("ok - codex hooks use official event names");
-} finally {
-  for (const a of CODEX_AGENTS) delete process.env[a.homeEnv];
-  rmSync(root, { recursive: true, force: true });
+  return { home, mod };
 }
+
+const hooksFile = (home, rel) => join(home, rel, "hooks.json");
+
+function runNode(script, args, input) {
+  return new Promise((resolve) => {
+    const p = spawn(process.execPath, [script, ...args], { stdio: ["pipe", "pipe", "pipe"] });
+    let out = "";
+    let err = "";
+    p.stdout.on("data", (d) => (out += d));
+    p.stderr.on("data", (d) => (err += d));
+    p.on("close", (code) => resolve({ code, out, err }));
+    p.stdin.end(input);
+  });
+}
+
+function startAdServer() {
+  const impressions = [];
+  const server = createServer((req, res) => {
+    let raw = "";
+    req.on("data", (c) => (raw += c));
+    req.on("end", () => {
+      if (req.url === "/ad/request") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ad_id: "ad-1", title: "T", body: "codex sponsor body", cta_text: "Go", cta_url: "https://example.com/x", earn_amount: 0.005, impression_token: "tok-1" }));
+        return;
+      }
+      if (req.url === "/ad/impression") impressions.push(raw ? JSON.parse(raw) : {});
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end("{}");
+    });
+  });
+  return new Promise((r) => server.listen(0, "127.0.0.1", () => r({ server, impressions, port: server.address().port })));
+}
+
+test("install writes official events as local node commands, never npx", async () => {
+  const { home, mod } = await sandbox();
+  for (const a of mod.CODEX_AGENTS) {
+    const msg = mod.installCodexAgent(a);
+    assert.match(msg, new RegExp(a.name));
+    const raw = readFileSync(hooksFile(home, a.homeRel), "utf8");
+    assert.ok(!/\bnpx\b/.test(raw), `${a.id}: npx in hooks.json`);
+    const cfg = readSettings(hooksFile(home, a.homeRel)).data;
+
+    for (const ev of ["SessionStart", "UserPromptSubmit", "Stop", "SessionEnd"]) {
+      const cmd = cfg.hooks[ev][0].hooks[0].command;
+      assert.match(cmd, /codex-hook\.mjs" \S+ --agent (codex|mimo)$/, `${a.id}: ${ev} command`);
+      assert.ok(cmd.includes(`--agent ${a.id}`));
+    }
+    assert.equal(cfg.hooks.TurnStart, undefined, "TurnStart is not a real Codex event");
+    assert.equal(cfg.hooks.TurnEnd, undefined);
+    assert.ok(existsSync(join(home, ".latent-protocol", "bin", "codex-hook.mjs")), "hook not staged");
+  }
+});
+
+test("install: parse-guard, backup, idempotent, legacy npx migration", async () => {
+  const { home, mod } = await sandbox();
+  const a = mod.CODEX_AGENTS[0];
+  const p = hooksFile(home, a.homeRel);
+
+  // unparseable → untouched
+  writeFileSync(p, "{ broken");
+  assert.match(mod.installCodexAgent(a), /not valid JSON/);
+  assert.equal(readFileSync(p, "utf8"), "{ broken");
+  assert.ok(!existsSync(p + ".latent-protocol.bak"));
+
+  // legacy npx entry + a user's own hook → migrate ours, keep theirs
+  writeFileSync(
+    p,
+    JSON.stringify({
+      hooks: {
+        Stop: [
+          { hooks: [{ type: "command", command: "npx --yes latent-protocol hook turn-end --agent codex", timeout: 10 }] },
+          { hooks: [{ type: "command", command: "echo user-hook" }] },
+        ],
+      },
+    }),
+  );
+  mod.installCodexAgent(a);
+  mod.installCodexAgent(a); // idempotent
+  const raw = readFileSync(p, "utf8");
+  assert.ok(!/\bnpx\b/.test(raw), "legacy npx not migrated");
+  const stop = readSettings(p).data.hooks.Stop;
+  assert.equal(stop.length, 2, "expected user hook + one migrated ours");
+  assert.ok(stop.some((e) => e.hooks[0].command === "echo user-hook"), "user hook dropped");
+  assert.ok(existsSync(p + ".latent-protocol.bak"));
+});
+
+test("uninstall restores from the pristine backup", async () => {
+  const { home, mod } = await sandbox();
+  const a = mod.CODEX_AGENTS[0];
+  const p = hooksFile(home, a.homeRel);
+  const pristine = '{\n  "hooks": {\n    "Stop": [ { "hooks": [ { "type": "command", "command": "mine" } ] } ]\n  }\n}\n';
+  writeFileSync(p, pristine);
+
+  mod.installCodexAgent(a);
+  assert.ok(readFileSync(p, "utf8").includes("codex-hook.mjs"));
+
+  mod.uninstallCodexAgent(a);
+  assert.equal(readFileSync(p, "utf8"), pristine, "not byte-exact");
+  assert.ok(!existsSync(p + ".latent-protocol.bak"));
+});
+
+test("shared staged hook: removed only when neither agent uses it", async () => {
+  const { home, mod } = await sandbox();
+  const [codex, mimo] = mod.CODEX_AGENTS;
+  mod.installCodexAgent(codex);
+  mod.installCodexAgent(mimo);
+  const staged = join(home, ".latent-protocol", "bin", "codex-hook.mjs");
+  assert.ok(existsSync(staged));
+
+  mod.uninstallCodexAgent(codex);
+  assert.ok(existsSync(staged), "staged hook removed while MiMo still uses it");
+
+  mod.uninstallCodexAgent(mimo);
+  assert.ok(!existsSync(staged), "staged hook not cleaned after last agent");
+});
+
+test("the staged codex-hook bundle runs and surfaces a sponsor line", async () => {
+  const { server, port } = await startAdServer();
+  try {
+    const { home, mod } = await sandbox();
+    mkdirSync(join(home, ".latent-protocol"), { recursive: true });
+    writeFileSync(
+      join(home, ".latent-protocol", "config.json"),
+      JSON.stringify({ wallet: "0xabc", enabled: true, server: `http://127.0.0.1:${port}`, frequency: 1 }),
+    );
+    mod.installCodexAgent(mod.CODEX_AGENTS[0]);
+    const staged = join(home, ".latent-protocol", "bin", "codex-hook.mjs");
+
+    const r = await runNode(staged, ["turn-start", "--agent", "codex"],
+      JSON.stringify({ prompt: "write a python etl job" }));
+    assert.equal(r.code, 0, r.err);
+    // Codex/MiMo get the sponsor line through the hook's additionalContext.
+    assert.match(r.out, /additionalContext/);
+    assert.match(r.out, /codex sponsor body/);
+  } finally {
+    server.close();
+  }
+});

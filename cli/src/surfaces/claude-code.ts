@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { AGENT_CLAUDE_CODE, binDir, saveConfig } from "../config.js";
+import { distPath } from "../pkg.js";
 import { detectAgents } from "../detect.js";
 import {
   describeParseErrors,
@@ -10,7 +10,7 @@ import {
   readSettings,
   restoreFromBackup,
   setPath,
-} from "./claude-settings.js";
+} from "./json-settings.js";
 import {
   SPINNER_TAGLINE,
   isOurSpinnerVerbs,
@@ -44,13 +44,12 @@ const HOOK_EVENTS: Record<string, string> = {
   SessionEnd: "session-end",
 };
 
-/** Bundled runtime scripts shipped in the package (built by scripts/bundle-claude-runtime.mjs). */
-const RUNTIME_DIR = fileURLToPath(new URL("../claude/", import.meta.url));
+/** Bundled runtime scripts shipped in the package (built by scripts/bundle.mjs). */
 const RUNTIME_FILES = { statusline: "statusline.mjs", hook: "hook.mjs" } as const;
 type RuntimeName = keyof typeof RUNTIME_FILES;
 
 function bundledRuntime(name: RuntimeName): string {
-  return join(RUNTIME_DIR, RUNTIME_FILES[name]);
+  return distPath("claude", RUNTIME_FILES[name]);
 }
 
 function installedRuntime(name: RuntimeName): string {

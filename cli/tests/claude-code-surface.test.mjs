@@ -112,7 +112,7 @@ async function freshHome(port) {
   return { home, mod };
 }
 
-const { readSettings } = await import("../dist/surfaces/claude-settings.js");
+const { readSettings } = await import("../dist/surfaces/json-settings.js");
 const settingsOf = (home) =>
   readSettings(join(home, ".claude", "settings.json")).data;
 const settingsRaw = (home) =>

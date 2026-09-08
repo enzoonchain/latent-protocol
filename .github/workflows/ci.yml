@@ -131,6 +131,19 @@ jobs:
       - name: Typecheck
         run: npm run typecheck --prefix vscode-extension
 
+      - name: Build (esbuild bundle)
+        run: npm run build --prefix vscode-extension
+
+      - name: Bundle is self-contained (only `vscode` external)
+        run: |
+          node -e '
+            const s = require("node:fs").readFileSync("vscode-extension/dist/extension.js","utf8");
+            const ext = [...s.matchAll(/require\("([^"]+)"\)/g)].map(m=>m[1])
+              .filter(x => x !== "vscode" && !x.startsWith("node:"));
+            if (ext.length) { console.error("unbundled:", ext); process.exit(1); }
+            console.log("dist/extension.js: only vscode + node: builtins");
+          '
+
   contract:
     name: Protocol contract
     runs-on: ubuntu-latest
