@@ -30,6 +30,10 @@ const result = await build({
   platform: "node",
   format: "esm",
   target: "node18",
+  // Prefer packages' ESM builds — their UMD builds use dynamic require(),
+  // which cannot be bundled into an ESM output (e.g. jsonc-parser).
+  mainFields: ["module", "main"],
+  conditions: ["import", "node"],
   // Inline everything — the whole point is a file with no node_modules.
   packages: "bundle",
   outExtension: { ".js": ".mjs" },
