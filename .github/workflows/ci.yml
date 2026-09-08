@@ -30,12 +30,22 @@ jobs:
   cli:
     name: CLI + adapters (TypeScript)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20 is the floor we support; 22 is where `node:sqlite` ships. The
+        # scanner's SQLite path (Hermes' full history, Codex's state.sqlite,
+        # OpenClaw's index) only ever runs for real on 22 — on 20 it falls
+        # back to file scanning and the SQLite tests skip themselves. A bug
+        # confined to that path — as the ESM `require("node:module")` one in
+        # cli/src/scanners/sqlite.ts was — is invisible on 20 alone.
+        node-version: ["20", "22"]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: ${{ matrix.node-version }}
 
       - name: Install CLI deps
         run: npm ci --prefix cli
@@ -49,10 +59,25 @@ jobs:
       - name: Tests
         run: node --test cli/tests/*.test.mjs
 
+      # The SQLite-backed tests skip themselves on runtimes with no reader
+      # rather than failing, so a broken reader stays silent unless at least
+      # one CI leg actually exercises it. Node 22 always has node:sqlite, so
+      # a skip there means the reader itself is broken, not just absent.
+      - name: SQLite reader actually ran (Node 22+ only)
+        if: ${{ matrix.node-version == '22' }}
+        run: |
+          if node --test cli/tests/hermes-sessions.test.mjs 2>&1 | tee /tmp/hermes-test.log \
+               | grep -q "skipped: no node:sqlite"; then
+            echo "::error::node:sqlite is unavailable on Node ${{ matrix.node-version }} — the SQLite reader never ran"
+            exit 1
+          fi
+          echo "OK — SQLite reader exercised on Node ${{ matrix.node-version }}"
+
       # `latent` on npm is an unrelated placeholder package, so `npx latent …`
       # in docs or code sends users to somebody else's code. The published
       # package is `latent-protocol`; only the local bin is named `latent`.
       - name: No bare `npx latent` invocations
+        if: ${{ matrix.node-version == '20' }}
         run: |
           if grep -rn "npx latent[^-]" --include="*.md" --include="*.ts" \
                --include="*.py" --include="*.mjs" --include="*.json" . \
