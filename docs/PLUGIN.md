@@ -7,9 +7,12 @@ Earn USDC from sponsored ads shown in your AI agent. Pick your platform below.
 ## One-line install (recommended)
 
 ```bash
-npx latent-protocol init
-# until npm publish: npx --yes github:enzoonchain/latent-protocol init
+npx github:enzoonchain/latent-protocol init
 ```
+
+`latent-protocol` is not on the npm registry yet, so `npx latent-protocol`
+resolves to an unrelated package — use the GitHub form above until it is
+published, then this shortens to `npx latent-protocol init`.
 
 Detects Claude Code / Hermes / Hermes WebUI / OpenClaw, sets up a wallet, and
 patches every surface it finds (CLI plugin, WebUI DOM patch, statusLine, OpenClaw plugin).
@@ -87,13 +90,15 @@ Hermes discovers plugins from a **flat** directory (`plugin.yaml` + `__init__.py
 with `register(ctx)`) or via the `hermes_agent.plugins` pip entry point.
 Plugins are **opt-in** — you must enable them.
 
-### Recommended: `npx latent-protocol init`
+### Recommended: `npx github:enzoonchain/latent-protocol init`
 
 ```bash
-npx latent-protocol init
+npx github:enzoonchain/latent-protocol init
 # or non-interactive:
-npx latent-protocol init --yes --generate
+npx github:enzoonchain/latent-protocol init --yes --generate
 ```
+
+(Shortens to `npx latent-protocol init` once the npm publish lands.)
 
 This installs the Python package, writes `~/.hermes/plugins/agent-ads/`, enables
 the plugin, and saves your wallet to `~/.latent-protocol/config.json`.
@@ -110,7 +115,7 @@ latent-setup   # writes ~/.latent-protocol/config.json
 # Flat plugin dir (required for directory discovery):
 mkdir -p ~/.hermes/plugins/agent-ads
 # copy plugin/plugin.yaml + plugin/__init__.py into that directory
-# (npx latent-protocol init does this for you)
+# (npx github:enzoonchain/latent-protocol init does this for you)
 
 hermes plugins enable agent-ads
 hermes gateway restart   # if you use the messaging gateway
@@ -168,7 +173,7 @@ means:
   status-bar chip showing your live USDC balance; clicking it opens a small
   panel with the wallet address and a **Request payout** button. The chip
   only appears once a wallet is configured (`/ads setup` or `latent-setup`) —
-  re-run `npx latent-protocol init` after changing wallets, since the value is baked
+  re-run `npx github:enzoonchain/latent-protocol init` after changing wallets, since the value is baked
   into the file at install time.
 - Toggling ads on/off, frequency, and other settings stay on the `/ads
   settings` chat command — same as CLI/TUI.
@@ -178,9 +183,9 @@ means:
 ## Option C — Claude Code (status line)
 
 ```bash
-npx latent-protocol init
+npx github:enzoonchain/latent-protocol init
 # or:
-npx latent-protocol statusline --install
+npx github:enzoonchain/latent-protocol statusline --install
 ```
 
 Writes a `statusLine` block into `~/.claude/settings.json` that runs

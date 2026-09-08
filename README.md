@@ -23,15 +23,19 @@ supported, adding it is a self-contained piece of work — see
 ## Install
 
 ```bash
-npx latent-protocol init
+npx github:enzoonchain/latent-protocol init
 ```
+
+`latent-protocol` is not on the npm registry yet, so `npx latent-protocol`
+resolves to an unrelated package — install straight from GitHub until it is
+published, then this shortens to `npx latent-protocol init`.
 
 Detects the agents you have installed, sets up a wallet, and patches every
 surface it finds. Reverse it any time:
 
 ```bash
-npx latent-protocol status      # wallet, balance, patched surfaces
-npx latent-protocol uninstall   # revert every patch
+npx github:enzoonchain/latent-protocol status      # wallet, balance, patched surfaces
+npx github:enzoonchain/latent-protocol uninstall   # revert every patch
 ```
 
 ## Supported surfaces
