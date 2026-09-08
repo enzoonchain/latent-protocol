@@ -15,8 +15,11 @@ import { existsSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseable, readSettings, setPath } from "./json-settings.js";
+import { sanitizeAdText } from "../sanitize.js";
 
 const MARKER = "✦";
+/** Disclosure prefix — keep this + the marker inside the ~56-char verb budget. */
+const LABEL = "Ad:";
 
 /** Shown until the first turn-start hook replaces it with a real ad. */
 export const SPINNER_TAGLINE = `${MARKER} ads by latentprotocol.xyz`;
@@ -25,11 +28,12 @@ export function claudeSettingsPath(home = homedir()): string {
   return join(home, ".claude", "settings.json");
 }
 
-/** Compact thinking-shimmer verb for an ad body. Verbs are tiny; clip to ~56. */
+/** Compact thinking-shimmer verb for an ad body. Verbs are tiny; clip to ~56.
+ *  Sanitised (advertiser-controlled) and disclosure-labelled. */
 export function spinnerVerb(adBody: string): string {
-  const t = (adBody || "Sponsored").trim().replace(/\s+/g, " ");
-  const clipped = t.length > 56 ? `${t.slice(0, 55).trimEnd()}…` : t;
-  return `${MARKER} ${clipped}`;
+  const budget = 56 - (MARKER.length + 1 + LABEL.length + 1);
+  const body = sanitizeAdText(adBody || "Sponsored", budget);
+  return `${MARKER} ${LABEL} ${body}`;
 }
 
 export function isOurSpinnerVerbs(v: unknown): boolean {

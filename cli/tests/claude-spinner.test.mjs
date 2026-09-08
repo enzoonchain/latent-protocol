@@ -22,12 +22,14 @@ const { readSettings } = await import("../dist/surfaces/json-settings.js");
 
 const tmpFile = () => join(mkdtempSync(join(tmpdir(), "latent-spin-")), "settings.json");
 
-test("spinnerVerb: marks, collapses whitespace, clips long bodies", () => {
-  assert.match(spinnerVerb("Deploy faster"), /^✦ Deploy faster$/);
-  assert.equal(spinnerVerb("a\n\n  b   c"), "✦ a b c");
+test("spinnerVerb: marker + disclosure label, sanitised, clipped", () => {
+  assert.match(spinnerVerb("Deploy faster"), /^✦ Ad: Deploy faster$/);
+  assert.equal(spinnerVerb("a\n\n  b   c"), "✦ Ad: a b c");
   const long = spinnerVerb("x".repeat(200));
   assert.ok(long.length <= 58, long.length);
   assert.ok(long.endsWith("…"));
+  // escape sequences never reach the shimmer
+  assert.doesNotMatch(spinnerVerb("\x1b[2Jpwn"), /[\x00-\x1f]/);
 });
 
 test("isOurSpinnerVerbs only matches marker-prefixed verb arrays", () => {
