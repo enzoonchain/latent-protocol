@@ -18,7 +18,7 @@ const {
   removeSpinnerVerb,
   SPINNER_TAGLINE,
 } = await import("../dist/surfaces/claude-spinner.js");
-const { readSettings } = await import("../dist/surfaces/claude-settings.js");
+const { readSettings } = await import("../dist/surfaces/json-settings.js");
 
 const tmpFile = () => join(mkdtempSync(join(tmpdir(), "latent-spin-")), "settings.json");
 

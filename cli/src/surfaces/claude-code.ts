@@ -10,7 +10,7 @@ import {
   readSettings,
   restoreFromBackup,
   setPath,
-} from "./claude-settings.js";
+} from "./json-settings.js";
 import {
   SPINNER_TAGLINE,
   isOurSpinnerVerbs,

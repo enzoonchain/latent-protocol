@@ -66,7 +66,7 @@ Surfaces auto-installed when detected:
   • Claude Code — statusLine + turn hooks (staged to ~/.latent-protocol/bin, run via node)
                   + spinnerVerbs thinking-shimmer line on CC >= 2.1.143
   • OpenClaw — thinking + footer plugin
-  • Codex / MiMo — turn hooks (hooks.json)
+  • Codex / MiMo — turn hooks in hooks.json (staged bundle, run via node)
   • Cursor / VS Code — extension (see vscode-extension/)
 `);
 }
