@@ -1,98 +1,128 @@
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+/**
+ * Hermes — history lives in a per-profile SQLite database with an FTS5 index
+ * under ~/.hermes/profiles/<name>/, not in log files.
+ *
+ * The previous scanner grepped webui.log / hermes.log / gateway.log for
+ * regexes like /thinking/i. On a gateway that keeps its transcripts in the
+ * database those files hold startup noise and little else, so the scan
+ * reported a couple of dozen turns for accounts with months of history. Logs
+ * are still read, but only as a fallback for installs with no readable
+ * database.
+ */
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { AgentScanResult } from "./types.js";
-import { scanJsonlProjects } from "./jsonl.js";
+import {
+  addCounts,
+  countTranscriptTree,
+  emptyCounts,
+  type TranscriptCounts,
+} from "./transcripts.js";
+import {
+  countSqliteHistory,
+  countSqliteSessionAggregate,
+  sqliteAvailable,
+} from "./sqlite.js";
 
-const USER_PATTERNS = [
-  /user[_-]?message/i,
-  /pre_llm_call/i,
-  /"role"\s*:\s*"user"/i,
-  /incoming message/i,
-];
+/** Every .db/.sqlite file under ~/.hermes/profiles/<name>/, plus legacy roots. */
+function databaseFiles(home: string): string[] {
+  const found: string[] = [];
+  const roots = [join(home, "profiles"), home];
 
-const THINKING_PATTERNS = [
-  /thinking/i,
-  /tool_use/i,
-  /agent-activity-thinking/i,
-  /pre_llm_call/i,
-];
-
-function countPatterns(text: string, patterns: RegExp[]): number {
-  let n = 0;
-  for (const re of patterns) {
-    const m = text.match(new RegExp(re.source, "gi"));
-    if (m) n += m.length;
-  }
-  return n;
-}
-
-function scanLogFile(path: string, cutoffMs: number): { userTurns: number; thinkingStates: number } {
-  try {
-    const st = statSync(path);
-    if (st.mtimeMs < cutoffMs) return { userTurns: 0, thinkingStates: 0 };
-    const text = readFileSync(path, "utf8");
-    return {
-      userTurns: countPatterns(text, USER_PATTERNS),
-      thinkingStates: countPatterns(text, THINKING_PATTERNS),
-    };
-  } catch {
-    return { userTurns: 0, thinkingStates: 0 };
-  }
-}
-
-function scanHermesLogs(hermesHome: string, days: number): { userTurns: number; thinkingStates: number } {
-  const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
-  let userTurns = 0;
-  let thinkingStates = 0;
-  const candidates = [
-    join(hermesHome, "webui.log"),
-    join(hermesHome, "hermes.log"),
-    join(hermesHome, "gateway.log"),
-    join(hermesHome, "logs"),
-  ];
-  for (const path of candidates) {
-    if (!existsSync(path)) continue;
+  const visit = (dir: string, depth: number): void => {
+    if (depth > 3) return;
+    let entries: string[];
     try {
-      const st = statSync(path);
-      if (st.isDirectory()) {
-        for (const name of readdirSync(path)) {
-          const sub = scanLogFile(join(path, name), cutoffMs);
-          userTurns += sub.userTurns;
-          thinkingStates += sub.thinkingStates;
-        }
-      } else {
-        const sub = scanLogFile(path, cutoffMs);
-        userTurns += sub.userTurns;
-        thinkingStates += sub.thinkingStates;
-      }
+      entries = readdirSync(dir);
     } catch {
-      // skip unreadable paths
+      return;
     }
+    for (const name of entries) {
+      const path = join(dir, name);
+      let st;
+      try {
+        st = statSync(path);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) visit(path, depth + 1);
+      else if (/\.(db|sqlite3?)$/i.test(name)) found.push(path);
+    }
+  };
+
+  for (const root of roots) {
+    if (existsSync(root)) visit(root, 0);
   }
-  return { userTurns, thinkingStates };
+  return [...new Set(found)];
 }
 
 export function scanHermes(days: number, hermesHome?: string): AgentScanResult {
-  const home = hermesHome ?? join(homedir(), ".hermes");
+  const home = hermesHome ?? process.env.HERMES_HOME ?? join(homedir(), ".hermes");
   const detected = existsSync(home);
-  const jsonl = scanJsonlProjects(join(home, "projects"), days);
-  const logs = scanHermesLogs(home, days);
-  const userTurns = jsonl.userTurns + logs.userTurns;
-  const thinkingStates = jsonl.thinkingStates + logs.thinkingStates;
-  const sessions = jsonl.sessions || (userTurns > 0 ? 1 : 0);
-  const billableSlots = Math.max(userTurns, thinkingStates);
+  const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
 
+  let counts: TranscriptCounts = emptyCounts();
+  let source = "no history found";
+
+  if (detected) {
+    const dbs = databaseFiles(home);
+    let dbCounts: TranscriptCounts | null = null;
+    let automatedSkipped = 0;
+    let fromAggregate = false;
+
+    for (const db of dbs) {
+      // Hermes' own store keeps one row per session with message and
+      // tool-call totals, so try that shape first; the per-message path below
+      // covers builds that keep a message log instead.
+      const agg = countSqliteSessionAggregate(db, cutoffMs);
+      if (agg) {
+        automatedSkipped += agg.automatedSkipped;
+        fromAggregate = true;
+        const { automatedSkipped: _skip, ...rest } = agg;
+        dbCounts = dbCounts ? addCounts(dbCounts, rest) : rest;
+        continue;
+      }
+      const one = countSqliteHistory(db, cutoffMs);
+      if (one) dbCounts = dbCounts ? addCounts(dbCounts, one) : one;
+    }
+
+    if (dbCounts) {
+      counts = dbCounts;
+      const skipNote = automatedSkipped
+        ? `, ${automatedSkipped} automated session${automatedSkipped === 1 ? "" : "s"} excluded`
+        : "";
+      source = fromAggregate
+        ? `session db, turns estimated from message totals${skipNote}`
+        : `${dbs.length} profile db${dbs.length === 1 ? "" : "s"}`;
+    }
+
+    // JSONL transcripts, where a build writes them alongside the database.
+    const files = addCounts(
+      countTranscriptTree(join(home, "projects"), cutoffMs),
+      countTranscriptTree(join(home, "sessions"), cutoffMs),
+    );
+    if (files.userTurns || files.thinkingStates) {
+      counts = addCounts(counts, files);
+      source = dbCounts ? `${source} + transcripts` : "transcripts";
+    }
+
+    if (!dbCounts && dbs.length && !sqliteAvailable()) {
+      source = "database found but unreadable (install sqlite3 or use Node 22+)";
+    }
+  }
+
+  const billableSlots = Math.max(counts.userTurns, counts.thinkingStates);
   return {
     agent: "hermes",
     label: "Hermes CLI / gateway",
     detected,
-    sessions,
-    userTurns,
-    thinkingStates,
+    sessions: counts.sessions,
+    userTurns: counts.userTurns,
+    thinkingStates: counts.thinkingStates,
     billableSlots,
     detail: detected
-      ? `${sessions} sessions · ${userTurns} turns · ${thinkingStates} thinking states`
+      ? `${counts.sessions} sessions · ${counts.userTurns} turns · ${counts.thinkingStates} thinking states (${source})`
       : "not installed",
   };
 }
