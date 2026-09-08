@@ -4,6 +4,7 @@ import { applyCaps, missedUsdEstimate, DEFAULT_TOP_BID } from "./calc.js";
 import { scanHermes } from "./scanners/hermes.js";
 import { scanCodexFamily } from "./scanners/codex.js";
 import { scanOpenclaw } from "./scanners/openclaw.js";
+import { scanClaudeCode } from "./scanners/claude-code.js";
 import {
   DEFAULT_SCAN_DAYS,
   SCAN_VERSION,
@@ -15,6 +16,7 @@ export function scanPrelaunchAgents(days = DEFAULT_SCAN_DAYS): AgentScanResult[]
   const detected = detectAgents();
   const agents: AgentScanResult[] = [];
 
+  agents.push(scanClaudeCode(days));
   if (detected.hermes || detected.hermesWebui) {
     agents.push(scanHermes(days, detected.paths.hermesHome));
   }
