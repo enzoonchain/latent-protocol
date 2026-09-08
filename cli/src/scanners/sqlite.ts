@@ -18,6 +18,9 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+// This package compiles to ESM, where `require` does not exist. createRequire
+// is the supported way to reach a built-in that has no ESM named export yet.
+import { createRequire } from "node:module";
 import type { TranscriptCounts } from "./transcripts.js";
 import { emptyCounts } from "./transcripts.js";
 
@@ -31,8 +34,6 @@ let cachedRunner: Runner | undefined;
 function nodeSqliteRunner(dbPath: string): Runner {
   try {
     // Node 22 ships node:sqlite; older runtimes throw here and we fall back.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { createRequire } = require("node:module") as typeof import("node:module");
     const req = createRequire(import.meta.url);
     const sqlite = req("node:sqlite") as { DatabaseSync: new (p: string, o?: unknown) => unknown };
     const db = new sqlite.DatabaseSync(dbPath, { readOnly: true }) as {
@@ -80,7 +81,6 @@ export function sqliteAvailable(): boolean {
   const hasCli = probe.status === 0 && Boolean((probe.stdout || "").trim());
   let hasNode = false;
   try {
-    const { createRequire } = require("node:module") as typeof import("node:module");
     createRequire(import.meta.url)("node:sqlite");
     hasNode = true;
   } catch {
@@ -174,4 +174,100 @@ export function countSqliteHistory(dbPath: string, cutoffMs: number): Transcript
   }
 
   return total;
+}
+
+/**
+ * Sources that are machine-generated rather than a person at a keyboard.
+ *
+ * Hermes tags each session with a `source` — `telegram` and `webui` are real
+ * conversations, `cron` is a scheduled job that posts one message to itself.
+ * A cron run is not an ad slot: nobody is waiting on it and nobody would see
+ * the sponsor line, so counting those sessions would inflate the estimate
+ * with impressions that could never be served.
+ */
+const AUTOMATED_SOURCES = new Set(["cron", "schedule", "scheduled", "system", "internal"]);
+
+const SESSION_TABLE = /^sessions?$/i;
+const MESSAGE_COUNT_COLUMNS = ["message_count", "messages", "num_messages", "msg_count"];
+const TOOL_COUNT_COLUMNS = ["tool_call_count", "tool_calls", "num_tool_calls"];
+const SOURCE_COLUMNS = ["source", "kind", "channel", "origin"];
+const START_COLUMNS = ["started_at", "created_at", "start_time", "began_at"];
+
+/**
+ * Count history from a session table that stores per-session aggregates.
+ *
+ * Hermes' `sessions` table holds one row per conversation with
+ * `message_count` and `tool_call_count` rather than one row per message, so
+ * the role-based path below finds nothing in it. Returns null when the
+ * database has no such table, letting the caller try the per-message path.
+ */
+export function countSqliteSessionAggregate(
+  dbPath: string,
+  cutoffMs: number,
+): (TranscriptCounts & { automatedSkipped: number }) | null {
+  const run = openDatabase(dbPath);
+  if (!run) return null;
+
+  const tables = run(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+  )
+    .map((r) => String(r.name ?? ""))
+    .filter((n) => SESSION_TABLE.test(n));
+  if (!tables.length) return null;
+
+  const out = { ...emptyCounts(), automatedSkipped: 0 };
+  let matched = false;
+
+  for (const table of tables) {
+    const columns = run(`PRAGMA table_info(${quote(table)})`).map((r) =>
+      String(r.name ?? "").toLowerCase(),
+    );
+    const msgCol = MESSAGE_COUNT_COLUMNS.find((c) => columns.includes(c));
+    if (!msgCol) continue;
+    const toolCol = TOOL_COUNT_COLUMNS.find((c) => columns.includes(c));
+    const srcCol = SOURCE_COLUMNS.find((c) => columns.includes(c));
+    const startCol = START_COLUMNS.find((c) => columns.includes(c));
+
+    // started_at is unix seconds in Hermes; tolerate millis and ISO text too.
+    const cutoffSec = Math.floor(cutoffMs / 1000);
+    const cutoffIso = new Date(cutoffMs).toISOString();
+    const where = startCol
+      ? `WHERE (CAST(${quote(startCol)} AS INTEGER) >= ${cutoffSec}
+                OR CAST(${quote(startCol)} AS INTEGER) >= ${cutoffMs}
+                OR ${quote(startCol)} >= '${cutoffIso}')`
+      : "";
+
+    const select = [
+      srcCol ? `LOWER(${quote(srcCol)}) AS source` : `'' AS source`,
+      "COUNT(*) AS sessions",
+      `SUM(${quote(msgCol)}) AS messages`,
+      toolCol ? `SUM(${quote(toolCol)}) AS tools` : "0 AS tools",
+    ].join(", ");
+
+    const rows = run(`SELECT ${select} FROM ${quote(table)} ${where} GROUP BY 1`);
+    if (!rows.length) continue;
+    matched = true;
+
+    for (const row of rows) {
+      const source = String(row.source ?? "");
+      const sessions = Number(row.sessions ?? 0);
+      const messages = Number(row.messages ?? 0);
+      const tools = Number(row.tools ?? 0);
+      if (!Number.isFinite(sessions) || sessions <= 0) continue;
+
+      if (AUTOMATED_SOURCES.has(source)) {
+        out.automatedSkipped += sessions;
+        continue;
+      }
+
+      out.sessions += sessions;
+      // message_count covers both sides of the conversation; a user turn is
+      // one of the two, so halve it. This is an estimate and is labelled as
+      // one wherever it is shown.
+      out.userTurns += Math.floor(messages / 2);
+      out.thinkingStates += Number.isFinite(tools) ? tools : 0;
+    }
+  }
+
+  return matched ? out : null;
 }
