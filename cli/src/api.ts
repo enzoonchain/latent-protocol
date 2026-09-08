@@ -1,4 +1,5 @@
 import { resolveServer, resolveWallet } from "./config.js";
+import { recordServerResult, shouldServe } from "./killswitch.js";
 
 export interface Ad {
   ad_id: string;
@@ -20,6 +21,8 @@ export async function requestAd(opts: {
   sessionId?: string;
 }): Promise<Ad | null> {
   const server = (opts.server || resolveServer()).replace(/\/+$/, "");
+  // Remote killswitch / local incident backoff — serve nothing, hit nothing.
+  if (!shouldServe().ok) return null;
   try {
     const res = await fetch(`${server}/ad/request`, {
       method: "POST",
@@ -36,9 +39,13 @@ export async function requestAd(opts: {
       }),
       signal: AbortSignal.timeout(2000),
     });
+    // A 5xx / network error feeds the circuit breaker; a clean "no fill"
+    // (2xx/204/4xx) does not — the server is healthy, it just has no ad.
+    recordServerResult(res.status < 500);
     if (!res.ok) return null;
     return (await res.json()) as Ad;
   } catch {
+    recordServerResult(false);
     return null;
   }
 }
@@ -51,8 +58,10 @@ export async function logImpression(
   displayedMs?: number,
 ): Promise<void> {
   const base = (server || resolveServer()).replace(/\/+$/, "");
+  // If we're killed / in backoff we never showed an ad, so there's nothing to bill.
+  if (!shouldServe().ok) return;
   try {
-    await fetch(`${base}/ad/impression`, {
+    const res = await fetch(`${base}/ad/impression`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -64,8 +73,9 @@ export async function logImpression(
       }),
       signal: AbortSignal.timeout(2000),
     });
+    recordServerResult(res.status < 500);
   } catch {
-    // best effort
+    recordServerResult(false);
   }
 }
 

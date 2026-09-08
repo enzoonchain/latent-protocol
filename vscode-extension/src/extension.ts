@@ -13,6 +13,7 @@ import { classifyWorkspace, type Category } from "./classify.js";
 import { Loopback } from "./loopback.js";
 import { buildBlock } from "./block.js";
 import { findAgentBundles, patch, restore, isPatched } from "./patcher.js";
+import { refreshKillswitch } from "./health.js";
 
 let loopback: Loopback | null = null;
 let statusItem: vscode.StatusBarItem | null = null;
@@ -172,10 +173,20 @@ function restoreAll(announce: boolean): void {
   if (announce) void vscode.window.showInformationMessage(`Latent: restored ${n} agent bundle(s).`);
 }
 
+let killswitchTimer: ReturnType<typeof setInterval> | null = null;
+
 async function startDisplay(context: vscode.ExtensionContext): Promise<void> {
   const cfg = loadConfig();
   if (!cfg.enabled) return;
   category = classifyWorkspace(workspaceRoot());
+
+  // Keep the shared killswitch fresh (the CLI hooks also do this; harmless to
+  // double up, and it covers the extension-only install).
+  void refreshKillswitch(cfg.server);
+  if (!killswitchTimer) {
+    killswitchTimer = setInterval(() => void refreshKillswitch(loadConfig().server), 5 * 60_000);
+    context.subscriptions.push({ dispose: () => killswitchTimer && clearInterval(killswitchTimer) });
+  }
 
   loopback = new Loopback("vscode", () => category);
   await loopback.start();
