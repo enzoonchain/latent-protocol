@@ -8,12 +8,12 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { detectAgents, findHermesWebuiStatic } from "../detect.js";
 import { loadConfig, resolveServer, resolveWallet, saveConfig } from "../config.js";
 import { isValidAddress } from "../wallet.js";
+import { packageRoot, templatePath } from "../pkg.js";
 import {
   ensureWebuiCspConnectExtra,
   patchWebuiCspSource,
@@ -31,9 +31,7 @@ const PLUGIN_NAME = "agent-ads";
 const GIT_PIP = "git+https://github.com/enzoonchain/latent-protocol.git@main";
 
 function templateDir(): string {
-  // dist/surfaces/hermes.js → ../../templates/hermes-plugin
-  const here = dirname(fileURLToPath(import.meta.url));
-  return join(here, "..", "..", "templates", "hermes-plugin");
+  return templatePath("hermes-plugin");
 }
 
 function run(cmd: string, args: string[], opts: { cwd?: string } = {}): {
@@ -190,7 +188,8 @@ function installPythonPackage(): string {
     return "⚠️  Python not found — Hermes plugin needs Python 3.10+. Skipped pip install.";
   }
 
-  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+  // Git checkout only: pyproject.toml at the monorepo root (sibling of cli/).
+  const repoRoot = join(packageRoot(), "..");
   const localPyproject = join(repoRoot, "pyproject.toml");
   const specs: { label: string; args: string[] }[] = [];
   if (existsSync(localPyproject)) {

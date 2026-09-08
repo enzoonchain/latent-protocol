@@ -13,7 +13,9 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const dist = (p) => fileURLToPath(new URL(`../dist/${p}`, import.meta.url));
@@ -53,13 +55,37 @@ test("the bundled CLI runs", () => {
 });
 
 test("the bundled CLI generates a wallet (viem is inlined)", () => {
-  const home = execFileSync(process.execPath, ["-e", "console.log(require('node:os').tmpdir())"], {
-    encoding: "utf8",
-  }).trim();
+  const home = mkdtempSync(join(tmpdir(), "latent-bundle-"));
   const out = execFileSync(
     process.execPath,
     [dist("index.js"), "prelaunch", "--generate", "--skip-register", "--yes"],
     { encoding: "utf8", env: { ...process.env, HOME: home } },
   );
   assert.match(out, /0x[0-9a-fA-F]{40}/, "no wallet address in prelaunch output");
+});
+
+test("the bundled CLI's `init` stages the runtime — asset paths survive bundling", () => {
+  // Regression: `new URL("../claude/…", import.meta.url)` resolved from
+  // dist/surfaces/x.js but pointed one level too high once x.js was inlined
+  // into dist/index.js, so a real `npx …/init` reported "runtime bundle
+  // missing" and patched nothing.
+  const home = mkdtempSync(join(tmpdir(), "latent-init-"));
+  mkdirSync(join(home, ".claude"), { recursive: true });
+  mkdirSync(join(home, ".codex"), { recursive: true });
+
+  const out = execFileSync(
+    process.execPath,
+    [dist("index.js"), "init", "--yes", "--generate"],
+    { encoding: "utf8", env: { ...process.env, HOME: home } },
+  );
+  assert.doesNotMatch(out, /runtime bundle missing/, out);
+
+  for (const f of ["statusline.mjs", "hook.mjs", "codex-hook.mjs"]) {
+    assert.ok(existsSync(join(home, ".latent-protocol", "bin", f)), `${f} not staged`);
+  }
+  const settings = readFileSync(join(home, ".claude", "settings.json"), "utf8");
+  assert.ok(!/\bnpx\b/.test(settings), "npx in settings.json");
+  assert.match(settings, /hook\.mjs\\" turn-start --agent claude-code/);
+  const codex = readFileSync(join(home, ".codex", "hooks.json"), "utf8");
+  assert.ok(!/\bnpx\b/.test(codex), "npx in codex hooks.json");
 });

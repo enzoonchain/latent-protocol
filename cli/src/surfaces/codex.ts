@@ -22,9 +22,9 @@
 import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { binDir } from "../config.js";
+import { distPath } from "../pkg.js";
 import {
   ensureBackup,
   hasBackup,
@@ -44,7 +44,7 @@ const EVENTS: Record<string, string> = {
 /** The shared turn-hook bundle (handles every agent via `--agent`). Lives
  *  under dist/claude/ because the Claude surface bundles it; it is not
  *  Claude-specific. */
-const HOOK_BUNDLE = fileURLToPath(new URL("../claude/hook.mjs", import.meta.url));
+const HOOK_BUNDLE = distPath("claude", "hook.mjs");
 const STAGED_HOOK_NAME = "codex-hook.mjs";
 
 export interface CodexAgentDef {
