@@ -4,21 +4,24 @@
  *
  * The CLI's turn hooks own writes to this file; the extension reads it and,
  * when it is the only surface installed (no CLI hooks running), refreshes the
- * remote killswitch itself. Fail-safe: unreachable ⇒ not killed, but a cached
- * kill is honoured for a bounded window.
+ * remote killswitch itself. Fail-SAFE: an explicit kill OR a check that can't
+ * reach the server both pause every surface. Only a clean `killed:false` or a
+ * 404 (endpoint not deployed) resumes. Mirrors cli/src/killswitch.ts.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
 const KILL_TTL_MS = 5 * 60_000;
 const KILL_STALE_GRACE_MS = 60 * 60_000;
+const KILL_SOFT_GRACE_MS = 10 * 60_000;
 const GUARD_TRIP_AFTER = 5;
 const GUARD_COOLDOWN_MS = 10 * 60_000;
 
 interface HealthState {
   killCheckedAt?: number;
   killed?: boolean;
+  killKind?: "explicit" | "unreachable";
   killReason?: string;
   consecutiveFailures?: number;
   guardOpenUntil?: number;
@@ -51,12 +54,10 @@ export interface ServeDecision {
 }
 
 export function shouldServe(now = Date.now(), state: HealthState = load()): ServeDecision {
-  if (
-    state.killed &&
-    state.killCheckedAt !== undefined &&
-    now - state.killCheckedAt < KILL_TTL_MS + KILL_STALE_GRACE_MS
-  ) {
-    return { ok: false, reason: "killswitch" };
+  if (state.killed && state.killCheckedAt !== undefined) {
+    const grace =
+      KILL_TTL_MS + (state.killKind === "unreachable" ? KILL_SOFT_GRACE_MS : KILL_STALE_GRACE_MS);
+    if (now - state.killCheckedAt < grace) return { ok: false, reason: "killswitch" };
   }
   if (state.guardOpenUntil !== undefined && now < state.guardOpenUntil) {
     return { ok: false, reason: "incident-backoff" };
@@ -67,19 +68,30 @@ export function shouldServe(now = Date.now(), state: HealthState = load()): Serv
 export async function refreshKillswitch(server: string, now = Date.now()): Promise<void> {
   const s = load();
   if (s.killCheckedAt !== undefined && now - s.killCheckedAt < KILL_TTL_MS) return;
+  const failSafe = (reason: string): void =>
+    save({ ...s, killCheckedAt: now, killed: true, killKind: "unreachable", killReason: reason });
   try {
     const res = await fetch(`${server.replace(/\/+$/, "")}/killswitch`, {
       signal: AbortSignal.timeout(2000),
     });
     if (res.status === 404) {
-      save({ ...s, killCheckedAt: now, killed: false, killReason: undefined });
+      save({ ...s, killCheckedAt: now, killed: false, killKind: undefined, killReason: undefined });
       return;
     }
-    if (!res.ok) return;
+    if (!res.ok) {
+      failSafe(`server ${res.status}`);
+      return;
+    }
     const j = (await res.json()) as { killed?: boolean; reason?: string };
-    save({ ...s, killCheckedAt: now, killed: Boolean(j.killed), killReason: j.reason });
+    save({
+      ...s,
+      killCheckedAt: now,
+      killed: Boolean(j.killed),
+      killKind: j.killed ? "explicit" : undefined,
+      killReason: j.reason,
+    });
   } catch {
-    /* keep prior cached state */
+    failSafe("server-unreachable");
   }
 }
 
