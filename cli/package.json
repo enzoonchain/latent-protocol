@@ -8,26 +8,27 @@
     "latent-protocol": "./dist/index.js"
   },
   "files": [
-    "dist",
+    "dist/index.js",
+    "dist/claude",
     "templates"
   ],
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsc && node scripts/bundle-claude-runtime.mjs",
+    "build": "tsc && node scripts/bundle.mjs",
     "prepare": "npm run build",
+    "prepublishOnly": "npm run build",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "jsonc-parser": "^3.3.1",
-    "viem": "^2.21.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^22.10.0",
     "esbuild": "^0.24.2",
-    "typescript": "^5.7.0"
+    "jsonc-parser": "^3.3.1",
+    "typescript": "^5.7.0",
+    "viem": "^2.21.0"
   },
   "repository": {
     "type": "git",

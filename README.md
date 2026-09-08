@@ -30,6 +30,13 @@ npx github:enzoonchain/latent-protocol init
 resolves to an unrelated package — install straight from GitHub until it is
 published, then this shortens to `npx latent-protocol init`.
 
+Publishing is wired up: the `cli/` package builds to a single dependency-free
+`dist/index.js` (esbuild, `dependencies: {}`), and
+[`.github/workflows/publish.yml`](.github/workflows/publish.yml) pushes it to
+npm with provenance on a `cli-v*` GitHub Release (needs the `NPM_TOKEN` repo
+secret). Until then `init` still installs from GitHub; only the runtime
+surfaces (status line, turn hooks) already run as local `node` bundles.
+
 Detects the agents you have installed, sets up a wallet, and patches every
 surface it finds. Reverse it any time:
 

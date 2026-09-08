@@ -1,0 +1,78 @@
+name: Publish CLI to npm
+
+# Publishes `cli/` (package `latent-protocol`) to the npm registry.
+#
+# Trigger: a GitHub Release whose tag is `cli-v<semver>` (e.g. cli-v0.1.4), or a
+# manual run. The tag version must match cli/package.json's version or the job
+# fails before publishing.
+#
+# Requires repo secret NPM_TOKEN — an npm automation token with publish rights
+# on `latent-protocol`. Provenance is attested via OIDC (id-token: write).
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and pack only; do not publish"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write # npm provenance
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'cli-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install
+        run: npm ci --prefix cli
+
+      - name: Verify tag matches package version
+        if: github.event_name == 'release'
+        run: |
+          PKG=$(node -p "require('./cli/package.json').version")
+          TAG="${GITHUB_REF_NAME#cli-v}"
+          if [ "$PKG" != "$TAG" ]; then
+            echo "::error::release tag cli-v$TAG != cli/package.json version $PKG"
+            exit 1
+          fi
+
+      - name: Build + typecheck + test
+        run: |
+          npm run typecheck --prefix cli
+          npm run build --prefix cli
+          node --test cli/tests/*.test.mjs
+
+      - name: Pack and inspect
+        run: |
+          cd cli
+          npm pack --dry-run
+          # The published bundle must be self-contained — no bare imports left.
+          node -e '
+            const s = require("node:fs").readFileSync("dist/index.js", "utf8");
+            const bad = [...s.matchAll(/from ?"([^".][^"]*)"/g)].map(m => m[1])
+              .filter(x => !x.startsWith("node:"));
+            if (bad.length) { console.error("unbundled imports:", bad); process.exit(1); }
+            console.log("dist/index.js is self-contained");
+          '
+
+      - name: Publish (dry run)
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+        run: npm publish --dry-run --provenance --access public --prefix cli
+
+      - name: Publish
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run)
+        run: npm publish --provenance --access public --prefix cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
