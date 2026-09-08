@@ -19,7 +19,11 @@ import {
   emptyCounts,
   type TranscriptCounts,
 } from "./transcripts.js";
-import { countSqliteHistory, sqliteAvailable } from "./sqlite.js";
+import {
+  countSqliteHistory,
+  countSqliteSessionAggregate,
+  sqliteAvailable,
+} from "./sqlite.js";
 
 /** Every .db/.sqlite file under ~/.hermes/profiles/<name>/, plus legacy roots. */
 function databaseFiles(home: string): string[] {
@@ -64,13 +68,33 @@ export function scanHermes(days: number, hermesHome?: string): AgentScanResult {
   if (detected) {
     const dbs = databaseFiles(home);
     let dbCounts: TranscriptCounts | null = null;
+    let automatedSkipped = 0;
+    let fromAggregate = false;
+
     for (const db of dbs) {
+      // Hermes' own store keeps one row per session with message and
+      // tool-call totals, so try that shape first; the per-message path below
+      // covers builds that keep a message log instead.
+      const agg = countSqliteSessionAggregate(db, cutoffMs);
+      if (agg) {
+        automatedSkipped += agg.automatedSkipped;
+        fromAggregate = true;
+        const { automatedSkipped: _skip, ...rest } = agg;
+        dbCounts = dbCounts ? addCounts(dbCounts, rest) : rest;
+        continue;
+      }
       const one = countSqliteHistory(db, cutoffMs);
       if (one) dbCounts = dbCounts ? addCounts(dbCounts, one) : one;
     }
+
     if (dbCounts) {
       counts = dbCounts;
-      source = `${dbs.length} profile db${dbs.length === 1 ? "" : "s"}`;
+      const skipNote = automatedSkipped
+        ? `, ${automatedSkipped} automated session${automatedSkipped === 1 ? "" : "s"} excluded`
+        : "";
+      source = fromAggregate
+        ? `session db, turns estimated from message totals${skipNote}`
+        : `${dbs.length} profile db${dbs.length === 1 ? "" : "s"}`;
     }
 
     // JSONL transcripts, where a build writes them alongside the database.
