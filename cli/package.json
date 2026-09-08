@@ -15,8 +15,8 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsc",
-    "prepare": "tsc",
+    "build": "tsc && node scripts/bundle-claude-runtime.mjs",
+    "prepare": "npm run build",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit"
   },
@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "esbuild": "^0.24.2",
     "typescript": "^5.7.0"
   },
   "repository": {
