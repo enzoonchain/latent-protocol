@@ -4,6 +4,17 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 export const DEFAULT_SERVER = "https://api.latentprotocol.xyz";
 
+/** Retired Railway hostnames — auto-migrated to DEFAULT_SERVER on init/resolve. */
+export const DEPRECATED_SERVERS = new Set([
+  "https://agent-kickbacks-production.up.railway.app",
+  "https://ad-server-production-bffc.up.railway.app",
+]);
+
+export function canonicalizeServer(url: string): string {
+  const normalized = url.replace(/\/+$/, "");
+  return DEPRECATED_SERVERS.has(normalized) ? DEFAULT_SERVER : normalized;
+}
+
 /**
  * Canonical host-agent identifier for Claude Code.
  *
@@ -66,7 +77,8 @@ export function saveConfig(data: Partial<LatentConfig>): LatentConfig {
 }
 
 export function resolveServer(cfg: LatentConfig = loadConfig()): string {
-  return (cfg.server || process.env.ADS_SERVER || DEFAULT_SERVER).replace(/\/+$/, "");
+  const raw = cfg.server || process.env.ADS_SERVER || DEFAULT_SERVER;
+  return canonicalizeServer(raw);
 }
 
 export function resolveWallet(cfg: LatentConfig = loadConfig()): string {
