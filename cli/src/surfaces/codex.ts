@@ -1,24 +1,18 @@
 /**
  * Codex / MiMo surface — lifecycle turn hooks in the agent's hooks.json.
  *
- * This is the CLI-hooks injection point for TUI coding agents that have no
- * status-line command hook: we register command hooks on the turn lifecycle
- * events, each invoking `latent hook <event> --agent <id>`. The hook
- * classifies locally, fetches one ad by category slug, and (for Codex/MiMo)
- * surfaces the sponsor line via the hook's context channel.
+ * For Codex: we register command hooks on the turn lifecycle events, each
+ * invoking `latent hook <event> --agent codex`.
  *
- * Event names are the OFFICIAL Codex CLI hook events (learn.chatgpt.com/docs/
- * hooks): a turn starts with `UserPromptSubmit` and ends with `Stop`. There is
- * no `TurnStart` / `TurnEnd` in the CLI hooks.json schema — those names come
- * from the Codex app-server / IDE JSON-RPC protocol, which the VS Code / Cursor
- * extension surface covers instead (see vscode-extension/, CodeBacks-style
- * spinner patch). Writing them here would silently never fire.
+ * For MiMo: we install a native MiMoCode plugin to ~/.mimocode/plugins/latent-protocol/
+ * that uses the `experimental.text.complete` hook to inject sponsored content.
+ * MiMoCode does NOT use the Codex hooks.json system — it has its own plugin SDK.
  *
  * hooks.json is plain JSON (no comments), so our entries are tagged by their
  * command string (HOOK_CMD_TAG) and removed exactly on uninstall — the user's
  * own hooks are never touched.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, cpSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -141,17 +135,43 @@ export function codexStatus(a: CodexAgentDef): string {
 export function installCodexFamily(): string {
   const present = CODEX_AGENTS.filter(codexDetected);
   if (!present.length) return "ℹ️  No Codex / MiMo install detected — skipped.";
-  return present.map(installCodexAgent).join("\n");
+
+  const results = present.map(installCodexAgent);
+
+  // MiMo also gets a native plugin (not just hooks.json)
+  const mimo = present.find((a) => a.id === "mimo");
+  if (mimo) {
+    results.push(installMimoPlugin());
+  }
+
+  return results.join("\n");
 }
 
 export function uninstallCodexFamily(): string {
   const present = CODEX_AGENTS.filter(codexDetected);
   if (!present.length) return "ℹ️  No Codex / MiMo install detected; nothing to remove.";
-  return present.map(uninstallCodexAgent).join("\n");
+
+  const results = present.map(uninstallCodexAgent);
+
+  // Also remove the MiMoCode plugin
+  const mimo = present.find((a) => a.id === "mimo");
+  if (mimo) {
+    results.push(uninstallMimoPlugin());
+  }
+
+  return results.join("\n");
 }
 
 export function codexFamilyStatus(): string[] {
-  return CODEX_AGENTS.filter(codexDetected).map(codexStatus);
+  const results = CODEX_AGENTS.filter(codexDetected).map(codexStatus);
+
+  // Include MiMoCode plugin status
+  const mimoDetected = CODEX_AGENTS.some((a) => a.id === "mimo" && codexDetected(a));
+  if (mimoDetected) {
+    results.push(mimoPluginStatus());
+  }
+
+  return results;
 }
 
 export function codexFamilyDetectionRows(): [string, string, string][] {
@@ -160,4 +180,45 @@ export function codexFamilyDetectionRows(): [string, string, string][] {
     codexDetected(a) ? (a.binaries.some(which) ? "detected+bin" : "detected") : "not found",
     agentHome(a),
   ]);
+}
+
+// ─── MiMoCode plugin installation ────────────────────────────────────────────
+
+const MIMO_PLUGIN_DIR_NAME = "latent-protocol";
+
+function mimoPluginDir(): string {
+  return join(homedir(), ".mimocode", "plugins", MIMO_PLUGIN_DIR_NAME);
+}
+
+function templateDir(): string {
+  // The template lives next to this source file in the CLI package
+  return join(dirname(new URL(import.meta.url).pathname), "..", "..", "templates", "mimo-plugin");
+}
+
+export function installMimoPlugin(): string {
+  const dest = mimoPluginDir();
+  const src = templateDir();
+
+  if (!existsSync(src)) {
+    return "ℹ️  MiMo plugin template not found — skipped.";
+  }
+
+  mkdirSync(dest, { recursive: true });
+  cpSync(src, dest, { recursive: true });
+  return `✅ MiMoCode plugin → ${dest}\n   (experimental.text.complete hook injects sponsored footers)`;
+}
+
+export function uninstallMimoPlugin(): string {
+  const dest = mimoPluginDir();
+  if (!existsSync(dest)) return "ℹ️  MiMoCode plugin not installed — nothing to remove.";
+
+  rmSync(dest, { recursive: true, force: true });
+  return `✅ MiMoCode plugin removed from ${dest}`;
+}
+
+export function mimoPluginStatus(): string {
+  const dest = mimoPluginDir();
+  if (!existsSync(dest)) return "MiMoCode plugin: not installed";
+  const indexExists = existsSync(join(dest, "index.ts"));
+  return `MiMoCode plugin: ${indexExists ? "installed" : "incomplete"} (${dest})`;
 }
