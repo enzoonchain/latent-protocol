@@ -6,6 +6,8 @@ import { detectAgents } from "../detect.js";
 const STATUSLINE_COMMANDS = new Set([
   "npx --yes latent-protocol statusline",
   "npx -y latent-protocol statusline",
+  "npx --yes github:enzoonchain/latent-protocol statusline",
+  "npx -y github:enzoonchain/latent-protocol statusline",
   "npx --yes latent statusline",
   "npx -y latent statusline",
   "latent-protocol statusline",
@@ -39,7 +41,7 @@ function hookEntry(event: string): unknown {
     hooks: [
       {
         type: "command",
-        command: `npx --yes latent-protocol hook ${event} --agent ${AGENT_CLAUDE_CODE}`,
+        command: `npx --yes github:enzoonchain/latent-protocol hook ${event} --agent ${AGENT_CLAUDE_CODE}`,
         timeout: 10,
       },
     ],
@@ -91,7 +93,7 @@ export function installClaudeCode(refreshInterval = DEFAULT_REFRESH): string {
 
   settings.statusLine = {
     type: "command",
-    command: "npx --yes latent-protocol statusline",
+    command: "npx --yes github:enzoonchain/latent-protocol statusline",
     refreshInterval,
   };
   installHooks(settings);
@@ -99,7 +101,7 @@ export function installClaudeCode(refreshInterval = DEFAULT_REFRESH): string {
   writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
   return (
     `✅ Claude Code statusLine + turn hooks → ${settingsPath}\n` +
-    `   statusLine: npx --yes latent-protocol statusline (refresh ${refreshInterval}s)\n` +
+    `   statusLine: npx --yes github:enzoonchain/latent-protocol statusline (refresh ${refreshInterval}s)\n` +
     "   hooks: SessionStart/UserPromptSubmit/Stop/SessionEnd → latent hook … --agent claude-code\n" +
     "   Restart Claude Code to apply."
   );

@@ -67,7 +67,7 @@ export function codexDetected(a: CodexAgentDef): boolean {
 }
 
 function hookCommand(agentId: string, event: string): string {
-  return `npx --yes latent-protocol hook ${event} --agent ${agentId}`;
+  return `npx --yes github:enzoonchain/latent-protocol hook ${event} --agent ${agentId}`;
 }
 
 function hookEntry(agentId: string, event: string): unknown {
