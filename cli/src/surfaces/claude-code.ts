@@ -1,14 +1,20 @@
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AGENT_CLAUDE_CODE, binDir } from "../config.js";
+import { AGENT_CLAUDE_CODE, binDir, saveConfig } from "../config.js";
 import { detectAgents } from "../detect.js";
+import {
+  describeParseErrors,
+  ensureBackup,
+  hasBackup,
+  readSettings,
+  restoreFromBackup,
+  setPath,
+} from "./claude-settings.js";
+import {
+  SPINNER_TAGLINE,
+  isOurSpinnerVerbs,
+} from "./claude-spinner.js";
 
 /**
  * Legacy statusLine commands we still recognise so a re-install or `uninstall`
@@ -30,7 +36,7 @@ const LEGACY_STATUSLINE_COMMANDS = new Set([
 // 10s to match the CodeBacks rotation cadence (adcache ROTATE_MS / vsix default).
 const DEFAULT_REFRESH = 10;
 
-/** Claude Code lifecycle event → our turn-hook event name. */
+/** Claude Code lifecycle events we hook → our turn-hook event name. */
 const HOOK_EVENTS: Record<string, string> = {
   SessionStart: "session-start",
   UserPromptSubmit: "turn-start",
@@ -41,12 +47,13 @@ const HOOK_EVENTS: Record<string, string> = {
 /** Bundled runtime scripts shipped in the package (built by scripts/bundle-claude-runtime.mjs). */
 const RUNTIME_DIR = fileURLToPath(new URL("../claude/", import.meta.url));
 const RUNTIME_FILES = { statusline: "statusline.mjs", hook: "hook.mjs" } as const;
+type RuntimeName = keyof typeof RUNTIME_FILES;
 
-function bundledRuntime(name: keyof typeof RUNTIME_FILES): string {
+function bundledRuntime(name: RuntimeName): string {
   return join(RUNTIME_DIR, RUNTIME_FILES[name]);
 }
 
-function installedRuntime(name: keyof typeof RUNTIME_FILES): string {
+function installedRuntime(name: RuntimeName): string {
   return join(binDir(), RUNTIME_FILES[name]);
 }
 
@@ -84,55 +91,26 @@ function isOurHookCommand(cmd: string): boolean {
   );
 }
 
-function loadSettings(path: string): Record<string, unknown> {
-  try {
-    return JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
+interface HookGroup {
+  hooks?: { command?: string }[];
 }
 
-function hookEntry(event: string): unknown {
-  return {
-    hooks: [{ type: "command", command: hookCommand(event), timeout: 10 }],
-  };
+function hookGroup(event: string): HookGroup {
+  return { hooks: [{ type: "command", command: hookCommand(event), timeout: 10 }] as never };
 }
 
+/** Drop any hook-group entries that are ours (current or legacy). */
 function stripOurHooks(arr: unknown[]): unknown[] {
   return arr.filter((entry) => {
-    const hooks = (entry as { hooks?: unknown[] })?.hooks;
+    const hooks = (entry as HookGroup)?.hooks;
     if (!Array.isArray(hooks)) return true;
-    return !hooks.some((h) =>
-      isOurHookCommand(String((h as { command?: string })?.command ?? "")),
-    );
+    return !hooks.some((h) => isOurHookCommand(String(h?.command ?? "")));
   });
 }
 
-/** Merge our four turn hooks into settings.hooks (idempotent). */
-function installHooks(settings: Record<string, unknown>): void {
-  const hooks = (settings.hooks as Record<string, unknown[]>) ?? {};
-  for (const [event, ourEvent] of Object.entries(HOOK_EVENTS)) {
-    const existing = Array.isArray(hooks[event]) ? (hooks[event] as unknown[]) : [];
-    hooks[event] = [...stripOurHooks(existing), hookEntry(ourEvent)];
-  }
-  settings.hooks = hooks;
-}
-
-/** Remove our turn hooks; returns true if anything changed. */
-function uninstallHooks(settings: Record<string, unknown>): boolean {
-  const hooks = settings.hooks as Record<string, unknown[]> | undefined;
-  if (!hooks) return false;
-  let changed = false;
-  for (const event of Object.keys(HOOK_EVENTS)) {
-    if (!Array.isArray(hooks[event])) continue;
-    const cleaned = stripOurHooks(hooks[event] as unknown[]);
-    if (cleaned.length !== (hooks[event] as unknown[]).length) changed = true;
-    if (cleaned.length) hooks[event] = cleaned;
-    else delete hooks[event];
-  }
-  if (Object.keys(hooks).length === 0) delete settings.hooks;
-  else settings.hooks = hooks;
-  return changed;
+function statuslineOf(data: Record<string, unknown> | null): { command?: string } | null {
+  const sl = data?.statusLine;
+  return sl && typeof sl === "object" ? (sl as { command?: string }) : null;
 }
 
 /**
@@ -144,17 +122,46 @@ function stageRuntime(): string | null {
   if (!hasBundledRuntime()) return null;
   const dir = binDir();
   mkdirSync(dir, { recursive: true });
-  for (const name of Object.keys(RUNTIME_FILES) as (keyof typeof RUNTIME_FILES)[]) {
+  for (const name of Object.keys(RUNTIME_FILES) as RuntimeName[]) {
     copyFileSync(bundledRuntime(name), installedRuntime(name));
   }
   return dir;
 }
 
-export function installClaudeCode(refreshInterval = DEFAULT_REFRESH): string {
+function cleanRuntimeDir(): void {
+  for (const name of Object.keys(RUNTIME_FILES) as RuntimeName[]) {
+    const p = installedRuntime(name);
+    if (existsSync(p)) {
+      try {
+        rmSync(p);
+      } catch {
+        /* best effort */
+      }
+    }
+  }
+}
+
+export interface InstallOptions {
+  refreshInterval?: number;
+  /** Write the settings.json `spinnerVerbs` surface too. Default true
+   *  (fail-open); pass false when a pre-2.1.143 `claude` CLI is detected. */
+  spinnerVerbs?: boolean;
+}
+
+export function installClaudeCode(opts: InstallOptions = {}): string {
+  const refreshInterval = opts.refreshInterval ?? DEFAULT_REFRESH;
+  const spinnerVerbs = opts.spinnerVerbs ?? true;
   const { paths } = detectAgents();
   const settingsPath = paths.claudeSettings;
-  mkdirSync(dirname(settingsPath), { recursive: true });
-  const settings = loadSettings(settingsPath);
+
+  const before = readSettings(settingsPath);
+  if (before.unparseable) {
+    return (
+      `⚠️  Claude Code: ${settingsPath} is not valid JSON — left untouched.\n` +
+      `   ${describeParseErrors(before.raw ?? "")}\n` +
+      "   Fix the syntax error there, then re-run init."
+    );
+  }
 
   const staged = stageRuntime();
   if (!staged) {
@@ -164,18 +171,51 @@ export function installClaudeCode(refreshInterval = DEFAULT_REFRESH): string {
     );
   }
 
-  settings.statusLine = {
+  mkdirSync(dirname(settingsPath), { recursive: true });
+  ensureBackup(settingsPath, before.raw);
+
+  let raw = before.raw ?? "{}\n";
+  raw = setPath(raw, ["statusLine"], {
     type: "command",
     command: statuslineCommand(),
     refreshInterval,
-  };
-  installHooks(settings);
+    padding: 0,
+  });
 
-  writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+  const existingHooks = (before.data?.hooks as Record<string, unknown[]>) ?? {};
+  for (const [event, ourEvent] of Object.entries(HOOK_EVENTS)) {
+    const existing = Array.isArray(existingHooks[event]) ? existingHooks[event] : [];
+    raw = setPath(raw, ["hooks", event], [...stripOurHooks(existing), hookGroup(ourEvent)]);
+  }
+
+  // spinnerVerbs: seed it (or evict a stale one of ours) — but never touch a
+  // `spinnerVerbs` the user set themselves. The turn-start hook keeps it in
+  // sync with the live ad from here on (gated on config.spinner_verbs).
+  const userOwnsSpinner =
+    before.data != null &&
+    "spinnerVerbs" in before.data &&
+    !isOurSpinnerVerbs(before.data.spinnerVerbs);
+  let spinnerLine = "not touched (user-set)";
+  if (!userOwnsSpinner) {
+    if (spinnerVerbs) {
+      raw = setPath(raw, ["spinnerVerbs"], { mode: "replace", verbs: [SPINNER_TAGLINE] });
+      spinnerLine = "seeded (hook keeps it in sync with the live ad)";
+    } else if (before.data != null && "spinnerVerbs" in before.data) {
+      raw = setPath(raw, ["spinnerVerbs"], undefined);
+      spinnerLine = "removed (CLI < 2.1.143)";
+    } else {
+      spinnerLine = "skipped (CLI < 2.1.143)";
+    }
+  }
+  saveConfig({ spinner_verbs: userOwnsSpinner ? false : spinnerVerbs });
+
+  writeFileSync(settingsPath, raw, "utf8");
   return (
     `✅ Claude Code statusLine + turn hooks → ${settingsPath}\n` +
     `   runtime: ${staged}/ (statusline.mjs, hook.mjs)\n` +
-    `   statusLine: ${statuslineCommand()} (refresh ${refreshInterval}s)\n` +
+    `   backup:  ${settingsPath}.latent-protocol.bak\n` +
+    `   statusLine:   ${statuslineCommand()} (refresh ${refreshInterval}s)\n` +
+    `   spinnerVerbs: ${spinnerLine}\n` +
     "   hooks: SessionStart/UserPromptSubmit/Stop/SessionEnd → node hook.mjs … --agent claude-code\n" +
     "   Restart Claude Code to apply."
   );
@@ -184,39 +224,70 @@ export function installClaudeCode(refreshInterval = DEFAULT_REFRESH): string {
 export function uninstallClaudeCode(): string {
   const { paths } = detectAgents();
   const settingsPath = paths.claudeSettings;
+
+  // Prefer a byte-exact revert from the pristine backup init wrote.
+  if (hasBackup(settingsPath)) {
+    const r = restoreFromBackup(settingsPath);
+    if (r.restored) {
+      cleanRuntimeDir();
+      return `✅ Restored ${settingsPath} from the pristine backup; removed staged runtime.`;
+    }
+  }
+
   if (!existsSync(settingsPath)) {
     return "ℹ️  No Claude Code settings.json found; nothing to remove.";
   }
-  const settings = loadSettings(settingsPath);
-  const sl = settings.statusLine;
+  const { raw, data, unparseable } = readSettings(settingsPath);
+  if (unparseable || raw === null) {
+    return `⚠️  ${settingsPath} is not valid JSON — left untouched. Remove our statusLine/hooks by hand.`;
+  }
+
+  let next = raw;
   let changed = false;
-  if (
-    sl &&
-    typeof sl === "object" &&
-    isOurStatuslineCommand(String((sl as { command?: string }).command ?? ""))
-  ) {
-    delete settings.statusLine;
+
+  const sl = statuslineOf(data);
+  if (sl && isOurStatuslineCommand(String(sl.command ?? ""))) {
+    next = setPath(next, ["statusLine"], undefined);
     changed = true;
   }
-  if (uninstallHooks(settings)) changed = true;
-  if (changed) {
-    writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
-    return `✅ Removed Latent statusLine + turn hooks from ${settingsPath}`;
+
+  if (data != null && "spinnerVerbs" in data && isOurSpinnerVerbs(data.spinnerVerbs)) {
+    next = setPath(next, ["spinnerVerbs"], undefined);
+    changed = true;
   }
-  return "ℹ️  No Latent Protocol statusLine/hooks found; nothing to remove.";
+
+  const hooks = (data?.hooks as Record<string, unknown[]>) ?? {};
+  let remainingHookEvents = Object.keys(hooks).length;
+  for (const event of Object.keys(HOOK_EVENTS)) {
+    if (!Array.isArray(hooks[event])) continue;
+    const cleaned = stripOurHooks(hooks[event]);
+    if (cleaned.length === hooks[event].length) continue;
+    changed = true;
+    if (cleaned.length) {
+      next = setPath(next, ["hooks", event], cleaned);
+    } else {
+      next = setPath(next, ["hooks", event], undefined);
+      remainingHookEvents -= 1;
+    }
+  }
+  if (remainingHookEvents === 0 && "hooks" in (data ?? {})) {
+    next = setPath(next, ["hooks"], undefined);
+  }
+
+  if (!changed) return "ℹ️  No Latent Protocol statusLine/hooks found; nothing to remove.";
+  writeFileSync(settingsPath, next, "utf8");
+  cleanRuntimeDir();
+  return `✅ Removed Latent statusLine + turn hooks from ${settingsPath}`;
 }
 
 export function claudeCodeStatus(): string {
   const { paths, claudeCode } = detectAgents();
   if (!claudeCode) return "Claude Code: not detected";
-  const settings = loadSettings(paths.claudeSettings);
-  const sl = settings.statusLine;
-  if (
-    sl &&
-    typeof sl === "object" &&
-    isOurStatuslineCommand(String((sl as { command?: string }).command ?? ""))
-  ) {
-    return `Claude Code: patched (${(sl as { command: string }).command})`;
+  const { data, unparseable } = readSettings(paths.claudeSettings);
+  if (unparseable) return "Claude Code: detected, settings.json not parseable";
+  const sl = statuslineOf(data);
+  if (sl && isOurStatuslineCommand(String(sl.command ?? ""))) {
+    return `Claude Code: patched (${sl.command})`;
   }
   return "Claude Code: detected, not patched";
 }

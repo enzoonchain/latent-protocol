@@ -112,8 +112,9 @@ async function freshHome(port) {
   return { home, mod };
 }
 
+const { readSettings } = await import("../dist/surfaces/claude-settings.js");
 const settingsOf = (home) =>
-  JSON.parse(readFileSync(join(home, ".claude", "settings.json"), "utf8"));
+  readSettings(join(home, ".claude", "settings.json")).data;
 const settingsRaw = (home) =>
   readFileSync(join(home, ".claude", "settings.json"), "utf8");
 
@@ -146,6 +147,41 @@ test("install writes node invocations, never npx", async () => {
         `${event} hook command`,
       );
     }
+  } finally {
+    server.close();
+  }
+});
+
+test("install refuses to overwrite an unparseable settings.json", async () => {
+  const { server, port } = await startAdServer();
+  try {
+    const { home, mod } = await freshHome(port);
+    const broken = '{\n  "model": "opus"\n  "theme": BROKEN\n';
+    const p = join(home, ".claude", "settings.json");
+    writeFileSync(p, broken);
+
+    const msg = mod.installClaudeCode();
+    assert.match(msg, /not valid JSON/);
+    assert.equal(readFileSync(p, "utf8"), broken, "clobbered a broken settings.json");
+    assert.ok(!existsSync(p + ".latent-protocol.bak"), "backed up a file we refused to touch");
+  } finally {
+    server.close();
+  }
+});
+
+test("install preserves comments and sibling keys in settings.json", async () => {
+  const { server, port } = await startAdServer();
+  try {
+    const { home, mod } = await freshHome(port);
+    const src = '{\n  // my model choice\n  "model": "opus",\n  "env": { "FOO": "bar" }\n}\n';
+    writeFileSync(join(home, ".claude", "settings.json"), src);
+    mod.installClaudeCode();
+    const raw = settingsRaw(home);
+    assert.ok(raw.includes("// my model choice"), "comment dropped");
+    assert.ok(raw.includes('"FOO": "bar"'), "sibling key mangled");
+    const s = settingsOf(home);
+    assert.equal(s.model, "opus");
+    assert.ok(s.statusLine && s.hooks, "patch not applied");
   } finally {
     server.close();
   }
@@ -199,15 +235,42 @@ test("install is idempotent and migrates legacy npx commands", async () => {
   }
 });
 
-test("uninstall removes our statusLine + hooks (old and new forms)", async () => {
+test("uninstall reverts to the pristine pre-install settings byte-exact", async () => {
   const { server, port } = await startAdServer();
   try {
     const { home, mod } = await freshHome(port);
+    const pristine = '{\n  // my settings\n  "model": "opus",\n  "theme": "dark"\n}\n';
+    writeFileSync(join(home, ".claude", "settings.json"), pristine);
+
     mod.installClaudeCode();
+    const patched = settingsRaw(home);
+    assert.ok(patched.includes("statusline.mjs"), "install did not patch");
+    assert.ok(existsSync(join(home, ".claude", "settings.json.latent-protocol.bak")), "no backup written");
+
     mod.uninstallClaudeCode();
-    const s = settingsOf(home);
-    assert.ok(!s.statusLine, "statusLine survived uninstall");
-    assert.ok(!s.hooks || Object.keys(s.hooks).length === 0, "hooks survived uninstall");
+    assert.equal(settingsRaw(home), pristine, "uninstall did not restore byte-exact");
+    assert.ok(
+      !existsSync(join(home, ".claude", "settings.json.latent-protocol.bak")),
+      "backup not consumed",
+    );
+  } finally {
+    server.close();
+  }
+});
+
+test("uninstall deletes settings.json when install created it", async () => {
+  const { server, port } = await startAdServer();
+  try {
+    const { home, mod } = await freshHome(port);
+    // freshHome does not create settings.json.
+    assert.ok(!existsSync(join(home, ".claude", "settings.json")));
+    mod.installClaudeCode();
+    assert.ok(existsSync(join(home, ".claude", "settings.json")));
+    mod.uninstallClaudeCode();
+    assert.ok(
+      !existsSync(join(home, ".claude", "settings.json")),
+      "settings.json survived uninstall though install created it",
+    );
   } finally {
     server.close();
   }
@@ -242,6 +305,82 @@ test("staged bundles fetch an ad and bill exactly one impression", async () => {
       1,
       `one displayed ad must bill once, got ${impressions.length}`,
     );
+  } finally {
+    server.close();
+  }
+});
+
+const configOf = (home) =>
+  JSON.parse(readFileSync(join(home, ".latent-protocol", "config.json"), "utf8"));
+
+test("install seeds spinnerVerbs + records support; false removes/skips it", async () => {
+  const { server, port } = await startAdServer();
+  try {
+    const { home, mod } = await freshHome(port);
+    mod.installClaudeCode({ spinnerVerbs: true });
+    let s = settingsOf(home);
+    assert.equal(s.spinnerVerbs.mode, "replace");
+    assert.match(s.spinnerVerbs.verbs[0], /^✦ /);
+    assert.equal(configOf(home).spinner_verbs, true);
+
+    // Re-run with support=false: our seeded entry is evicted, config flips.
+    mod.installClaudeCode({ spinnerVerbs: false });
+    s = settingsOf(home);
+    assert.equal("spinnerVerbs" in s, false, "stale spinnerVerbs not evicted");
+    assert.equal(configOf(home).spinner_verbs, false);
+  } finally {
+    server.close();
+  }
+});
+
+test("install never overwrites a user-set spinnerVerbs", async () => {
+  const { server, port } = await startAdServer();
+  try {
+    const { home, mod } = await freshHome(port);
+    writeFileSync(
+      join(home, ".claude", "settings.json"),
+      '{\n  "spinnerVerbs": { "mode": "append", "verbs": ["Mine"] }\n}\n',
+    );
+    mod.installClaudeCode({ spinnerVerbs: true });
+    const s = settingsOf(home);
+    assert.deepEqual(s.spinnerVerbs.verbs, ["Mine"]);
+    assert.equal(configOf(home).spinner_verbs, false, "must not drive the hook onto a user value");
+  } finally {
+    server.close();
+  }
+});
+
+test("turn-start hook syncs spinnerVerbs with the live ad when enabled", async () => {
+  const { server, port } = await startAdServer();
+  try {
+    const { home, mod } = await freshHome(port);
+    mod.installClaudeCode({ spinnerVerbs: true });
+    const settingsPath = join(home, ".claude", "settings.json");
+    const binHook = join(home, ".latent-protocol", "bin", "hook.mjs");
+
+    await runNode(binHook, ["turn-start", "--agent", "claude-code"],
+      JSON.stringify({ session_id: "s1", prompt: "build a react ui" }));
+
+    const s = readSettings(settingsPath).data;
+    assert.match(s.spinnerVerbs.verbs[0], /sponsored body/i);
+    // statusLine + hooks still intact, still no npx.
+    assert.ok(!/\bnpx\b/.test(readFileSync(settingsPath, "utf8")));
+    assert.ok(s.statusLine && s.hooks.Stop);
+  } finally {
+    server.close();
+  }
+});
+
+test("hook leaves spinnerVerbs alone when config.spinner_verbs is not true", async () => {
+  const { server, port } = await startAdServer();
+  try {
+    const { home, mod } = await freshHome(port);
+    mod.installClaudeCode({ spinnerVerbs: false });
+    const binHook = join(home, ".latent-protocol", "bin", "hook.mjs");
+    await runNode(binHook, ["turn-start", "--agent", "claude-code"],
+      JSON.stringify({ session_id: "s1", prompt: "build a react ui" }));
+    const s = settingsOf(home);
+    assert.equal("spinnerVerbs" in s, false, "hook wrote spinnerVerbs though support=false");
   } finally {
     server.close();
   }
