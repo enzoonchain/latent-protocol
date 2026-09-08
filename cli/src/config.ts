@@ -68,6 +68,11 @@ export interface LatentConfig {
   hermes_webui_static?: string;
   /** prelaunch = wallet + scan only; live = ads enabled. */
   mode?: "prelaunch" | "live";
+  /** Claude Code only: the turn-start hook keeps settings.json `spinnerVerbs`
+   *  in sync with the current ad. Set true by `init` when `claude --version`
+   *  confirms support (CC >= 2.1.143); false when a pre-2.1.143 CLI is
+   *  positively detected. Undefined ⇒ never resolved ⇒ hook leaves it alone. */
+  spinner_verbs?: boolean;
   /** ISO timestamp when POST /prelaunch/register succeeded. */
   prelaunch_registered_at?: string;
 }

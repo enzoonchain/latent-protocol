@@ -20,6 +20,7 @@ import {
   installClaudeCode,
   uninstallClaudeCode,
 } from "./surfaces/claude-code.js";
+import { detectSpinnerVerbsSupport } from "./surfaces/claude-cli-version.js";
 import { hermesStatus, installHermes, uninstallHermes } from "./surfaces/hermes.js";
 import {
   installOpenclaw,
@@ -63,6 +64,7 @@ Surfaces auto-installed when detected:
   • Hermes CLI / gateway (Telegram, Discord, …) — agent-ads plugin
   • Hermes WebUI — DOM patch (static/index.html)
   • Claude Code — statusLine + turn hooks (staged to ~/.latent-protocol/bin, run via node)
+                  + spinnerVerbs thinking-shimmer line on CC >= 2.1.143
   • OpenClaw — thinking + footer plugin
   • Codex / MiMo — turn hooks (hooks.json)
   • Cursor / VS Code — extension (see vscode-extension/)
@@ -143,7 +145,8 @@ async function cmdInit(args: string[]): Promise<void> {
 
   // Only install surfaces that are actually present (or --yes for Claude/Hermes legacy).
   if (detected.claudeCode) {
-    console.log(installClaudeCode());
+    const spinnerVerbs = await detectSpinnerVerbsSupport();
+    console.log(installClaudeCode({ spinnerVerbs }));
     console.log();
   }
   if (detected.hermes || detected.hermesWebui) {
@@ -182,6 +185,9 @@ async function cmdStatus(): Promise<void> {
     console.log(`  Prelaunch registered: ${cfg.prelaunch_registered_at}`);
   }
   console.log(`  Frequency: ${cfg.frequency ?? 1}`);
+  if (cfg.spinner_verbs !== undefined) {
+    console.log(`  spinnerVerbs: ${cfg.spinner_verbs ? "on" : "off"}`);
+  }
   if (wallet) {
     const bal = await getBalance(wallet, server);
     console.log(`  Balance: $${bal.toFixed(4)} USDC`);
@@ -209,7 +215,7 @@ async function cmdUninstall(): Promise<void> {
 async function cmdStatusline(args: string[]): Promise<void> {
   const sub = args[0];
   if (sub === "--install" || sub === "install") {
-    console.log(installClaudeCode());
+    console.log(installClaudeCode({ spinnerVerbs: await detectSpinnerVerbsSupport() }));
     return;
   }
   if (sub === "--uninstall" || sub === "uninstall") {

@@ -309,3 +309,79 @@ test("staged bundles fetch an ad and bill exactly one impression", async () => {
     server.close();
   }
 });
+
+const configOf = (home) =>
+  JSON.parse(readFileSync(join(home, ".latent-protocol", "config.json"), "utf8"));
+
+test("install seeds spinnerVerbs + records support; false removes/skips it", async () => {
+  const { server, port } = await startAdServer();
+  try {
+    const { home, mod } = await freshHome(port);
+    mod.installClaudeCode({ spinnerVerbs: true });
+    let s = settingsOf(home);
+    assert.equal(s.spinnerVerbs.mode, "replace");
+    assert.match(s.spinnerVerbs.verbs[0], /^✦ /);
+    assert.equal(configOf(home).spinner_verbs, true);
+
+    // Re-run with support=false: our seeded entry is evicted, config flips.
+    mod.installClaudeCode({ spinnerVerbs: false });
+    s = settingsOf(home);
+    assert.equal("spinnerVerbs" in s, false, "stale spinnerVerbs not evicted");
+    assert.equal(configOf(home).spinner_verbs, false);
+  } finally {
+    server.close();
+  }
+});
+
+test("install never overwrites a user-set spinnerVerbs", async () => {
+  const { server, port } = await startAdServer();
+  try {
+    const { home, mod } = await freshHome(port);
+    writeFileSync(
+      join(home, ".claude", "settings.json"),
+      '{\n  "spinnerVerbs": { "mode": "append", "verbs": ["Mine"] }\n}\n',
+    );
+    mod.installClaudeCode({ spinnerVerbs: true });
+    const s = settingsOf(home);
+    assert.deepEqual(s.spinnerVerbs.verbs, ["Mine"]);
+    assert.equal(configOf(home).spinner_verbs, false, "must not drive the hook onto a user value");
+  } finally {
+    server.close();
+  }
+});
+
+test("turn-start hook syncs spinnerVerbs with the live ad when enabled", async () => {
+  const { server, port } = await startAdServer();
+  try {
+    const { home, mod } = await freshHome(port);
+    mod.installClaudeCode({ spinnerVerbs: true });
+    const settingsPath = join(home, ".claude", "settings.json");
+    const binHook = join(home, ".latent-protocol", "bin", "hook.mjs");
+
+    await runNode(binHook, ["turn-start", "--agent", "claude-code"],
+      JSON.stringify({ session_id: "s1", prompt: "build a react ui" }));
+
+    const s = readSettings(settingsPath).data;
+    assert.match(s.spinnerVerbs.verbs[0], /sponsored body/i);
+    // statusLine + hooks still intact, still no npx.
+    assert.ok(!/\bnpx\b/.test(readFileSync(settingsPath, "utf8")));
+    assert.ok(s.statusLine && s.hooks.Stop);
+  } finally {
+    server.close();
+  }
+});
+
+test("hook leaves spinnerVerbs alone when config.spinner_verbs is not true", async () => {
+  const { server, port } = await startAdServer();
+  try {
+    const { home, mod } = await freshHome(port);
+    mod.installClaudeCode({ spinnerVerbs: false });
+    const binHook = join(home, ".latent-protocol", "bin", "hook.mjs");
+    await runNode(binHook, ["turn-start", "--agent", "claude-code"],
+      JSON.stringify({ session_id: "s1", prompt: "build a react ui" }));
+    const s = settingsOf(home);
+    assert.equal("spinnerVerbs" in s, false, "hook wrote spinnerVerbs though support=false");
+  } finally {
+    server.close();
+  }
+});

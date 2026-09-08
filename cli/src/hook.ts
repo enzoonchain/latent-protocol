@@ -13,6 +13,7 @@ import { cacheFile, configDir, isEnabled, loadConfig, resolveServer, resolveWall
 import { logImpression, requestAd, type Ad } from "./api.js";
 import { classifyPrompt } from "./classify.js";
 import { loadState, saveState, MAX_DISPLAY_MS, type HookState } from "./adcache.js";
+import { spinnerVerb, writeSpinnerVerb } from "./surfaces/claude-spinner.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 
 export type HookEvent = "session-start" | "turn-start" | "turn-end" | "session-end";
@@ -180,7 +181,16 @@ export async function runHook(
         // Claude Code shows the ad via its statusLine (kept out of the model
         // context). Codex/MiMo have no status line, so we surface the sponsor
         // line through the hook's context channel.
-        if (agent === "claude-code") return "";
+        if (agent === "claude-code") {
+          // Second surface: keep settings.json `spinnerVerbs` in sync with the
+          // live ad so the thinking-shimmer verb shows it next session. Only
+          // when `init` positively confirmed CLI support; the write is a
+          // comment-safe minimal edit and never touches a user-set value.
+          if (cfg.spinner_verbs === true) {
+            writeSpinnerVerb(spinnerVerb(ad.body || ad.title || "Sponsored"));
+          }
+          return "";
+        }
         return JSON.stringify({ additionalContext: sponsorLine(ad) });
       }
 

@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AGENT_CLAUDE_CODE, binDir } from "../config.js";
+import { AGENT_CLAUDE_CODE, binDir, saveConfig } from "../config.js";
 import { detectAgents } from "../detect.js";
 import {
   describeParseErrors,
@@ -11,6 +11,10 @@ import {
   restoreFromBackup,
   setPath,
 } from "./claude-settings.js";
+import {
+  SPINNER_TAGLINE,
+  isOurSpinnerVerbs,
+} from "./claude-spinner.js";
 
 /**
  * Legacy statusLine commands we still recognise so a re-install or `uninstall`
@@ -137,7 +141,16 @@ function cleanRuntimeDir(): void {
   }
 }
 
-export function installClaudeCode(refreshInterval = DEFAULT_REFRESH): string {
+export interface InstallOptions {
+  refreshInterval?: number;
+  /** Write the settings.json `spinnerVerbs` surface too. Default true
+   *  (fail-open); pass false when a pre-2.1.143 `claude` CLI is detected. */
+  spinnerVerbs?: boolean;
+}
+
+export function installClaudeCode(opts: InstallOptions = {}): string {
+  const refreshInterval = opts.refreshInterval ?? DEFAULT_REFRESH;
+  const spinnerVerbs = opts.spinnerVerbs ?? true;
   const { paths } = detectAgents();
   const settingsPath = paths.claudeSettings;
 
@@ -175,12 +188,34 @@ export function installClaudeCode(refreshInterval = DEFAULT_REFRESH): string {
     raw = setPath(raw, ["hooks", event], [...stripOurHooks(existing), hookGroup(ourEvent)]);
   }
 
+  // spinnerVerbs: seed it (or evict a stale one of ours) — but never touch a
+  // `spinnerVerbs` the user set themselves. The turn-start hook keeps it in
+  // sync with the live ad from here on (gated on config.spinner_verbs).
+  const userOwnsSpinner =
+    before.data != null &&
+    "spinnerVerbs" in before.data &&
+    !isOurSpinnerVerbs(before.data.spinnerVerbs);
+  let spinnerLine = "not touched (user-set)";
+  if (!userOwnsSpinner) {
+    if (spinnerVerbs) {
+      raw = setPath(raw, ["spinnerVerbs"], { mode: "replace", verbs: [SPINNER_TAGLINE] });
+      spinnerLine = "seeded (hook keeps it in sync with the live ad)";
+    } else if (before.data != null && "spinnerVerbs" in before.data) {
+      raw = setPath(raw, ["spinnerVerbs"], undefined);
+      spinnerLine = "removed (CLI < 2.1.143)";
+    } else {
+      spinnerLine = "skipped (CLI < 2.1.143)";
+    }
+  }
+  saveConfig({ spinner_verbs: userOwnsSpinner ? false : spinnerVerbs });
+
   writeFileSync(settingsPath, raw, "utf8");
   return (
     `✅ Claude Code statusLine + turn hooks → ${settingsPath}\n` +
     `   runtime: ${staged}/ (statusline.mjs, hook.mjs)\n` +
     `   backup:  ${settingsPath}.latent-protocol.bak\n` +
-    `   statusLine: ${statuslineCommand()} (refresh ${refreshInterval}s)\n` +
+    `   statusLine:   ${statuslineCommand()} (refresh ${refreshInterval}s)\n` +
+    `   spinnerVerbs: ${spinnerLine}\n` +
     "   hooks: SessionStart/UserPromptSubmit/Stop/SessionEnd → node hook.mjs … --agent claude-code\n" +
     "   Restart Claude Code to apply."
   );
@@ -213,6 +248,11 @@ export function uninstallClaudeCode(): string {
   const sl = statuslineOf(data);
   if (sl && isOurStatuslineCommand(String(sl.command ?? ""))) {
     next = setPath(next, ["statusLine"], undefined);
+    changed = true;
+  }
+
+  if (data != null && "spinnerVerbs" in data && isOurSpinnerVerbs(data.spinnerVerbs)) {
+    next = setPath(next, ["spinnerVerbs"], undefined);
     changed = true;
   }
 
