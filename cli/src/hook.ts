@@ -13,6 +13,7 @@ import { cacheFile, configDir, isEnabled, loadConfig, resolveServer, resolveWall
 import { logImpression, requestAd, type Ad } from "./api.js";
 import { classifyPrompt } from "./classify.js";
 import { loadState, saveState, MAX_DISPLAY_MS, type HookState } from "./adcache.js";
+import { refreshKillswitch } from "./killswitch.js";
 import { spinnerVerb, writeSpinnerVerb } from "./surfaces/claude-spinner.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 
@@ -146,6 +147,9 @@ export async function runHook(
           displayStartedAt: 0,
           displayedMs: 0,
         });
+        // Refresh the remote killswitch here (session startup, not a turn) and
+        // at turn-end below — never at turn-start, where latency is visible.
+        await refreshKillswitch(server);
         return "";
       }
 
@@ -197,6 +201,9 @@ export async function runHook(
       case "turn-end": {
         await flushImpression(state, agent, server, wallet);
         saveState(state);
+        // Post-turn (not user-visible latency) — keep the killswitch fresh for
+        // long sessions that never restart.
+        void refreshKillswitch(server);
         return "";
       }
 

@@ -75,13 +75,15 @@
     }
   },
   "scripts": {
-    "build": "tsc -p ./",
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc -p ./ --noEmit",
-    "vscode:prepublish": "npm run build"
+    "vscode:prepublish": "npm run typecheck && npm run build"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "@types/vscode": "^1.85.0",
+    "esbuild": "^0.24.2",
     "typescript": "^5.7.0"
   }
 }

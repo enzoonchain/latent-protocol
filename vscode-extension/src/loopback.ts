@@ -14,6 +14,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "./config.js";
+import { recordServerResult, shouldServe } from "./health.js";
 
 export interface LoopbackIdentity {
   port: number;
@@ -104,7 +105,7 @@ export class Loopback {
       }
       const route = url.pathname.slice(`/cb/${this.token}/`.length);
       const cfg = loadConfig();
-      if (!cfg.enabled || !cfg.wallet) {
+      if (!cfg.enabled || !cfg.wallet || !shouldServe().ok) {
         send(res, 200, { ad: null });
         return;
       }
@@ -124,6 +125,7 @@ export class Loopback {
           }),
           signal: AbortSignal.timeout(3000),
         });
+        recordServerResult(r.status < 500);
         if (!r.ok) return send(res, 200, { ad: null });
         const ad = (await r.json()) as Record<string, unknown>;
         return send(res, 200, {
@@ -160,6 +162,7 @@ export class Loopback {
 
       send(res, 404, { error: "not found" });
     } catch {
+      recordServerResult(false);
       send(res, 200, { ad: null });
     }
   }
