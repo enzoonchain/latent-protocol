@@ -35,12 +35,14 @@ export function buildBlock(baseUrl: string, rotateSeconds: number, category: str
       try { await fetch(CFG.base + '/impression', { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ adId: cur.adId, token: cur.token, displayedMs: ms }) }); } catch(e){}
     }
+    function clean(v){ return String(v == null ? '' : v).replace(/[\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069]/g,'').slice(0,200); }
     function paint(){
       var s = spinner(); if(!s || !cur) return;
       var label = s.querySelector('[data-latent-label]');
       if(!label){ label = document.createElement('span'); label.setAttribute('data-latent-label','1');
         label.style.opacity='0.85'; s.appendChild(label); }
-      label.textContent = '  💡 Sponsored: ' + cur.text + (cur.url ? '  (' + cur.url + ')' : '');
+      var url = /^https:\\/\\//i.test(cur.url || '') ? clean(cur.url) : '';
+      label.textContent = '  💡 Sponsored: ' + clean(cur.text) + (url ? '  (' + url + ')' : '');
     }
     async function tick(){
       if(busy()){

@@ -14,6 +14,8 @@ import { Loopback } from "./loopback.js";
 import { buildBlock } from "./block.js";
 import { findAgentBundles, patch, restore, isPatched } from "./patcher.js";
 import { refreshKillswitch } from "./health.js";
+import { isSafeHttpUrl, sanitizeText } from "./urlsafe.js";
+import { cardHtml } from "./card.js";
 
 let loopback: Loopback | null = null;
 let statusItem: vscode.StatusBarItem | null = null;
@@ -58,7 +60,9 @@ async function reportImpression(ad: LoopAd, displayedMs: number): Promise<void> 
 
 class SponsorViewProvider implements vscode.WebviewViewProvider {
   resolveWebviewView(view: vscode.WebviewView): void {
-    view.webview.options = { enableScripts: true };
+    // The card renders no JS — keep scripts off and no local resource roots so
+    // advertiser content can't reach anything.
+    view.webview.options = { enableScripts: false, localResourceRoots: [] };
     let current: LoopAd | null = null;
     let shownAt = 0;
     const flush = () => {
@@ -70,7 +74,7 @@ class SponsorViewProvider implements vscode.WebviewViewProvider {
       if (!view.visible) return; // collapsed/hidden sidebar — don't fetch or bill
       const ad = await fetchAd();
       const cfg = loadConfig();
-      view.webview.html = cardHtml(ad, cfg.wallet);
+      view.webview.html = cardHtml(ad, cfg.wallet, view.webview.cspSource);
       current = ad;
       shownAt = Date.now();
     };
@@ -86,26 +90,6 @@ class SponsorViewProvider implements vscode.WebviewViewProvider {
   }
 }
 
-function cardHtml(ad: LoopAd | null, wallet: string): string {
-  const w = wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : "not set";
-  const body = ad
-    ? `<div class="ad"><div class="tag">💡 Sponsored</div><div class="txt">${escapeHtml(ad.text)}</div>${
-        ad.url ? `<a href="${escapeHtml(ad.url)}">Learn more →</a>` : ""
-      }</div>`
-    : `<div class="idle">No sponsor right now — you still earn while your agent thinks.</div>`;
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    body{font-family:var(--vscode-font-family);padding:10px;color:var(--vscode-foreground)}
-    .tag{font-size:11px;opacity:.7;text-transform:uppercase;letter-spacing:.05em}
-    .txt{margin:6px 0;font-size:13px}
-    a{color:var(--vscode-textLink-foreground)}
-    .wallet{margin-top:14px;font-size:11px;opacity:.6}
-    .idle{font-size:12px;opacity:.7}
-  </style></head><body>${body}<div class="wallet">Earnings wallet: ${w}</div></body></html>`;
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] || c));
-}
 
 async function startStatusRotation(): Promise<void> {
   if (!statusItem) return;
@@ -117,8 +101,10 @@ async function startStatusRotation(): Promise<void> {
     current = await fetchAd();
     if (current) {
       shownAt = Date.now();
-      statusItem!.text = `💡 ${current.text}`.slice(0, 60);
-      statusItem!.tooltip = current.url || "Latent Protocol — sponsored";
+      statusItem!.text = `💡 Sponsored: ${sanitizeText(current.text, 48)}`.slice(0, 60);
+      statusItem!.tooltip = isSafeHttpUrl(current.url)
+        ? current.url
+        : "Latent Protocol — sponsored";
       statusItem!.show();
     } else {
       statusItem!.text = "💡 Latent";

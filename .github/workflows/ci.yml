@@ -131,6 +131,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck --prefix vscode-extension
 
+      - name: Tests
+        run: npm test --prefix vscode-extension
+
       - name: Build (esbuild bundle)
         run: npm run build --prefix vscode-extension
 
