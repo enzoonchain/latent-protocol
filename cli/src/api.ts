@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { resolveServer, resolveWallet } from "./config.js";
 import { recordServerResult, shouldServe } from "./killswitch.js";
 
@@ -56,6 +57,7 @@ export async function logImpression(
   token: string,
   server?: string,
   displayedMs?: number,
+  eventId: string = randomUUID(),
 ): Promise<void> {
   const base = (server || resolveServer()).replace(/\/+$/, "");
   // If we're killed / in backoff we never showed an ad, so there's nothing to bill.
@@ -68,6 +70,9 @@ export async function logImpression(
         ad_id: adId,
         user_wallet: wallet,
         token: token || "",
+        // Idempotency key — the server can dedupe retries / cache-shared
+        // double-sends on it (ignored until it does).
+        event_uuid: eventId,
         // CodeBacks-style dwell reporting; server may ignore if unsupported.
         ...(typeof displayedMs === "number" ? { displayed_ms: Math.round(displayedMs) } : {}),
       }),

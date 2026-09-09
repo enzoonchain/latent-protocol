@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import {
   AGENT_CLAUDE_CODE,
   configDir,
@@ -8,7 +8,9 @@ import {
   resolveServer,
   resolveWallet,
 } from "./config.js";
+import { randomUUID } from "node:crypto";
 import { logImpression, requestAd, type Ad } from "./api.js";
+import { classifyPrompt } from "./classify.js";
 import { AD_LIMITS, sanitizeAdText } from "./sanitize.js";
 
 // 10s rotation = CodeBacks parity (ADS_STATUSLINE_ROTATE still overrides).
@@ -27,6 +29,9 @@ interface Cache {
    * whether we still owe an impression.
    */
   billed?: boolean;
+  /** Idempotency key for this ad's one impression — stable so a resend
+   *  (flag lost, cache shared between terminals) dedupes server-side. */
+  event_uuid?: string;
 }
 
 function isSafeUrl(url: string): boolean {
@@ -61,7 +66,11 @@ function loadCache(): Cache {
 function saveCache(data: Cache): void {
   try {
     mkdirSync(configDir(), { recursive: true });
-    writeFileSync(cacheFile(), JSON.stringify(data));
+    // Atomic swap — the cache is shared with the turn hook and (with several
+    // terminals) other status-line processes; never leave a half-written file.
+    const tmp = `${cacheFile()}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(data));
+    renameSync(tmp, cacheFile());
   } catch {
     // best-effort
   }
@@ -73,17 +82,17 @@ function rotateSeconds(): number {
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_ROTATE_SECONDS;
 }
 
+/**
+ * A coarse category slug for ad targeting — never the raw prompt. The Claude
+ * Code session payload carries the user's prompt; classify it locally (as the
+ * turn hook does) so only the slug leaves the machine.
+ */
 function contextFromSession(session: Record<string, unknown>): string {
   for (const key of ["prompt", "user_message", "context"]) {
     const val = session[key];
-    if (typeof val === "string" && val) return val;
+    if (typeof val === "string" && val.trim()) return classifyPrompt(val);
   }
-  const model = session.model;
-  if (model && typeof model === "object" && "display_name" in model) {
-    const name = (model as { display_name?: string }).display_name;
-    if (name) return `coding with ${name}`;
-  }
-  return "coding";
+  return "general";
 }
 
 export async function render(session: Record<string, unknown> = {}): Promise<string> {
@@ -112,13 +121,16 @@ export async function render(session: Record<string, unknown> = {}): Promise<str
     const line = formatStatusline(cache.ad);
     if (!line) return "";
     if (!cache.billed) {
+      const eventId = cache.event_uuid ?? randomUUID();
       await logImpression(
         cache.ad.ad_id || cache.ad.id || "",
         wallet,
         cache.ad.impression_token || "",
         server,
+        undefined,
+        eventId,
       );
-      saveCache({ ...cache, billed: true });
+      saveCache({ ...cache, billed: true, event_uuid: eventId });
     }
     return line;
   }
@@ -137,8 +149,9 @@ export async function render(session: Record<string, unknown> = {}): Promise<str
   const line = formatStatusline(ad);
   if (!line) return "";
   const adId = ad.ad_id || ad.id || "";
-  await logImpression(adId, wallet, ad.impression_token || "", server);
-  saveCache({ ad, fetched_at: now, session_id: sessionId, billed: true });
+  const eventId = randomUUID();
+  await logImpression(adId, wallet, ad.impression_token || "", server, undefined, eventId);
+  saveCache({ ad, fetched_at: now, session_id: sessionId, billed: true, event_uuid: eventId });
   return line;
 }
 
