@@ -9,6 +9,7 @@ import {
   resolveWallet,
 } from "./config.js";
 import { logImpression, requestAd, type Ad } from "./api.js";
+import { AD_LIMITS, sanitizeAdText } from "./sanitize.js";
 
 // 10s rotation = CodeBacks parity (ADS_STATUSLINE_ROTATE still overrides).
 const DEFAULT_ROTATE_SECONDS = 10;
@@ -39,8 +40,10 @@ function osc8Link(text: string, url: string): string {
 }
 
 export function formatStatusline(ad: Ad): string {
-  const body = ad.body || ad.title || "";
-  const ctaText = ad.cta_text || "Learn more";
+  // Advertiser-controlled — strip escape sequences / control chars before this
+  // reaches the terminal. isSafeUrl() already guards the OSC 8 link target.
+  const body = sanitizeAdText(ad.body || ad.title || "", AD_LIMITS.body);
+  const ctaText = sanitizeAdText(ad.cta_text || "Learn more", AD_LIMITS.cta_text) || "Learn more";
   const ctaUrl = ad.cta_url || "";
   const earn = ad.earn_amount ?? 0;
   const cta = osc8Link(`${ctaText} →`, ctaUrl);

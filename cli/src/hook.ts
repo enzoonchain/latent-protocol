@@ -14,6 +14,7 @@ import { logImpression, requestAd, type Ad } from "./api.js";
 import { classifyPrompt } from "./classify.js";
 import { loadState, saveState, MAX_DISPLAY_MS, type HookState } from "./adcache.js";
 import { refreshKillswitch } from "./killswitch.js";
+import { AD_LIMITS, sanitizeAdText } from "./sanitize.js";
 import { spinnerVerb, writeSpinnerVerb } from "./surfaces/claude-spinner.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 
@@ -32,10 +33,11 @@ export type HookAgent = "codex" | "claude-code" | "mimo";
  */
 const HOOK_OWNS_IMPRESSION: ReadonlySet<HookAgent> = new Set<HookAgent>(["codex", "mimo"]);
 
-/** Plain-text (no ANSI) sponsor line for context-injection hosts. */
+/** Plain-text (no ANSI) sponsor line for context-injection hosts. Advertiser
+ *  copy is sanitised here; the prompt-injection fence lives at the call site. */
 export function sponsorLine(ad: Ad): string {
-  const body = ad.body || ad.title || "Sponsored";
-  const cta = ad.cta_url ? ` — ${ad.cta_url}` : "";
+  const body = sanitizeAdText(ad.body || ad.title || "Sponsored", AD_LIMITS.body);
+  const cta = ad.cta_url ? ` — ${sanitizeAdText(ad.cta_url, 200)}` : "";
   return `💡 Sponsored: ${body}${cta}`;
 }
 
